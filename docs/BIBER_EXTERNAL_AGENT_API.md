@@ -241,6 +241,52 @@ For the real `beaverapi.com` domain, follow
 recommended MVP shape is `https://api.beaverapi.com/v1` using Cloudflare Tunnel
 to reach the Vast BIBER API on `127.0.0.1:8000` while keeping vLLM private.
 
+## Public Client Key Management
+
+For private smoke tests, the bootstrap `BIBER_API_KEYS` value may be used as the
+client `BIBER_API_KEY`. For external users or IDE agents, configure
+`BIBER_ADMIN_API_KEY` deliberately and issue per-user keys through
+`/v1/admin/api-keys`. Keep the admin key separate from user keys and never put
+real keys in git, docs, chat, logs, browser state, or generated artifacts.
+
+On Vast, use the guarded setup script when admin key management is needed:
+
+```bash
+cd /workspace/biber-ai-platform
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+export BIBER_PERSIST_ADMIN_API_KEY=1
+export BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED=1
+bash scripts/vast_configure_admin_api_key.sh
+unset BIBER_ADMIN_API_KEY
+```
+
+The script prints a redacted plan first, requires
+`BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED=1` before mutation, does not print the
+admin key, and restarts only FastAPI. It does not rotate or generate
+credentials by itself.
+
+After admin key support is configured, issue user keys with the admin API or the
+BIBER client:
+
+```bash
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+python scripts/biber_agent_client.py issue-api-key --user-id user-1 --label "IDE agent"
+unset BIBER_ADMIN_API_KEY
+```
+
+The returned user API key is displayed once. Store it in the client secret
+manager and configure the external client with:
+
+```text
+BIBER_OPENAI_BASE_URL=https://api.beaverapi.com/v1
+BIBER_MODEL=biber-dev-core-v1
+BIBER_API_KEY=<issued-user-api-key>
+```
+
 ## Planned Admin Portal
 
 The website admin portal is still planned, but the backend MVP now has admin

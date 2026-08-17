@@ -185,6 +185,64 @@ bash scripts/vast_configure_cloudflare_tunnel.sh
 
 ## Smoke Test
 
+### Public Client API Keys
+
+The current bootstrap `BIBER_API_KEYS` value can be used for private smoke
+testing, but do not give the bootstrap key to users or client apps. For real
+client access, deliberately configure an admin key once, then issue per-user
+keys through the admin API. Do not rotate credentials casually; add or revoke
+keys only when there is a concrete reason.
+
+First configure admin key support on Vast. Paste the admin key only into the
+terminal prompt:
+
+```bash
+cd /workspace/biber-ai-platform
+
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+export BIBER_PERSIST_ADMIN_API_KEY=1
+export BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED=1
+
+bash scripts/vast_configure_admin_api_key.sh
+
+unset BIBER_ADMIN_API_KEY
+```
+
+The guarded script writes `BIBER_API_KEY_STORE_PATH` to `.env`, writes
+`BIBER_ADMIN_API_KEY` only when `BIBER_PERSIST_ADMIN_API_KEY=1`, and restarts
+only FastAPI so vLLM/model runtime stays running. For a dry run that does not
+write `.env` or restart anything:
+
+```bash
+cd /workspace/biber-ai-platform
+export BIBER_ADMIN_API_KEY="<redacted>"
+bash scripts/vast_configure_admin_api_key.sh
+unset BIBER_ADMIN_API_KEY
+```
+
+Then issue a per-user API key. The plaintext user key is shown once; save it in
+a password manager or secret manager, not in chat, docs, git, logs, or shell
+history:
+
+```bash
+cd /workspace/biber-ai-platform
+
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+export BIBER_OPENAI_BASE_URL=https://api.beaverapi.com/v1
+
+python scripts/biber_agent_client.py issue-api-key \
+  --user-id user-1 \
+  --label "IDE agent"
+
+unset BIBER_ADMIN_API_KEY
+```
+
+Use the returned user key as `BIBER_API_KEY` in external clients.
+
 After DNS/tunnel propagation:
 
 ```bash
