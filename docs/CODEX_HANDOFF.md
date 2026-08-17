@@ -5,15 +5,21 @@ Last updated: 2026-08-17
 ## Current Goal
 
 2026-08-17 latest BIBER public-client API-key management checkpoint:
-In progress: add a guarded Vast workflow for configuring `BIBER_ADMIN_API_KEY`
-only when the user explicitly decides to enable per-user public client keys.
-The intended script is `scripts/vast_configure_admin_api_key.sh`: it must print
-a redacted plan, require `BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED=1` before any
-mutation, optionally persist the admin key only when
-`BIBER_PERSIST_ADMIN_API_KEY=1`, set `BIBER_API_KEY_STORE_PATH` for the hashed
-issued-key store, and restart only FastAPI so vLLM/model runtime stays running.
-Do not generate, rotate, print, commit, or paste admin/user/bootstrap keys.
-Keep OpenAI mentor disabled unless explicitly requested.
+Complete: commit `056dfa3` adds guarded Vast admin API-key setup through
+`scripts/vast_configure_admin_api_key.sh` plus public-client key-management docs
+in `docs/BIBER_PUBLIC_DOMAIN_SETUP.md` and `docs/BIBER_EXTERNAL_AGENT_API.md`.
+The script prints a redacted plan, requires
+`BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED=1` before mutation, optionally persists
+`BIBER_ADMIN_API_KEY` only when `BIBER_PERSIST_ADMIN_API_KEY=1`, writes
+`BIBER_API_KEY_STORE_PATH` for the hashed issued-key store, and restarts only
+FastAPI so vLLM/model runtime stays running. Validation passed locally with Git
+Bash `bash -n`, Python `py_compile` using the bundled runtime, `git diff
+--check`, and `scripts/biber_local_confidence_smoke.py` with `ok=True` and 11
+checks. Vast was fast-forwarded to `056dfa3` through a temporary git bundle;
+Vast passed `bash -n scripts/vast_configure_admin_api_key.sh` and a fake-key
+dry run without approval, which did not write `.env`, restart FastAPI, print a
+real key, call OpenAI mentor, or train/use paid APIs. Future sessions must not
+generate, rotate, print, commit, or paste admin/user/bootstrap keys.
 
 2026-08-17 latest BIBER public-domain authenticated smoke checkpoint:
 Complete: authenticated public OpenAI-compatible smoke through Cloudflare Tunnel
