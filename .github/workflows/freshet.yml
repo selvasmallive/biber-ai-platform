@@ -1,0 +1,125 @@
+name: Freshet
+
+# Freshet's own workflow, separate from the XRIQ one because it builds a
+# desktop app on two operating systems and has nothing to share with it.
+#
+# It does not deploy anything, touch cloud resources, manage secrets, or create
+# tags.
+
+on:
+  push:
+    branches: [main]
+    paths: ['freshet/**', '.github/workflows/freshet.yml']
+  pull_request:
+    paths: ['freshet/**', '.github/workflows/freshet.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything that does not need a webview runs here, on the cheapest runner,
+  # for every push and pull request.
+  tests:
+    name: Engine and licence service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            freshet
+            freshet/site
+
+      - name: Engine, tax data, licensing
+        working-directory: freshet
+        run: cargo test --workspace --locked
+
+      - name: Licence service
+        working-directory: freshet/site
+        run: cargo test --locked
+
+  # The desktop app, on both operating systems CRA certifies separately.
+  #
+  # Deliberately not run on pull requests. GitHub bills macOS minutes at ten
+  # times the Linux rate on a private repository, and this job builds a full
+  # installer twice. Running it on main and on demand catches a macOS break
+  # within one merge, which is soon enough, without paying for it on every
+  # push to a branch.
+  desktop:
+    name: Desktop (${{ matrix.os }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: freshet/desktop
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: freshet/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: freshet/desktop/src-tauri
+
+      # Guarantees `python` resolves on both runners: the macOS image ships
+      # python3 without necessarily aliasing it.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: npm ci
+      - name: Type-check and build the frontend
+        run: npm run build
+
+      - name: Test with the development licences compiled in
+        working-directory: freshet/desktop/src-tauri
+        run: cargo test --lib --features dev-licences --locked
+
+      # The same tests without the feature, which is the shape that ships. It
+      # is worth running both: a test that only passes with the development
+      # licences available would otherwise hide a release-only failure.
+      - name: Test the release configuration
+        working-directory: freshet/desktop/src-tauri
+        run: cargo test --lib --locked
+
+      # check-release.py refuses to certify an artifact clean unless it can
+      # first find the development seed in a debug build, so it needs one to
+      # exist. This is the cheap way to provide it: the binary alone, without
+      # bundling an installer around it.
+      - name: Build the positive control for the release check
+        working-directory: freshet/desktop/src-tauri
+        run: cargo build --features dev-licences --locked
+
+      - name: Build the installers
+        run: npm run tauri build
+
+      - name: Check the release is shippable
+        run: python scripts/check-release.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freshet-${{ matrix.os }}
+          path: |
+            freshet/desktop/src-tauri/target/release/bundle/**/*.msi
+            freshet/desktop/src-tauri/target/release/bundle/**/*-setup.exe
+            freshet/desktop/src-tauri/target/release/bundle/**/*.dmg
+          if-no-files-found: error
+          retention-days: 14

@@ -63,15 +63,49 @@ Fixing it needs purchases, which are yours to make:
 Tauri signs during `tauri build` when the certificate details are configured, so
 this is configuration rather than new code once the certificates exist.
 
-### macOS builds need a Mac
+### macOS builds — handled by CI
 
-This build produced Windows artifacts only. The `dmg` and `app` bundle targets
-were skipped because macOS bundles cannot be cross-compiled from Windows.
+macOS bundles cannot be cross-compiled from Windows, and CRA lists Windows and
+macOS as **separate certifications**, so the macOS build has to exist and pass
+its own tests rather than being assumed to work.
 
-That matters for certification scheduling, not just packaging: CRA lists Windows
-and macOS as **separate certifications**, so the macOS build has to exist and
-pass its own tests. Either a Mac or a macOS CI runner is required, and it is
-worth arranging before November rather than during.
+`.github/workflows/freshet.yml` builds both. Two jobs:
+
+- **tests** — engine, tax data, licensing and the licence service, on Linux,
+  for every push and pull request.
+- **desktop** — a matrix of `macos-latest` and `windows-latest` that type-checks
+  the frontend, runs the desktop tests both with and without the `dev-licences`
+  feature, builds the installers, runs `check-release.py`, and uploads the
+  artifacts.
+
+The desktop job is **skipped on pull requests** on purpose. GitHub bills macOS
+minutes at ten times the Linux rate on a private repository and this job builds
+a full installer twice. Running it on `main` and on demand catches a macOS break
+within one merge, which is soon enough, without paying for it on every push to a
+branch. If that trade stops being right, delete the `if:` guard.
+
+The job builds a debug binary before the release one, which looks redundant and
+is not: `check-release.py` refuses to certify an artifact clean unless it can
+first find the development seed in a debug build, so without one the check would
+fail rather than pass vacuously.
+
+**No Mac is needed to develop.** The macOS build is only exercised in CI, which
+is the point — but it also means a macOS-only failure surfaces on `main` rather
+than locally, so it is worth watching the first few runs.
+
+#### What CI does not do
+
+It produces **unsigned** artifacts. Signing needs certificates in repository
+secrets, and Tauri reads them from the environment:
+
+| Platform | Secrets |
+|---|---|
+| macOS | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` |
+| Windows | the certificate thumbprint, plus the signing tool on the runner |
+
+Adding those is a change to repository settings and involves paid certificates,
+so it is deliberately not wired up. Until it is, the artifacts CI uploads are
+for testing, not for customers.
 
 ### Version number
 

@@ -42,12 +42,26 @@ PRODUCTION_KEY = bytes([
 PLACEHOLDER_KEY = bytes(32)
 
 
+# The compiled application itself, as opposed to an installer wrapping it.
+# On Windows that is freshet-desktop.exe; on macOS the same name without a
+# suffix, both loose in target/release and again inside the .app bundle.
+EXECUTABLE_NAMES = {"freshet-desktop", "freshet-desktop.exe"}
+
+
+def is_executable(path: pathlib.Path) -> bool:
+    return path.name in EXECUTABLE_NAMES
+
+
 def artifacts():
     release = TARGET / "release"
+
     found = [release / "freshet-desktop.exe", release / "freshet-desktop"]
     found += sorted((release / "bundle").rglob("*.msi"))
     found += sorted((release / "bundle").rglob("*-setup.exe"))
     found += sorted((release / "bundle").rglob("*.dmg"))
+    # The binary inside a macOS .app, which is what actually runs.
+    found += sorted((release / "bundle").rglob("*.app/Contents/MacOS/freshet-desktop"))
+
     return [p for p in found if p.is_file()]
 
 
@@ -100,8 +114,11 @@ def main() -> int:
 
         # Only the executable is expected to carry the key uncompressed; the
         # installers compress their payload, so a miss there is not a finding.
-        is_executable = path.suffix == ".exe" and "setup" not in path.name.lower()
-        if is_executable:
+        #
+        # Matched by name rather than by suffix: a macOS binary has none, and
+        # an earlier version of this check silently skipped the key test on
+        # every macOS build because of it.
+        if is_executable(path):
             if PLACEHOLDER_KEY in blob and PRODUCTION_KEY not in blob:
                 problems.append(
                     f"{path.name} carries the zeroed placeholder signing key. "
@@ -117,6 +134,12 @@ def main() -> int:
                     "what it appears to be."
                 )
                 print("  signing key: NOT FOUND  <-- do not ship")
+
+    if not any(is_executable(p) for p in built):
+        problems.append(
+            "No application binary among the artifacts, so the signing key was "
+            "never checked. A pass here would mean nothing."
+        )
 
     print()
     if problems:
