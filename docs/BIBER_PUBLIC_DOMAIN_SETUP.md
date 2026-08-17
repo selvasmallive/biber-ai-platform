@@ -64,6 +64,18 @@ Cloudflare:
 
 ### Current Setup Status
 
+As of 2026-08-17, Cloudflare Zero Trust Free activation is complete. The
+Cloudflare Tunnel named `biber-vast-api` has been created with tunnel ID
+`eb224344-06e9-4b30-ac79-9844ac83867f`. The public hostname route
+`api.beaverapi.com` has been created with service type `HTTP` and origin
+`localhost:8000`. Cloudflare reports the tunnel as `Inactive` until the Vast
+connector is installed with the tunnel token.
+
+Current remaining step: copy the Cloudflare connector token or full connector
+command from the tunnel's Connectors / Add a connector screen, then paste it
+only into the Vast terminal secure prompt. Do not paste the token into chat,
+docs, git, shell history, or browser-state files.
+
 As of 2026-08-16, `beaverapi.com` has been added to Cloudflare on the Free
 website plan. Cloudflare assigned:
 
@@ -80,32 +92,43 @@ for registrar nameserver propagation. Cloudflare Zone ID:
 8f4368cb2812a7c668eaa645833cde08
 ```
 
-Tunnel creation is blocked until the user completes Cloudflare Zero Trust Free
-activation. It is shown as `$0/month`, but it requires billing address,
-Terms/Privacy agreement, and explicit authorization for overage billing. Future
-Codex sessions must not complete that checkout or authorize overage billing for
-the user.
+Cloudflare Zero Trust Free activation was completed by the user on 2026-08-17.
+Future Codex sessions must still not authorize billing, paid upgrades, overage
+billing, or paid add-ons for the user.
 
-Then create a Cloudflare Tunnel:
+Cloudflare tunnel setup checklist:
 
-1. In Cloudflare Zero Trust, go to Networks -> Tunnels.
-2. Create a tunnel named `biber-vast-api`.
-3. Add a public hostname:
+1. In Cloudflare Zero Trust, go to Networks -> Tunnels & Mesh.
+2. Create a tunnel named `biber-vast-api`. Done on 2026-08-17.
+3. Add a public hostname. Done on 2026-08-17:
    - Subdomain: `api`
    - Domain: `beaverapi.com`
    - Service type: `HTTP`
    - Service URL: `localhost:8000`
-4. Copy the tunnel token. Treat it as a secret.
+4. Copy the connector token from Connectors / Add a connector. Treat it as a
+   secret.
 
 ## Vast Setup
 
-After the Cloudflare tunnel token exists, run this on the Vast GPU from the repo:
+After the Cloudflare tunnel token exists, run this on the Vast GPU from the repo.
+This command accepts either the raw token or the full copied connector command
+and extracts the token locally:
 
 ```bash
 cd /workspace/biber-ai-platform
 
-read -rsp "Paste CF_TUNNEL_TOKEN: " CF_TUNNEL_TOKEN
+read -rsp "Paste Cloudflare tunnel token or full connector command: " CF_TUNNEL_INPUT
 echo
+CF_TUNNEL_TOKEN="$CF_TUNNEL_INPUT"
+case "$CF_TUNNEL_TOKEN" in
+  *"--token "*) CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN##*--token }" ;;
+  *" tunnel run "*) CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN##* tunnel run }" ;;
+  *" service install "*) CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN##* service install }" ;;
+esac
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN%\"}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN#\"}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN%\'}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN#\'}"
 export CF_TUNNEL_TOKEN
 export BIBER_PUBLIC_API_HOSTNAME=api.beaverapi.com
 export BIBER_PUBLIC_API_BASE_URL=https://api.beaverapi.com/v1
@@ -114,7 +137,7 @@ export BIBER_CONFIGURE_PUBLIC_TUNNEL_APPROVED=1
 
 bash scripts/vast_configure_cloudflare_tunnel.sh
 
-unset CF_TUNNEL_TOKEN
+unset CF_TUNNEL_TOKEN CF_TUNNEL_INPUT
 ```
 
 The script:

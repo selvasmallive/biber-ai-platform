@@ -1,8 +1,30 @@
 # Codex Handoff
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 ## Current Goal
+
+2026-08-17 latest BIBER beaverapi.com tunnel checkpoint:
+Cloudflare Zero Trust Free activation is now complete for the account. A
+Cloudflare Tunnel named `biber-vast-api` was created in Zero Trust under
+Networks -> Tunnels & Mesh. Tunnel ID shown in the edit URL:
+`eb224344-06e9-4b30-ac79-9844ac83867f`. A published application route was
+created for `api.beaverapi.com` with service type `HTTP` and origin
+`localhost:8000`. Cloudflare currently reports the tunnel as `Inactive`, which
+is expected until the Vast connector is installed and started with the tunnel
+token. Vast was checked over SSH and is ready for the connector step: repo
+`/workspace/biber-ai-platform` is at `0cedce65`, BIBER API health on
+`http://127.0.0.1:8000/health` returned `{"status":"ok","service":"biber-api","env":"gpu","local_model_name":"biber-dev-core"}`,
+and `scripts/vast_configure_cloudflare_tunnel.sh` passed `bash -n`.
+
+Next secure step: in Cloudflare, open tunnel `biber-vast-api`, go to
+Connectors / Add a connector, copy the Cloudflare connector token or full
+connector command, and paste it only into the Vast terminal secure prompt. Do
+not paste the token into Codex chat, docs, logs, git, or local browser-state
+files. On Vast, run the guarded setup from
+`docs/BIBER_PUBLIC_DOMAIN_SETUP.md`; it accepts the token and installs the
+supervisor-managed `cloudflared` connector while keeping vLLM private on
+`127.0.0.1:8001`.
 
 2026-08-16 latest BIBER beaverapi.com live domain setup checkpoint:
 In progress: Cloudflare zone setup for `beaverapi.com` was started in the
