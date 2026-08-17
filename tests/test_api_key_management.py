@@ -13,7 +13,7 @@ def make_settings(tmp_path: Path) -> BiberSettings:
     return BiberSettings(
         env="test",
         api_keys=("bootstrap-key",),
-        admin_api_key="admin-key",
+        admin_api_key="real-admin-secret",
         api_key_store_path=str(tmp_path / "api-keys.json"),
         priority_passcodes={},
         local_model_base_url="http://local-model/v1",
@@ -39,7 +39,7 @@ def test_admin_can_issue_list_revoke_file_backed_api_key(tmp_path: Path) -> None
         client = TestClient(main_module.app)
         issued = client.post(
             "/v1/admin/api-keys",
-            headers={"Authorization": "Bearer admin-key"},
+            headers={"Authorization": "Bearer real-admin-secret"},
             json={"user_id": "user-1", "label": "IDE agent"},
         )
         assert issued.status_code == 200
@@ -63,7 +63,7 @@ def test_admin_can_issue_list_revoke_file_backed_api_key(tmp_path: Path) -> None
 
         listed = client.get(
             "/v1/admin/api-keys",
-            headers={"Authorization": "Bearer admin-key"},
+            headers={"Authorization": "Bearer real-admin-secret"},
         )
         assert listed.status_code == 200
         listed_text = json.dumps(listed.json())
@@ -73,7 +73,7 @@ def test_admin_can_issue_list_revoke_file_backed_api_key(tmp_path: Path) -> None
 
         revoked = client.delete(
             f"/v1/admin/api-keys/{key_id}",
-            headers={"Authorization": "Bearer admin-key"},
+            headers={"Authorization": "Bearer real-admin-secret"},
         )
         assert revoked.status_code == 200
         assert revoked.json()["record"]["active"] is False
@@ -110,7 +110,7 @@ def test_admin_console_serves_key_management_ui_without_secret_values(tmp_path: 
     assert "Admin API key" in body
     assert "Issue Key" in body
     assert "Revoke" in body
-    assert "admin-key" not in body
+    assert "real-admin-secret" not in body
     assert "bootstrap-key" not in body
 
 
