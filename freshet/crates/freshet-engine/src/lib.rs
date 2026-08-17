@@ -30,11 +30,13 @@ pub mod expr;
 pub mod facts;
 pub mod form;
 pub mod params;
+pub mod period;
 
 pub use eval::{compute, Assessment, AuditEntry, Diagnostic, Evaluator};
 pub use expr::{Cond, Expr};
 pub use facts::FactSet;
 pub use form::{CheckDef, FormSet, LineDef, Rounding, Severity};
+pub use period::{Date, Period};
 pub use params::{Band, BracketTable, PackSet, Param, ParamPack};
 
 pub use rust_decimal::Decimal;
@@ -52,6 +54,9 @@ pub enum EngineError {
 
     #[error("no such line: {0}")]
     UnknownLine(String),
+
+    #[error("{0}")]
+    BadPeriod(String),
 
     #[error("no such parameter {key} in jurisdiction {jurisdiction}")]
     UnknownParam { jurisdiction: String, key: String },

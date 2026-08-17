@@ -185,3 +185,91 @@ impl PackSet {
         fed.chain(prov).collect()
     }
 }
+
+// -- fiscal periods --------------------------------------------------------
+
+/// Parameter packs for a fiscal period, which may straddle a rate change.
+///
+/// A T1 resolves parameters from one year's pack. A corporation with a June
+/// year-end sits in two, and if a rate moved between them the return is
+/// apportioned by the days falling either side. This holds one pack per
+/// calendar year the period touches, together with that year's share of it.
+#[derive(Debug)]
+pub struct PeriodPacks {
+    pub period: crate::Period,
+    /// One entry per calendar year touched, in order: year, days, packs.
+    ///
+    /// Days rather than a precomputed weight, deliberately — see [`blended`].
+    ///
+    /// [`blended`]: PeriodPacks::blended
+    years: Vec<(i32, i64, PackSet)>,
+}
+
+impl PeriodPacks {
+    /// The ordinary case: a period inside a single calendar year.
+    pub fn single(period: crate::Period, packs: PackSet) -> Result<Self, EngineError> {
+        Self::new(period, vec![(period.start.year, packs)])
+    }
+
+    pub fn new(
+        period: crate::Period,
+        packs_by_year: Vec<(i32, PackSet)>,
+    ) -> Result<Self, EngineError> {
+        let needed = period.days_by_year();
+
+        if packs_by_year.len() != needed.len() {
+            return Err(EngineError::BadPeriod(format!(
+                "{period} touches {} calendar year(s) but {} pack(s) were supplied; \
+                 a straddling period needs the parameters for every year it covers",
+                needed.len(),
+                packs_by_year.len()
+            )));
+        }
+
+        let mut years = Vec::new();
+        for ((want_year, days), (got_year, packs)) in needed.into_iter().zip(packs_by_year) {
+            if want_year != got_year {
+                return Err(EngineError::BadPeriod(format!(
+                    "{period} needs the {want_year} parameters, but {got_year} was supplied"
+                )));
+            }
+            years.push((want_year, days, packs));
+        }
+
+        Ok(PeriodPacks { period, years })
+    }
+
+    /// Whether this period draws on more than one year's parameters.
+    pub fn straddles(&self) -> bool {
+        self.years.len() > 1
+    }
+
+    /// The packs for the year the period ends in.
+    ///
+    /// Amounts that are *not* apportioned — the ones the Act fixes by
+    /// year-end rather than by days — resolve from here.
+    pub fn at_year_end(&self) -> &PackSet {
+        &self.years.last().expect("a period touches at least one year").2
+    }
+
+    /// A parameter apportioned across the period by days.
+    ///
+    /// Computed as `Σ(days × value) / total_days` — every multiplication
+    /// first, one division last, so there is a single rounding step rather
+    /// than one per year.
+    ///
+    /// The obvious alternative, `Σ((days/total) × value)`, rounds each share
+    /// before adding. I could not construct a case where the two disagree
+    /// under `rust_decimal`, so this ordering is a precaution rather than a fix
+    /// for an observed defect — fewer rounding steps, at no cost. Do not read
+    /// the choice as evidence that the other ordering is broken.
+    pub fn blended(&self, key: &str) -> Result<Decimal, EngineError> {
+        let mut weighted = Decimal::ZERO;
+
+        for (_, days, packs) in &self.years {
+            weighted += Decimal::from(*days) * packs.scalar(key)?;
+        }
+
+        Ok(weighted / Decimal::from(self.period.days()))
+    }
+}
