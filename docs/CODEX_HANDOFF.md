@@ -21,8 +21,12 @@ the new readiness states, `git diff --check`, and
 workstation validation against `https://api.beaverapi.com` passed with
 `ok=True` and `public_admin_access.state=admin_console_edge_protected`;
 `/admin`, `/admin/api-keys`, and `/v1/admin/api-keys` returned anonymous HTTP
-403. No admin/user API keys, raw key records, Cloudflare tokens, OpenAI mentor
-calls, training, credential rotation, paid APIs, or XRIQ/XRIS work were used.
+403. Vast was fast-forwarded to `a69fe3677` through a temporary git bundle and
+passed `/workspace/biber-venv` `py_compile` plus direct local readiness with
+`--require-console-served`, saving the non-secret artifact
+`/workspace/outputs/biber-admin-console-readiness-local-a69fe36.json`. No
+admin/user API keys, raw key records, Cloudflare tokens, OpenAI mentor calls,
+training, credential rotation, paid APIs, or XRIQ/XRIS work were used.
 
 2026-08-17 latest BIBER admin console readiness checkpoint:
 Complete: commit `8396732` adds `scripts/biber_admin_console_readiness.py`, a
