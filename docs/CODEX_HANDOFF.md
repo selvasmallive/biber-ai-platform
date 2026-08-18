@@ -1,8 +1,34 @@
 # Codex Handoff
 
-Last updated: 2026-08-17
+Last updated: 2026-08-18
 
 ## Current Goal
+
+2026-08-18 latest BIBER admin console authenticated list-flow checkpoint:
+Complete: commits `14bf4a4` and `7d50ebf` add a narrow redacted admin-console
+list-flow readiness path to `scripts/biber_admin_console_readiness.py`.
+`admin_console_list_flow` now reports whether the direct console HTML is served
+and authenticated `GET /v1/admin/api-keys` can list keys, while still omitting
+admin keys, user keys, key IDs, labels, and raw key records. The script also
+supports `--admin-api-key-dotenv .env` so Vast checks do not need to shell-source
+`.env`. Docs in `docs/BIBER_PUBLIC_DOMAIN_SETUP.md` and
+`docs/BIBER_EXTERNAL_AGENT_API.md` include the direct local/Vast command.
+Local validation passed Python `py_compile` with temp pycache, direct
+dependency-free tests including dotenv parsing and no-record leakage checks,
+`git diff --check`, public no-secret readiness against
+`https://api.beaverapi.com` with `public_admin_access.state=admin_console_edge_protected`,
+and `scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks.
+Vast was fast-forwarded to `7d50ebff5` through a temporary git bundle; Vast
+passed `/workspace/biber-venv` `py_compile` and direct no-secret readiness with
+`--require-console-served`, saving
+`/workspace/outputs/biber-admin-console-readiness-local-7d50ebf.json`. The
+authenticated list-flow check was attempted with `--admin-api-key-dotenv .env`
+and correctly stayed redacted, but it cannot pass yet because this GPU's
+`/workspace/biber-ai-platform/.env` does not currently contain
+`BIBER_ADMIN_API_KEY`. Do not generate or rotate credentials casually. Next
+credential-dependent step, only when deliberately needed: configure/persist
+`BIBER_ADMIN_API_KEY` through `scripts/vast_configure_admin_api_key.sh`, then run
+the documented `--require-admin-console-list-flow` smoke.
 
 2026-08-17 latest BIBER admin console edge-readiness checkpoint:
 Complete: `scripts/biber_admin_console_readiness.py` now reports
