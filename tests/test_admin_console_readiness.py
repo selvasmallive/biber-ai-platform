@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from scripts.biber_admin_console_readiness import (
     console_checks,
+    read_dotenv_value,
     summarize_admin_api,
     summarize_admin_console_list_flow,
     summarize_public_admin_access,
@@ -156,3 +160,17 @@ def test_admin_console_list_flow_waits_for_authenticated_admin_list() -> None:
 
     assert summary["ready"] is False
     assert summary["recommended_context"] == "direct_local_or_vast_check"
+
+
+def test_read_dotenv_value_reads_only_named_key_without_shell_sourcing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        dotenv = Path(tmp) / ".env"
+        dotenv.write_text(
+            "OTHER=value\n"
+            "BIBER_ADMIN_API_KEY='admin-secret-value'\n"
+            'BROKEN_SHELL_LINE=run this is not shell-safe\n',
+            encoding="utf-8",
+        )
+
+        assert read_dotenv_value(str(dotenv), "BIBER_ADMIN_API_KEY") == "admin-secret-value"
+        assert read_dotenv_value(str(dotenv), "MISSING") is None

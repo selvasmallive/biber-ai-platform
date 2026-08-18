@@ -317,6 +317,7 @@ export BIBER_ADMIN_API_KEY
 /workspace/biber-venv/bin/python scripts/biber_admin_console_readiness.py \
   --base-url http://127.0.0.1:8000 \
   --admin-api-key-env BIBER_ADMIN_API_KEY \
+  --admin-api-key-dotenv .env \
   --require-console-served \
   --require-authenticated-admin-list \
   --require-admin-console-list-flow \

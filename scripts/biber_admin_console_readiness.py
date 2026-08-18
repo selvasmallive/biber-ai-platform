@@ -40,6 +40,23 @@ def build_url(base_url: str, path: str) -> str:
     return urljoin(f"{base_url.rstrip('/')}/", path.lstrip("/"))
 
 
+def read_dotenv_value(path: str, name: str) -> str | None:
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    prefix = f"{name}="
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or not line.startswith(prefix):
+            continue
+        value = line.split("=", 1)[1].strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        return value
+    return None
+
+
 def request_url(
     url: str,
     *,
@@ -297,8 +314,13 @@ def write_json(path: str | None, payload: dict[str, Any]) -> None:
 def run(args: argparse.Namespace) -> dict[str, Any]:
     base_url = normalize_base_url(args.base_url or default_base_url())
     admin_key_value = None
+    admin_key_source = None
     if args.admin_api_key_env:
         admin_key_value = os.getenv(args.admin_api_key_env) or None
+        admin_key_source = "environment" if admin_key_value else None
+        if not admin_key_value and args.admin_api_key_dotenv:
+            admin_key_value = read_dotenv_value(args.admin_api_key_dotenv, args.admin_api_key_env)
+            admin_key_source = "dotenv_file" if admin_key_value else None
 
     console_url = build_url(base_url, "/admin")
     alias_url = build_url(base_url, "/admin/api-keys")
@@ -354,6 +376,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     warnings: list[str] = []
     if args.admin_api_key_env and not admin_key_value:
         warnings.append(f"{args.admin_api_key_env} was not set; authenticated admin list skipped")
+    if args.admin_api_key_dotenv and not args.admin_api_key_env:
+        warnings.append("--admin-api-key-dotenv ignored because --admin-api-key-env was not set")
 
     summary = {
         "source": SOURCE,
@@ -367,6 +391,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "training_allowed": False,
         "admin_api_key_env": args.admin_api_key_env or None,
         "admin_api_key_configured": bool(admin_key_value),
+        "admin_api_key_source": admin_key_source,
         "admin_api_key_included": False,
         "raw_key_records_included": False,
         "console": console,
@@ -399,6 +424,15 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Optional environment variable containing BIBER_ADMIN_API_KEY. If set and present, "
             "the script verifies authenticated admin listing without writing key values."
+        ),
+    )
+    parser.add_argument(
+        "--admin-api-key-dotenv",
+        default="",
+        help=(
+            "Optional dotenv file used only to read the variable named by --admin-api-key-env "
+            "when it is absent from the process environment. The key value is never printed "
+            "or written to the readiness artifact."
         ),
     )
     parser.add_argument(
