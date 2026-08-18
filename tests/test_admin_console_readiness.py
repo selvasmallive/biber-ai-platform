@@ -3,6 +3,7 @@ from __future__ import annotations
 from scripts.biber_admin_console_readiness import (
     console_checks,
     summarize_admin_api,
+    summarize_admin_console_list_flow,
     summarize_public_admin_access,
 )
 
@@ -97,3 +98,61 @@ def test_public_admin_access_reports_unreachable_console() -> None:
 
     assert summary["state"] == "admin_console_unreachable"
     assert summary["console_route_state"] == "unreachable"
+
+
+def test_admin_console_list_flow_ready_without_key_or_record_leakage() -> None:
+    console = console_checks(
+        served_console_response(),
+        admin_key_value="admin-secret",
+        require_console_served=True,
+    )
+    alias = console_checks(
+        served_console_response(),
+        admin_key_value="admin-secret",
+        require_console_served=True,
+    )
+    admin_api = summarize_admin_api(
+        fake_response(status_code=401),
+        authenticated_response=fake_response(
+            status_code=200,
+            body='{"keys":[{"key_id":"secret-key-id","label":"IDE agent"}]}',
+        ),
+        require_authenticated_admin_list=True,
+    )
+
+    summary = summarize_admin_console_list_flow(
+        console_checks_payload=console,
+        alias_checks_payload=alias,
+        admin_api_summary=admin_api,
+        admin_api_key_configured=True,
+    )
+
+    assert summary["ready"] is True
+    assert summary["authenticated_admin_key_count"] == 1
+    assert summary["admin_api_key_included"] is False
+    assert summary["raw_key_records_included"] is False
+    assert "secret-key-id" not in str(summary)
+    assert "IDE agent" not in str(summary)
+
+
+def test_admin_console_list_flow_waits_for_authenticated_admin_list() -> None:
+    console = console_checks(
+        served_console_response(),
+        admin_key_value=None,
+        require_console_served=True,
+    )
+    admin_api = summarize_admin_api(
+        fake_response(status_code=401),
+        authenticated_response=None,
+        require_authenticated_admin_list=False,
+    )
+
+    summary = summarize_admin_console_list_flow(
+        console_checks_payload=console,
+        alias_checks_payload=console,
+        admin_api_summary=admin_api,
+        admin_api_key_configured=False,
+    )
+
+    assert summary["ready"] is False
+    assert summary["recommended_context"] == "direct_local_or_vast_check"

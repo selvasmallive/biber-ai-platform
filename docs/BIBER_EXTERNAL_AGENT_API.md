@@ -342,6 +342,11 @@ The redacted readiness output includes `public_admin_access.state`; the desired
 public MVP state is usually `admin_console_edge_protected` for `/admin`,
 `/admin/*`, and `/v1/admin/*`, while `/v1/models` and `/v1/chat/completions`
 remain protected by normal BIBER user API keys.
+For a direct local/Vast proof that the admin GUI can list keys, add
+`--require-admin-console-list-flow` together with `--admin-api-key-env`,
+`--require-console-served`, and `--require-authenticated-admin-list`. That mode
+records only status and counts; it still omits admin keys, user keys, key IDs,
+labels, and raw key records from the artifact.
 
 Example:
 

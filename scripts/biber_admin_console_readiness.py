@@ -216,6 +216,36 @@ def summarize_public_admin_access(
     }
 
 
+def summarize_admin_console_list_flow(
+    *,
+    console_checks_payload: dict[str, Any],
+    alias_checks_payload: dict[str, Any],
+    admin_api_summary: dict[str, Any],
+    admin_api_key_configured: bool,
+) -> dict[str, Any]:
+    console_served = console_checks_payload.get("served_ok") is True
+    alias_served = alias_checks_payload.get("served_ok") is True
+    authenticated_list_ok = admin_api_summary.get("authenticated_ok") is True
+    ready = console_served and alias_served and admin_api_key_configured and authenticated_list_ok
+    return {
+        "ready": ready,
+        "console_html_served": console_served,
+        "alias_html_served": alias_served,
+        "admin_api_key_configured": admin_api_key_configured,
+        "authenticated_admin_list_ok": authenticated_list_ok,
+        "authenticated_admin_key_count": admin_api_summary.get("authenticated_key_count"),
+        "admin_api_key_included": False,
+        "raw_key_records_included": False,
+        "mutation_performed": False,
+        "recommended_context": "direct_local_or_vast_check",
+        "recommended_next_step": (
+            "open_admin_console_with_cloudflare_access_in_browser"
+            if ready
+            else "run_direct_check_with_admin_api_key_env_when_admin_console_access_is_needed"
+        ),
+    }
+
+
 def parse_json_body(response: dict[str, Any]) -> dict[str, Any] | None:
     try:
         body = json.loads(str(response.get("body") or ""))
@@ -314,6 +344,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         admin_api_summary=admin_api,
         require_console_served=args.require_console_served,
     )
+    admin_console_list_flow = summarize_admin_console_list_flow(
+        console_checks_payload=console["checks"],
+        alias_checks_payload=alias["checks"],
+        admin_api_summary=admin_api,
+        admin_api_key_configured=bool(admin_key_value),
+    )
 
     warnings: list[str] = []
     if args.admin_api_key_env and not admin_key_value:
@@ -337,9 +373,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "alias": alias,
         "admin_api": admin_api,
         "public_admin_access": public_admin_access,
+        "admin_console_list_flow": admin_console_list_flow,
         "warnings": warnings,
     }
     summary["ok"] = bool(console["checks"]["ok"] and alias["checks"]["ok"] and admin_api["ok"])
+    if args.require_admin_console_list_flow and not admin_console_list_flow["ready"]:
+        summary["ok"] = False
     return summary
 
 
@@ -366,6 +405,14 @@ def main(argv: list[str] | None = None) -> int:
         "--require-authenticated-admin-list",
         action="store_true",
         help="Fail unless the optional authenticated admin API list check returns HTTP 200.",
+    )
+    parser.add_argument(
+        "--require-admin-console-list-flow",
+        action="store_true",
+        help=(
+            "Fail unless the console HTML is served directly and the optional authenticated "
+            "admin list check returns HTTP 200. Use only for direct local/Vast checks."
+        ),
     )
     parser.add_argument(
         "--require-console-served",

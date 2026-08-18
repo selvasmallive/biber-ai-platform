@@ -302,6 +302,34 @@ anonymous admin API protection. It does not include admin keys, user API keys,
 or raw key records. For a direct Vast/local check that requires the actual HTML
 page to be served, add `--require-console-served`.
 
+For a direct Vast/local authenticated console-list readiness check, pass the
+admin key through an environment variable and require the list flow. This proves
+that the served console and the authenticated `GET /v1/admin/api-keys` path are
+ready without writing the admin key, user keys, key IDs, labels, or raw records
+to the artifact:
+
+```bash
+cd /workspace/biber-ai-platform
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+
+/workspace/biber-venv/bin/python scripts/biber_admin_console_readiness.py \
+  --base-url http://127.0.0.1:8000 \
+  --admin-api-key-env BIBER_ADMIN_API_KEY \
+  --require-console-served \
+  --require-authenticated-admin-list \
+  --require-admin-console-list-flow \
+  --output /workspace/outputs/biber-admin-console-list-flow-local.json
+
+unset BIBER_ADMIN_API_KEY
+```
+
+Do not run this authenticated list-flow check against the public URL unless the
+admin browser/session is deliberately allowed through Cloudflare Access. The
+public no-secret check should normally report
+`public_admin_access.state=admin_console_edge_protected`.
+
 After DNS/tunnel propagation:
 
 ```bash
