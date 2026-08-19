@@ -15,7 +15,12 @@ before configuring or using the admin key. Local validation passed Python
 `py_compile` with temp pycache, direct dependency-free status tests for missing,
 dotenv, and environment-key cases, `git diff --check`, direct local
 `--allow-missing` execution, and `scripts/biber_local_confidence_smoke.py` with
-`ok=True` and 11 checks. No OpenAI mentor, training, credential generation,
+`ok=True` and 11 checks. Vast was fast-forwarded to `83f0fa6d9` through a
+temporary git bundle; Vast passed `/workspace/biber-venv` `py_compile` for the
+new status script/tests and ran the no-secret status command, saving
+`/workspace/outputs/biber-admin-key-setup-status-83f0fa6.json` with
+`status=admin_key_missing`, `dotenv_exists=true`, and
+`mutation_performed=false`. No OpenAI mentor, training, credential generation,
 credential rotation, paid APIs, or XRIQ/XRIS work occurred. Next
 credential-dependent step remains deliberate: configure/persist
 `BIBER_ADMIN_API_KEY` through `scripts/vast_configure_admin_api_key.sh`, then
