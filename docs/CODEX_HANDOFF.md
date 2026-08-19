@@ -1,8 +1,25 @@
 # Codex Handoff
 
-Last updated: 2026-08-18
+Last updated: 2026-08-19
 
 ## Current Goal
+
+2026-08-19 latest BIBER admin key setup-status checkpoint:
+Complete: added `scripts/biber_admin_key_setup_status.py`, a no-secret,
+no-mutation status/plan command for the credential-dependent admin-key step. It
+checks whether `BIBER_ADMIN_API_KEY` is present in the process environment or a
+specified dotenv file, reports only boolean/source metadata, includes the
+guarded setup/readiness commands, and never prints admin keys, user keys, raw
+key records, or secret values. Docs now point operators to this status command
+before configuring or using the admin key. Local validation passed Python
+`py_compile` with temp pycache, direct dependency-free status tests for missing,
+dotenv, and environment-key cases, `git diff --check`, direct local
+`--allow-missing` execution, and `scripts/biber_local_confidence_smoke.py` with
+`ok=True` and 11 checks. No OpenAI mentor, training, credential generation,
+credential rotation, paid APIs, or XRIQ/XRIS work occurred. Next
+credential-dependent step remains deliberate: configure/persist
+`BIBER_ADMIN_API_KEY` through `scripts/vast_configure_admin_api_key.sh`, then
+run the documented admin-console list-flow readiness smoke.
 
 2026-08-18 latest BIBER admin console authenticated list-flow checkpoint:
 Complete: commits `14bf4a4` and `7d50ebf` add a narrow redacted admin-console

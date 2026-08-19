@@ -308,6 +308,21 @@ that the served console and the authenticated `GET /v1/admin/api-keys` path are
 ready without writing the admin key, user keys, key IDs, labels, or raw records
 to the artifact:
 
+Before configuring or using the admin key, run the no-secret setup-status check:
+
+```bash
+cd /workspace/biber-ai-platform
+
+/workspace/biber-venv/bin/python scripts/biber_admin_key_setup_status.py \
+  --dotenv .env \
+  --allow-missing \
+  --output /workspace/outputs/biber-admin-key-setup-status.json
+```
+
+The status artifact reports whether `BIBER_ADMIN_API_KEY` is configured and
+prints the guarded setup/readiness commands, but never includes the key value and
+never mutates `.env`, restarts FastAPI, or rotates credentials.
+
 ```bash
 cd /workspace/biber-ai-platform
 read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY

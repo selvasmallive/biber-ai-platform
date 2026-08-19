@@ -348,6 +348,9 @@ For a direct local/Vast proof that the admin GUI can list keys, add
 add `--admin-api-key-dotenv .env` rather than shell-sourcing `.env`. That mode
 records only status and counts; it still omits admin keys, user keys, key IDs,
 labels, and raw key records from the artifact.
+Use `scripts/biber_admin_key_setup_status.py --allow-missing` before any
+credential-dependent admin step to write a redacted setup-status artifact and
+confirm whether `BIBER_ADMIN_API_KEY` is deliberately configured.
 
 Example:
 
