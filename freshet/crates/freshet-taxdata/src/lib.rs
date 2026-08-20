@@ -18,46 +18,89 @@ pub const FED_2026: &str = include_str!("../data/fed-2026.json");
 /// in this repository has already needed four corrections.
 pub const T1_FEDERAL: &str = include_str!("../data/t1-federal.json");
 
-/// One row per jurisdiction: code, form definition, and the two parameter packs.
+/// One row per jurisdiction: code, form definition, and a pack per tax year.
 ///
 /// A table rather than match arms. With one province the arms were clearer;
 /// with fourteen they were three places to forget to edit, and the compiler
-/// could not tell you that a jurisdiction had a form but no 2026 pack.
+/// could not tell you that a jurisdiction had a form but no pack for a year.
+///
+/// Years are a list rather than named fields. An earlier version had
+/// `pack_2025` and `pack_2026`, which made adding a tax year a change to the
+/// struct and the macro — structural work for what is only ever new data.
 struct Jurisdiction {
     code: &'static str,
     form: &'static str,
-    pack_2025: &'static str,
-    pack_2026: &'static str,
+    packs: &'static [(u16, &'static str)],
+}
+
+/// The pack list for one jurisdiction across every year.
+///
+/// Split out because `macro_rules!` cannot nest two independent repetitions —
+/// expanding thirteen codes against two years in one macro is rejected with
+/// "meta-variable `code` repeats 13 times, but `year` repeats 2 times". Passing
+/// the year list through as a single token tree puts its repetition inside this
+/// macro, where it is the only one.
+macro_rules! packs_for {
+    ($code:literal, [$($year:literal),+ $(,)?]) => {
+        &[$(($year, include_str!(concat!("../data/", $code, "-", $year, ".json")))),+]
+    };
 }
 
 macro_rules! jurisdictions {
-    ($($code:literal),+ $(,)?) => {
+    (years: $years:tt, codes: [$($code:literal),+ $(,)?] $(,)?) => {
         &[$(Jurisdiction {
             code: $code,
             form: include_str!(concat!("../data/t1-", $code, ".json")),
-            pack_2025: include_str!(concat!("../data/", $code, "-2025.json")),
-            pack_2026: include_str!(concat!("../data/", $code, "-2026.json")),
+            packs: packs_for!($code, $years),
         }),+]
     };
 }
 
-/// Every province and territory. Quebec is here because a Quebec resident
-/// still files a federal T1 — they simply pay no provincial tax through it.
+/// Every province and territory, for every tax year with data.
+///
+/// Quebec is here because a Quebec resident still files a federal T1 — they
+/// simply pay no provincial tax through it. Adding a tax year means adding it
+/// to `years` and dropping the pack files in; the compiler will name any
+/// jurisdiction whose file is missing.
 const JURISDICTIONS: &[Jurisdiction] = jurisdictions![
-    "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt",
+    years: [2025, 2026],
+    codes: [
+        "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt",
+    ],
 ];
 
 fn find(province: &str) -> Option<&'static Jurisdiction> {
     JURISDICTIONS.iter().find(|j| j.code == province)
 }
 
-/// Tax years this build can compute. CRA certifies per tax year, so this list
-/// is also the list of years the product may claim support for.
+/// Tax years this build can compute — the years it has data for.
 ///
-/// 2026 is the certification target: test returns arrive from CRA in the
-/// November before the filing season. 2025 is kept because prior-year filing is
-/// a real feature and because it is the year with the better-sourced data.
+/// Distinct from [`CERTIFICATION_TARGET_YEAR`], and they currently diverge:
+/// the target is 2027, whose amounts have not been published yet, so there is
+/// nothing to compute for it.
 pub const SUPPORTED_YEARS: &[u16] = &[2025, 2026];
+
+/// The tax year the certification application is for.
+///
+/// **2027, not 2026.** CRA's application window for the 2026 T1 closed before
+/// this product applied, so the first year it can be certified to file is 2027,
+/// which is filed in early 2028.
+///
+/// This is deliberately its own constant rather than "the newest supported
+/// year". The two are different things and right now they disagree: 2027 has no
+/// parameter pack because its indexed amounts are not published until late
+/// 2026. Conflating them would make the product look ready for a year it cannot
+/// yet compute a single line of.
+pub const CERTIFICATION_TARGET_YEAR: u16 = 2027;
+
+/// Whether the target year's data exists yet.
+///
+/// False until the 2027 amounts are published and verified. Worth asking rather
+/// than assuming: a build that supports the target year is a different thing
+/// from one that merely aims at it.
+pub fn target_year_is_buildable() -> bool {
+    SUPPORTED_YEARS.contains(&CERTIFICATION_TARGET_YEAR)
+}
 
 /// Tax years CRA has actually certified this product to **file**.
 ///
@@ -68,7 +111,8 @@ pub const SUPPORTED_YEARS: &[u16] = &[2025, 2026];
 /// *file* 2025 on a 2026 certification is not.
 ///
 /// Empty until a certification letter exists. Do not add a year here on the
-/// strength of having asked.
+/// strength of having asked, and note that the first year that could ever
+/// appear here is [`CERTIFICATION_TARGET_YEAR`].
 pub const CERTIFIED_YEARS: &[u16] = &[];
 
 /// The jurisdictions the certification application covers.
@@ -122,11 +166,18 @@ fn unsupported(year: u16, province: &str) -> EngineError {
 pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
     let j = find(province).ok_or_else(|| unsupported(year, province))?;
 
-    let (fed, prov) = match year {
-        2025 => (FED_2025, j.pack_2025),
-        2026 => (FED_2026, j.pack_2026),
+    let fed = match year {
+        2025 => FED_2025,
+        2026 => FED_2026,
         _ => return Err(unsupported(year, province)),
     };
+
+    let prov = j
+        .packs
+        .iter()
+        .find(|(y, _)| *y == year)
+        .map(|(_, pack)| *pack)
+        .ok_or_else(|| unsupported(year, province))?;
 
     Ok(PackSet {
         federal: ParamPack::from_json(fed)?,
@@ -213,6 +264,22 @@ mod tests {
             Err(EngineError::DuplicateLine(id)) => assert_eq!(id, stolen_id),
             other => panic!("a province overrode {stolen_id}: {other:?}"),
         }
+    }
+
+    /// The target year and the years with data are different things, and right
+    /// now they disagree. This test exists so that stays visible: when 2027
+    /// data lands it will fail, which is the prompt to check that the year is
+    /// genuinely complete rather than merely present.
+    #[test]
+    fn the_certification_target_is_2027_and_has_no_data_yet() {
+        assert_eq!(CERTIFICATION_TARGET_YEAR, 2027);
+        assert!(
+            !target_year_is_buildable(),
+            "2027 data has appeared — verify it, then update this test"
+        );
+
+        // And nothing is certified for it, or for anything else.
+        assert!(!is_certified(CERTIFICATION_TARGET_YEAR, "on"));
     }
 
     #[test]

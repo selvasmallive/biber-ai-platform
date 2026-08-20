@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         signing_key: Arc::new(config.signing_key),
         stripe_secret: config.stripe_webhook_secret,
         admin_emails: config.admin_emails,
-        sale_year: 2026,
+        sale_year: config.sale_year,
     };
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;

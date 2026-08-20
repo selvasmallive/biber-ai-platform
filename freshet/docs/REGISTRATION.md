@@ -2,7 +2,26 @@
 
 Today is **August 2026**. That timing matters, so the short answer first.
 
-> **Register with CRA as a software developer now.** Certification test returns are distributed in **mid-November**. You have roughly three months. The 2026 filing season (tax year 2025) has already closed for new entrants — your realistic target is **tax year 2026, certifying November 2026 to February 2027, filing from late February 2027.** Miss this November and you wait a full year.
+> **Superseded — see the correction below.**
+>
+> ~~Register with CRA as a software developer now. Certification test returns are distributed in **mid-November**. You have roughly three months. The 2026 filing season (tax year 2025) has already closed for new entrants — your realistic target is **tax year 2026, certifying November 2026 to February 2027, filing from late February 2027.** Miss this November and you wait a full year.~~
+
+## Correction: the target is tax year 2027
+
+CRA's application window for the **2026** T1 closed before this product applied.
+The sentence above was written in August 2026 and turned out to be wrong about
+what was still reachable: the three months were to the *test return*
+distribution, not to the *application* deadline, which had already passed.
+
+The realistic target is now **tax year 2027 — certifying November 2027 to
+February 2028, filing from late February 2028.**
+
+The rest of this document is still accurate about *how* registration and
+certification work. Only the dates move, by twelve months.
+
+Kept rather than rewritten because the original reasoning was the basis for a
+year of planning, and knowing which assumption failed is worth more than a
+document that reads as though it were always right.
 >
 > **Do not start Québec yet.** It is a second product with its own spec, its own test cycle and its own two-stage approval. Start it after one full federal season.
 
@@ -90,7 +109,7 @@ Not now. Sequence it as:
 
 | | Target |
 |---|---|
-| CRA T1, Windows + macOS | TY2026 — register **now**, certify Nov 2026 – Feb 2027 |
+| CRA T1, Windows + macOS | TY2027 — certify Nov 2027 – Feb 2028 (TY2026 window missed) |
 | Ship, run one full season | Feb – Apr 2027 |
 | Revenu Québec authorization | begins mid-2027 |
 | Revenu Québec certification | after authorization; realistic first TP1 season TY2028 |

@@ -160,6 +160,44 @@ Confirm with CRA whether the certification agreement imposes any constraint on t
 - [Filing your T2 return electronically using certified software (canada.ca)](https://www.canada.ca/en/revenue-agency/news/newsroom/tax-tips/tax-tips-2022/filing-t2-return-electronically-using-certified-software.html)
 - [NETFILE certification, vendor description (UFile)](https://www.ufile.ca/get-started/netfile-certification)
 
+## Target year: 2027, not 2026
+
+**CRA's application window for the 2026 T1 closed before this product applied.**
+The first tax year Freshet can be certified to file is therefore **2027**, which
+is filed in early 2028.
+
+That is recorded in code as `CERTIFICATION_TARGET_YEAR`, kept deliberately
+separate from `SUPPORTED_YEARS`. The two disagree right now and should: 2027 has
+no parameter pack at all, because its indexed amounts are not published until
+late 2026. A test asserts the divergence so that "we are targeting 2027" is
+never mistaken for "we can compute 2027".
+
+### What this changes
+
+The engine does not care. A tax year is a parameter pack, and the loader now
+takes a list of years rather than two named fields, so adding 2027 is the pack
+files plus one entry — not a change to the loader's shape.
+
+What changes is the calendar, and it is worth being honest that the slip is
+mostly waiting:
+
+| | 2026 target (lost) | 2027 target |
+|---|---|---|
+| Indexed amounts published | ~Nov–Dec 2025 | ~Nov–Dec 2026 |
+| CRA test returns | Nov 2026 | Nov 2027 |
+| Filing season | Feb–Apr 2027 | Feb–Apr 2028 |
+
+So the data that gates everything is over a year away, and there is no T1 work
+that can be finished before it arrives. The 468 unverified provincial
+parameters are not urgent any more; they are simply waiting for forms that do
+not exist.
+
+### Worth confirming before accepting the slip
+
+If the 2026 window closed only recently, it is worth asking CRA directly whether
+a late application is possible. Twelve months is a long time to concede on the
+strength of a published deadline, and the worst answer is no.
+
 ## Jurisdiction scope: Ontario only for the first release
 
 The engine computes the federal return and all thirteen provincial and

@@ -41,12 +41,13 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function App() {
-  // 2026 is the certification target: CRA's test returns for a filing season
-  // arrive the November before it.
+  // The newest year with data, which is not the certification target: that is
+  // 2027, and its amounts are not published yet. Corrected from `supported()`
+  // as soon as it answers, so this initial value only shows for one frame.
   const [year, setYear] = useState(2026);
   const [province, setProvince] = useState("on");
   const [facts, setFacts] = useState<Record<string, string>>({});
-  const [label, setLabel] = useState("2026 return");
+  const [label, setLabel] = useState("Untitled return");
   const [options, setOptions] = useState({ years: [2026], provinces: ["on"] });
   const [result, setResult] = useState<ReturnView | null>(null);
   const [settings, setSettings] = useState<SettingsView | null>(null);

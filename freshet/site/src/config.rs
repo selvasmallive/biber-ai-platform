@@ -38,6 +38,14 @@ pub struct Config {
     /// Who may see the admin pages. Empty means admin is switched off, which
     /// is the safe default for a service that has not been put behind IAP yet.
     pub admin_emails: Vec<String>,
+
+    /// The tax year a purchase entitles the buyer to file.
+    ///
+    /// Configuration rather than a constant: it changes every year, and a
+    /// certification window that slips moves it without any code changing.
+    /// Selling a licence for the wrong year is a refund and an apology, so it
+    /// is worth being able to correct without a deploy.
+    pub sale_year: u16,
 }
 
 pub struct SmtpConfig {
@@ -80,7 +88,19 @@ impl Config {
             _ => None,
         };
 
+        // The certification target as of this writing. CRA's application
+        // window for the 2026 T1 closed before this product applied, so the
+        // first year it can be certified to file is 2027.
+        let sale_year = env::var("SALE_YEAR")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .map(|v| v.trim().parse::<u16>())
+            .transpose()
+            .map_err(|e| ConfigError::Invalid("SALE_YEAR", format!("{e}")))?
+            .unwrap_or(2027);
+
         Ok(Config {
+            sale_year,
             public_url: var("PUBLIC_URL").unwrap_or_else(|_| "https://freshettax.ca".into()),
             port,
             database_url: var("DATABASE_URL")?,
