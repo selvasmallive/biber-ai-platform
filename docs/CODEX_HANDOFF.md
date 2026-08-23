@@ -60,6 +60,18 @@ Do not apply this plan unless the user explicitly approves it; it is only a
 confidence artifact for the real-repo planning path. No OpenAI mentor, training,
 paid API, credential rotation, or XRIQ/XRIS work occurred.
 
+2026-08-23 BIBER Vast confidence refresh checkpoint:
+Complete on the current Vast GPU at commit `f7381fc3a`. The ready CPU-local
+confidence gate passed in `/workspace/outputs/biber-local-confidence-smoke-f7381fc.json`
+with `ok=true`, 11/11 checks, clean target git state, and repo-RAG probe still
+green. The live provider confidence gate passed in
+`/workspace/outputs/biber-live-provider-confidence-f7381fc.json` with `ok=true`,
+3/3 checks, model `biber-dev-core`, readiness ok, a live fixture plan, and a
+verified disposable repair. Refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json`; it reports
+`ok=true`, `target_git_clean=true`, `next_action=start_next_narrow_biber_step`,
+and no GitHub request, OpenAI mentor, training, or unsafe flags.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
