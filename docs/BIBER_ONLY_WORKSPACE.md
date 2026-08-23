@@ -272,8 +272,8 @@ The smoke preflights the required edit target size before readiness or model
 calls. By default it refuses files larger than `BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES`
 or 200000 bytes, matching the workspace edit apply guard; split oversized
 targets or choose a smaller required path before using the live GPU provider.
-The default smoke edit uses a single exact docs line so the live 3B provider is
-not judged on preserving wrapped paragraph line breaks.
+The default smoke edit uses a single exact docs line so smaller live providers
+are not judged on preserving wrapped paragraph line breaks.
 That docs-line profile can choose between the accepted `BIBER-only` and
 `BIBER MVP-only` wording variants when no explicit `--required-*` text is
 provided, so the smoke remains usable after an approved wording apply.
@@ -293,7 +293,7 @@ for the candidate-model base URL expression in `app/model_registry.py`, still
 with `python-compileall-api` as the verify step after any later approved apply.
 It defaults to one context file so smaller live endpoints have room for the
 prompt. The prompt includes a preferred exact JSON edit and must still report
-`mutation_performed=false` and stop before apply. If the live 3B model returns
+`mutation_performed=false` and stop before apply. If the live model returns
 `{"edits":[]}` for the exact edit, the smoke can use `required_edit_fallback` to
 produce a review-only hash-guarded plan only after confirming the target file
 contains `old_text` exactly once; the summary keeps the model no-op attempt as

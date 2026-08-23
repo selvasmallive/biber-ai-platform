@@ -148,15 +148,16 @@ python scripts/biber_live_provider_real_repo_plan_smoke.py \
   --smoke-profile code-unused-timeout
 ```
 
-This profile targets one exact unused assignment in `app/model_registry.py` and
-keeps `python-compileall-api` as the post-apply verification command. It
-defaults to one context file to stay under the current 4096-token live 3B
-context limit and includes the preferred exact JSON edit in the prompt. It is
-still plan-only: review the `plan_hash` and emitted commands, and do not apply
-without a separate explicit approval. If the live 3B model returns a safe no-op
-for the exact edit, the smoke may use `required_edit_fallback` to create a
-review-only plan only when the target file contains `old_text` exactly once;
-the summary preserves the model no-op attempt separately.
+This profile targets one exact candidate-model base URL expression in
+`app/model_registry.py` and asks for an equivalent formatting change, keeping
+`python-compileall-api` as the post-apply verification command. It defaults to
+one context file so smaller live endpoints have room for the prompt and includes
+the preferred exact JSON edit in the prompt. It is still plan-only: review the
+`plan_hash` and emitted commands, and do not apply without a separate explicit
+approval. If the live model returns a safe no-op for the exact edit, the smoke
+may use `required_edit_fallback` to create a review-only plan only when the
+target file contains `old_text` exactly once; the summary preserves the model
+no-op attempt separately.
 After the first fixed docs smoke has passed, prefer task-specific exact
 replacement inputs instead of changing script defaults. For example:
 

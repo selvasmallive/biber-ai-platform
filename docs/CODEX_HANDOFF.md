@@ -72,6 +72,13 @@ verified disposable repair. Refreshed
 `ok=true`, `target_git_clean=true`, `next_action=start_next_narrow_biber_step`,
 and no GitHub request, OpenAI mentor, training, or unsafe flags.
 
+2026-08-23 BIBER runbook cleanup checkpoint:
+Active BIBER docs were cleaned up so future sessions do not follow stale
+`code-unused-timeout` wording. `docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` and
+`docs/BIBER_ONLY_WORKSPACE.md` now describe the current candidate-base-URL
+formatting target, smaller live endpoints generically, and the same no-apply /
+explicit-approval contract.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
