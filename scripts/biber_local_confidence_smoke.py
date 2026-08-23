@@ -189,6 +189,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        vscode_extension = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_vscode_extension_contract_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
 
     checks = [
         compact_check("local_openai_provider_http", provider),
@@ -208,6 +214,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             live_verified_repair_github_dry_run,
         ),
         compact_check("local_repair_loop", repair_loop),
+        compact_check("vscode_extension_contract", vscode_extension),
     ]
     summary = {
         "source": "biber_local_confidence_smoke",
@@ -368,6 +375,11 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "status_next_action": repair_loop.get("status_next_action"),
             "model_response_source": repair_loop.get("model_response_source"),
         },
+        "vscode_extension": {
+            "extension_root": vscode_extension.get("extension_root"),
+            "checks": len(vscode_extension.get("checks", [])),
+            "failed": len(vscode_extension.get("failed", [])),
+        },
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))
@@ -380,7 +392,7 @@ def parse_args() -> argparse.Namespace:
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
             "real-repo probe, full local MVP repair, GitHub dry-run handoff, "
             "GitHub dry-run artifact, live verified-repair GitHub bridge, "
-            "and local repair-loop smokes as one "
+            "local repair-loop, and VS Code extension contract smokes as one "
             "no-GPU confidence gate."
         )
     )

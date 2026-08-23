@@ -1,0 +1,87 @@
+{
+  "name": "biber-vscode-extension-mvp",
+  "displayName": "BIBER MVP",
+  "description": "Minimal secure VS Code client for BIBER orchestration planning.",
+  "version": "0.1.0",
+  "publisher": "biber-ai",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:biber.setApiKey",
+    "onCommand:biber.clearApiKey",
+    "onCommand:biber.orchestrationPlan"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "biber.setApiKey",
+        "title": "BIBER: Set API Key"
+      },
+      {
+        "command": "biber.clearApiKey",
+        "title": "BIBER: Clear API Key"
+      },
+      {
+        "command": "biber.orchestrationPlan",
+        "title": "BIBER: Plan With BIBER Orchestration"
+      }
+    ],
+    "configuration": {
+      "title": "BIBER",
+      "properties": {
+        "biber.openaiBaseUrl": {
+          "type": "string",
+          "default": "https://api.beaverapi.com/v1",
+          "description": "OpenAI-compatible BIBER API base URL. Use http://127.0.0.1:8000/v1 only for a private development tunnel."
+        },
+        "biber.model": {
+          "type": "string",
+          "default": "biber-dev-core-v1",
+          "description": "BIBER model id to request."
+        },
+        "biber.maxRequestsPerMinute": {
+          "type": "number",
+          "default": 12,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Client-side per-window request limit before calling BIBER."
+        },
+        "biber.requestTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 5000,
+          "maximum": 120000,
+          "description": "Maximum time to wait for one BIBER API request."
+        },
+        "biber.maxPromptChars": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 200,
+          "maximum": 20000,
+          "description": "Maximum user instruction length sent to BIBER."
+        },
+        "biber.maxChangedPaths": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Maximum workspace-relative path hints sent to orchestration."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.92.0",
+    "typescript": "^5.5.0"
+  }
+}

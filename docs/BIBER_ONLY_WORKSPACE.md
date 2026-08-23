@@ -170,6 +170,12 @@ Use `examples/external_agent/` for minimal generic-client examples that require
 only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 `python scripts/biber_external_agent_examples_smoke.py` for an offline
 fake-server validation before live GPU testing.
+Use `examples/vscode_extension/` for the VS Code extension MVP scaffold. It is
+an orchestration-planning client first: API keys live in SecretStorage, calls
+are explicit user commands, the first command sends bounded path hints rather
+than file contents, and local single-flight/rate-limit/timeout/HTTPS guards are
+present. Run `python scripts/biber_vscode_extension_contract_smoke.py` before
+changing that scaffold.
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 For the real `beaverapi.com` domain, use
@@ -622,17 +628,18 @@ the local MVP-loop failure/repair-hint smoke, the real-checkout MVP-loop
 repo-probe dry run, the mock real-repo plan smoke, the full local MVP-loop
 repair smoke, the verified-repair GitHub dry-run handoff smoke, the standalone
 GitHub dry-run artifact smoke, the live verified-repair GitHub dry-run bridge
-in fixture mode, and the local repair-loop smoke together. It is the preferred
-pre-live-provider gate before asking for Vast GPU credentials or pointing BIBER
-at a real local Qwen/vLLM endpoint.
+in fixture mode, the local repair-loop smoke, and the VS Code extension
+security-contract smoke together. It is the preferred pre-live-provider gate
+before asking for Vast GPU credentials or pointing BIBER at a real local
+Qwen/vLLM endpoint.
 The real-checkout repo-probe also verifies that `mvp-loop` accepts
 `--pinned-paths-file`, `--changed-paths-file`, and `--use-repo-rag` in the
 local path. Its confidence summary records both path-list selection evidence
 and repo-RAG path-hit evidence for the inline changed file, changed-paths file,
 and pinned-paths file.
 `show-confidence-smoke` and `list-confidence-smokes` surface this path-list
-and repo-RAG evidence plus the live verified-repair GitHub dry-run bridge
-status from saved confidence artifacts.
+and repo-RAG evidence plus the VS Code extension contract and live
+verified-repair GitHub dry-run bridge status from saved confidence artifacts.
 `list-mvp-loops --output` can save the discovered loop artifacts and repair
 next-step metadata for later resume, and `show-mvp-loop-list` summarizes that
 saved list without rerunning the scan.

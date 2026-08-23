@@ -97,6 +97,26 @@ printed `target_git` with `available=True`, branch
 reported `repo_rag_ok=True`, `safe_to_apply=False`, and no mutation, GitHub
 request, OpenAI mentor, or training.
 
+2026-08-23 BIBER VS Code extension MVP checkpoint:
+Complete locally: added `examples/vscode_extension/` as a security-first VS
+Code extension scaffold for testing BIBER orchestration from an editor without
+overbuilding the client. The MVP stores API keys in VS Code SecretStorage,
+calls only the planning-only `/v1/agent/orchestration/plan` endpoint by
+explicit user command, sends bounded path hints rather than file contents,
+enforces local single-flight, per-minute request limits, HTTPS-or-localhost API
+URLs, request timeouts, and output redaction, and avoids admin APIs. Added the
+offline guard `scripts/biber_vscode_extension_contract_smoke.py` and included
+it in `scripts/biber_local_confidence_smoke.py`, so the standard no-GPU gate
+now reports 12 checks including `vscode_extension_contract`. Local validation
+passed Python `py_compile`, `git diff --check`,
+`biber_vscode_extension_contract_smoke.py` with 31/31 checks, full
+`biber_local_confidence_smoke.py --timeout-seconds 240` with `ok=true` and
+12/12 checks, plus `show-confidence-smoke` and `list-confidence-smokes` against
+the saved artifact. Server-side rate limits, quotas, auth, payload-size caps,
+logging redaction, and abuse monitoring remain required for real public use
+because client-side guards can be bypassed. No GPU, OpenAI mentor, paid API,
+training, credential rotation, destructive Git, or XRIQ/XRIS work occurred.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit

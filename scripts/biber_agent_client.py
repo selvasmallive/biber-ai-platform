@@ -18557,6 +18557,7 @@ def summarize_confidence_smoke_artifact(
     )
     mvp_loop_repo_probe = require_mapping(normalized.get("mvp_loop_repo_probe"))
     real_repo_plan = require_mapping(normalized.get("live_provider_real_repo_plan"))
+    vscode_extension = require_mapping(normalized.get("vscode_extension"))
     summary = {
         "path": str(path),
         "source": normalized.get("source"),
@@ -18592,6 +18593,12 @@ def summarize_confidence_smoke_artifact(
         "real_repo_plan_review_status": real_repo_plan.get("review_status"),
         "real_repo_plan_mutation_performed": (
             real_repo_plan.get("mutation_performed") is True
+        ),
+        "vscode_extension_checks": vscode_extension.get("checks", 0),
+        "vscode_extension_failed": vscode_extension.get("failed", 0),
+        "vscode_extension_ok": (
+            vscode_extension.get("checks", 0) > 0
+            and vscode_extension.get("failed", 0) == 0
         ),
         "modified_epoch": path.stat().st_mtime,
     }
@@ -20722,6 +20729,7 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
     real_repo_plan = require_mapping(payload.get("live_provider_real_repo_plan"))
     mvp_loop_full_repair = require_mapping(payload.get("mvp_loop_full_repair"))
     repair_loop = require_mapping(payload.get("repair_loop"))
+    vscode_extension = require_mapping(payload.get("vscode_extension"))
 
     lines = [
         "BIBER local confidence smoke",
@@ -20819,6 +20827,13 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
             f"chain_status={repair_loop.get('chain_status', '-')} "
             f"verification_ok={repair_loop.get('verification_ok')}"
         )
+    if vscode_extension:
+        lines.append(
+            "vscode_extension: "
+            f"checks={vscode_extension.get('checks', 0)} "
+            f"failed={vscode_extension.get('failed', 0)} "
+            f"extension_root={vscode_extension.get('extension_root', '-')}"
+        )
     if payload.get("artifact_path"):
         lines.append(f"artifact_path: {payload.get('artifact_path')}")
     return "\n".join(lines)
@@ -20853,6 +20868,8 @@ def format_confidence_smoke_artifact_list_summary(payload: Mapping[str, Any]) ->
                     f"api_required={artifact.get('api_required')}",
                     f"repo_probe_path_files={artifact.get('repo_probe_path_list_files_used')}",
                     f"repo_probe_rag={artifact.get('repo_probe_repo_rag_used')}",
+                    f"vscode_extension={artifact.get('vscode_extension_ok')}",
+                    f"vscode_extension_failed={artifact.get('vscode_extension_failed', 0)}",
                     f"live_verified_bridge={artifact.get('live_verified_repair_github_verified')}",
                     f"live_verified_bridge_mode={artifact.get('live_verified_repair_github_mode') or '-'}",
                     f"live_verified_bridge_matched={artifact.get('live_verified_repair_github_dry_run_artifacts_matched', 0)}",

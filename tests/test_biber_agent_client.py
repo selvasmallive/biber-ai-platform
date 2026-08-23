@@ -297,6 +297,10 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert '"live_verified_repair_github_dry_run"' in text
     assert "dry_run_artifacts_matched" in text
     assert "biber_local_repair_loop_smoke.py" in text
+    assert "biber_vscode_extension_contract_smoke.py" in text
+    assert "vscode_extension_contract" in text
+    assert '"vscode_extension"' in text
+    assert "extension_root" in text
     assert "biber_local_confidence_smoke" in text
     assert '"external_network_required": False' in text
     assert '"gpu_required": False' in text
@@ -386,6 +390,11 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
             "chain_status": "verified",
             "verification_ok": True,
         },
+        "vscode_extension": {
+            "extension_root": "/workspace/biber-ai-platform/examples/vscode_extension",
+            "checks": 31,
+            "failed": 0,
+        },
     }
     artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     failed_payload = {
@@ -440,6 +449,7 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "live_verified_repair_github_dry_run: mode=fixture" in output
     assert "chain_status=verified" in output
     assert "repair_loop: chain_status=verified" in output
+    assert "vscode_extension: checks=31 failed=0" in output
 
     list_result = json.loads(
         client.run(
@@ -506,6 +516,8 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
         list_result["artifacts"][0]["live_verified_repair_github_request_sent"]
         is False
     )
+    assert list_result["artifacts"][0]["vscode_extension_ok"] is True
+    assert list_result["artifacts"][0]["vscode_extension_failed"] == 0
     assert list_result["artifact_path"] == str(list_artifact)
     assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
     assert failed_only["matched"] == 1
@@ -514,6 +526,8 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "failed: 1" in list_summary
     assert "repo_probe_path_files=True" in list_summary
     assert "repo_probe_rag=True" in list_summary
+    assert "vscode_extension=True" in list_summary
+    assert "vscode_extension_failed=0" in list_summary
     assert "live_verified_bridge=True" in list_summary
     assert "live_verified_bridge_mode=fixture" in list_summary
     assert "live_verified_bridge_matched=2" in list_summary
