@@ -112,10 +112,19 @@ passed Python `py_compile`, `git diff --check`,
 `biber_vscode_extension_contract_smoke.py` with 31/31 checks, full
 `biber_local_confidence_smoke.py --timeout-seconds 240` with `ok=true` and
 12/12 checks, plus `show-confidence-smoke` and `list-confidence-smokes` against
-the saved artifact. Server-side rate limits, quotas, auth, payload-size caps,
-logging redaction, and abuse monitoring remain required for real public use
-because client-side guards can be bypassed. No GPU, OpenAI mentor, paid API,
-training, credential rotation, destructive Git, or XRIQ/XRIS work occurred.
+the saved artifact. Promoted in commit `d057561262` on
+`biber/mvp-resume-20260712`, then synced to the current Vast GPU by Git bundle
+because the GPU checkout still should not depend on GitHub credentials. Vast
+validation passed
+`/venv/main/bin/python scripts/biber_vscode_extension_contract_smoke.py --output /workspace/outputs/biber-vscode-extension-contract-smoke-d057561.json`
+with 31/31 checks and
+`/venv/main/bin/python scripts/biber_local_confidence_smoke.py --timeout-seconds 240 --output /workspace/outputs/biber-local-confidence-smoke-d057561.json`
+with `ok=true`, 12/12 checks, `git_dirty=false`, and
+`vscode_extension.failed=0`. Server-side rate limits, quotas, auth,
+payload-size caps, logging redaction, and abuse monitoring remain required for
+real public use because client-side guards can be bypassed. No OpenAI mentor,
+paid API, training, credential rotation, destructive Git, or XRIQ/XRIS work
+occurred.
 
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
