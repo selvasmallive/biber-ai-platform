@@ -4,8 +4,33 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
-2026-08-23 BIBER Vast verification access note:
-Latest pushed BIBER branch is `biber/mvp-resume-20260712` at commit
+2026-08-23 BIBER Vast verification checkpoint:
+Complete on the current Vast GPU after SSH key access was fixed. Because the
+GPU checkout could not fetch from GitHub over HTTPS without credentials, the
+latest pushed branch was transferred from this workstation as a Git bundle and
+fast-forwarded safely from `1c175a803` to `26576c733` on
+`biber/mvp-resume-20260712`; the worktree remained clean. Vast local services
+were up: `http://127.0.0.1:8000/health` returned BIBER API `status=ok`, and
+`http://127.0.0.1:8001/v1/models` served `biber-dev-core` backed by
+`Qwen/Qwen2.5-Coder-7B-Instruct` with `max_model_len=8192`. Saved Vast
+artifacts:
+`/workspace/outputs/biber-local-confidence-smoke-26576c7.json` passed with
+`ok=true` and 11/11 local confidence checks, including
+`mvp_loop_repo_probe.repo_rag_used=true` and `repo_rag_ok=true`;
+`/workspace/outputs/biber-live-provider-readiness-26576c7.json` passed with
+`endpoint_reachable=true` and `model_available=true`; and
+`/workspace/outputs/biber-real-repo-plan-smoke-readme-26576c7.json` passed a
+live 7B no-apply real-repo planning smoke with `ok=true`,
+`plan_outcome=planned_for_review`, `review_status=ready_for_explicit_apply_approval`,
+`planned=1`, `mutation_performed=false`, and `repo_status_unchanged=true`.
+The first built-in `code-unused-timeout` real-repo profile was also tried and
+stopped safely because its expected old line in `app/model_registry.py` was
+already absent on this branch; no mutation occurred. No OpenAI mentor, training,
+paid API, credential rotation, or XRIQ/XRIS work occurred.
+
+2026-08-23 BIBER Vast verification access note, superseded:
+This earlier note is superseded by the Vast verification checkpoint above.
+At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
 `b5beb6b` after the local repo-RAG confidence-smoke checkpoint. Direct SSH from
 this workstation to the current Vast endpoint was attempted with
 `ssh -o BatchMode=yes -o ConnectTimeout=8 -p 16276 root@85.30.169.224 "pwd && hostname"`.
