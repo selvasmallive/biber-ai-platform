@@ -32,11 +32,15 @@ from .repo_context import (
     list_repo_context_stack_profiles,
     plan_repo_context,
 )
+from .repo_rag import build_repo_rag_index, search_repo_rag
+from .orchestration import plan_agent_orchestration
 from .runtime_profiles import available_runtime_profiles
 from .schemas import (
     AgentSessionRequest,
     AgentSessionResponse,
     AgentSessionStep,
+    AgentOrchestrationPlanRequest,
+    AgentOrchestrationPlanResponse,
     ApiKeyIssueRequest,
     ApiKeyIssueResponse,
     ApiKeyListResponse,
@@ -59,6 +63,10 @@ from .schemas import (
     TestRunResponse,
     RepoContextPlanRequest,
     RepoContextPlanResponse,
+    RepoRagIndexRequest,
+    RepoRagIndexResponse,
+    RepoRagSearchRequest,
+    RepoRagSearchResponse,
     WorkspaceEditApplyRequest,
     WorkspaceEditApplyResponse,
     WorkspaceEditRequest,
@@ -211,11 +219,14 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
             "create_session": "POST /v1/agent/sessions",
             "list_sessions": "GET /v1/agent/sessions",
             "get_session": "GET /v1/agent/sessions/{session_id}",
+            "orchestration_plan": "POST /v1/agent/orchestration/plan",
             "run_test": "POST /v1/tests/run",
             "diagnose_test_failure": "POST /v1/tests/diagnose",
             "edit_file": "POST /v1/files/edit",
             "edit_plan": "POST /v1/files/edit/plan",
             "edit_apply": "POST /v1/files/edit/apply",
+            "repo_rag_index": "POST /v1/repo/rag/index",
+            "repo_rag_search": "POST /v1/repo/rag/search",
             "github_save": "POST /v1/save/github",
             "github_pull_request": "POST /v1/github/pull-request",
             "admin_api_keys": "GET/POST/DELETE /v1/admin/api-keys",
@@ -229,7 +240,29 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                 "max_total_bytes": settings.repo_context_max_total_bytes,
                 "planner_supported": True,
                 "stack_profiles_supported": True,
+                "full_repo_rag_supported": True,
+                "rag_index_endpoint": "POST /v1/repo/rag/index",
+                "rag_search_endpoint": "POST /v1/repo/rag/search",
+                "rag_kind": "lexical_symbol_import_mvp",
                 "stack_profiles": list_repo_context_stack_profiles(),
+            },
+            "multi_agent_orchestration": {
+                "enabled": True,
+                "plan_endpoint": "POST /v1/agent/orchestration/plan",
+                "maturity": "planning_contract_mvp",
+                "agents": [
+                    "planner",
+                    "repo_retriever",
+                    "coder",
+                    "edit_guard",
+                    "test_diagnoser",
+                    "reviewer",
+                    "git_saver",
+                ],
+                "model_calls_in_plan": False,
+                "mutation_in_plan": False,
+                "openai_mentor_optional": True,
+                "openai_mentor_disabled_by_default": True,
             },
             "workspace_edit": {
                 "enabled": True,
@@ -538,6 +571,44 @@ async def repo_context_plan(
     return RepoContextPlanResponse.model_validate(result)
 
 
+@app.post("/v1/repo/rag/index", response_model=RepoRagIndexResponse)
+async def repo_rag_index(
+    request_body: RepoRagIndexRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> RepoRagIndexResponse:
+    try:
+        result = build_repo_rag_index(
+            root=settings.repo_context_root,
+            max_scan_files=request_body.max_scan_files,
+            max_file_bytes=request_body.max_file_bytes,
+        )
+    except RepoContextError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RepoRagIndexResponse.model_validate(result)
+
+
+@app.post("/v1/repo/rag/search", response_model=RepoRagSearchResponse)
+async def repo_rag_search(
+    request_body: RepoRagSearchRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> RepoRagSearchResponse:
+    try:
+        result = search_repo_rag(
+            root=settings.repo_context_root,
+            query=request_body.query,
+            pinned_paths=request_body.pinned_paths,
+            changed_paths=request_body.changed_paths,
+            max_results=request_body.max_results,
+            max_scan_files=request_body.max_scan_files,
+            max_file_bytes=request_body.max_file_bytes,
+        )
+    except RepoContextError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RepoRagSearchResponse.model_validate(result)
+
+
 @app.post("/v1/files/edit", response_model=WorkspaceEditResponse)
 async def edit_workspace_file(
     request_body: WorkspaceEditRequest,
@@ -598,6 +669,36 @@ async def apply_workspace_file_edits(
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditApplyResponse.model_validate(result)
+
+
+@app.post(
+    "/v1/agent/orchestration/plan",
+    response_model=AgentOrchestrationPlanResponse,
+)
+async def agent_orchestration_plan(
+    request_body: AgentOrchestrationPlanRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> AgentOrchestrationPlanResponse:
+    try:
+        result = plan_agent_orchestration(
+            settings=settings,
+            instruction=request_body.instruction,
+            pinned_paths=request_body.pinned_paths,
+            changed_paths=request_body.changed_paths,
+            proposed_edits=[
+                edit.model_dump() for edit in request_body.proposed_edits
+            ],
+            test_id=request_body.test_id,
+            max_context_files=request_body.max_context_files,
+            max_rag_results=request_body.max_rag_results,
+            max_scan_files=request_body.max_scan_files,
+        )
+    except (RepoContextError, WorkspaceEditError, UnknownTestCommandError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return AgentOrchestrationPlanResponse.model_validate(result)
 
 
 @app.get("/v1/agent/sessions")

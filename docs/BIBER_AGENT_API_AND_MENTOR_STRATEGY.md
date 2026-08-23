@@ -23,8 +23,17 @@ The current platform already has the beginnings of this architecture:
 - FastAPI service for BIBER.
 - Protected endpoints using bearer API keys from `BIBER_API_KEYS`.
 - `/v1/chat` for BIBER code generation and reasoning.
-- Selected-file repo context through `repo_context_paths`; this is a bounded
-  MVP context path, not full RAG or automatic repository crawling.
+- Selected-file repo context through `repo_context_paths` remains the bounded
+  context path passed to model calls.
+- MVP full-repository lexical/symbol/import RAG through
+  `POST /v1/repo/rag/index` and `POST /v1/repo/rag/search`; use the returned
+  `selected_paths` as bounded repo context for model calls. This is not yet a
+  production vector database, embedding store, or autonomous repository crawler.
+- Planning-only multi-agent orchestration through
+  `POST /v1/agent/orchestration/plan`, with inspectable planner/retriever/
+  coder/edit-guard/test-diagnoser/reviewer/git-saver stages. It does not call a
+  model, mutate files, use OpenAI mentor, run training, or push to GitHub by
+  itself.
 - `/v1/models` and `/v1/runtime` for model/runtime discovery.
 - vLLM serving `biber-dev-core` through an OpenAI-compatible local runtime.
 - A config-driven model registry maps logical BIBER model IDs such as
@@ -40,7 +49,9 @@ Current limitation:
 - API keys are config-driven starter credentials, not durable user-owned
   database records.
 - The API is private over SSH tunnel while starter credentials remain in place.
-- There is no first-class repo-agent protocol yet.
+- The first-class repo-agent protocol is still MVP planning-only; production
+  work still needs durable job state, vector/embedding RAG, stronger edit
+  sandboxing, and authenticated workflow persistence.
 
 ## Target API Shape
 

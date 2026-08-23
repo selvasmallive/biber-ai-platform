@@ -4,6 +4,38 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
+2026-08-23 latest BIBER repo-RAG/orchestration MVP checkpoint:
+Complete locally but not yet promoted: added CPU-only MVP building blocks for
+stronger repository understanding and safer agent workflows without using GPU,
+training, OpenAI mentor, paid APIs, credentials, or XRIQ/XRIS work. New
+`src/biber_api/repo_rag.py` builds a full allowed-repository lexical/symbol/
+import index and `search_repo_rag` ranks candidate files, changed files,
+related tests, manifests, docs, and short redacted snippets. New
+`src/biber_api/orchestration.py` provides a planning-only multi-agent contract
+covering `planner`, `repo_retriever`, `coder`, `edit_guard`,
+`test_diagnoser`, `reviewer`, and `git_saver` roles. It ties together repo RAG,
+bounded repo context, strict JSON edit proposals, hash-guarded multi-file edit
+plans, test execution, failure diagnosis, and review gates while keeping
+`safe_to_apply=false` until a later explicit apply call with matching
+`plan_hash`. API schemas/routes now expose `POST /v1/repo/rag/index`,
+`POST /v1/repo/rag/search`, and `POST /v1/agent/orchestration/plan`, and
+`/v1/agent/capabilities` advertises `full_repo_rag_supported=true` plus
+`multi_agent_orchestration.enabled=true`. Added tests
+`tests/test_repo_rag.py` and `tests/test_agent_orchestration.py`, included them
+in the focused `pytest-core` command, and updated `README.md`,
+`docs/API_EXAMPLES.md`, `docs/BIBER_EXTERNAL_AGENT_API.md`, and
+`docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md`. Final local adjustment raised
+pinned/changed file RAG ranking above related tests and split underscore code
+identifiers such as `API_KEY` into searchable terms while keeping snippet
+redaction active.
+Local validation passed `py_compile` with `PYTHONPYCACHEPREFIX` redirected to a
+temp directory plus direct no-pytest module exercises for repo RAG ranking,
+orchestration gates, and secret-like snippet redaction. Desktop pytest/API
+dependency validation could not run because this local runtime lacks `pytest`
+and `httpx`; run the focused pytest set on the BIBER API venv/Vast before
+promoting this checkpoint. This is MVP lexical RAG and an orchestration planning
+contract, not yet a persistent vector DB or autonomous multi-agent runtime.
+
 2026-08-23 latest BIBER admin-key configuration checkpoint:
 Complete on Vast: after explicit user approval, a new `BIBER_ADMIN_API_KEY` was
 generated server-side on the current Vast GPU, persisted into

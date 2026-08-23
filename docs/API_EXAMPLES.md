@@ -50,6 +50,68 @@ curl -X POST http://localhost:8000/v1/chat \
 applies file-count and byte limits and rejects `.env`, private-key-looking
 files, cache directories, and paths outside the configured repo context root.
 
+## Search The Full Repository RAG Index
+
+Use this before a chat/edit request when the user asks about a large repo and
+does not know the exact files. This MVP RAG is local, lexical, symbol/import
+aware, and bounded; it is not yet a vector database or persistent embedding
+store.
+
+```bash
+curl -X POST http://localhost:8000/v1/repo/rag/search \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Fix WalletButton disabled send behavior and tests",
+    "changed_paths": ["src/components/WalletButton.tsx"],
+    "max_results": 8
+  }'
+```
+
+Use the returned `selected_paths` as the candidate input to
+`/v1/repo/context/plan` or as `repo_context_paths` for `/v1/chat`. Snippets are
+short previews only, and secret-like assignment lines are redacted.
+
+For an index summary without snippets:
+
+```bash
+curl -X POST http://localhost:8000/v1/repo/rag/index \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"max_scan_files": 5000}'
+```
+
+## Plan A Multi-Agent Coding Workflow
+
+Use this when an IDE agent or gateway needs a safe workflow before calling the
+model or applying edits. The plan endpoint performs no model call, file
+mutation, GitHub save, training, or OpenAI mentor call.
+
+```bash
+curl -X POST http://localhost:8000/v1/agent/orchestration/plan \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instruction": "Fix add service behavior and run the focused Python check.",
+    "changed_paths": ["src/service.py"],
+    "proposed_edits": [
+      {
+        "path": "src/service.py",
+        "old_text": "return a - b",
+        "new_text": "return a + b",
+        "expected_replacements": 1
+      }
+    ],
+    "test_id": "python-compileall-api"
+  }'
+```
+
+The response includes agent roles (`planner`, `repo_retriever`, `coder`,
+`edit_guard`, `test_diagnoser`, `reviewer`, and `git_saver`), selected RAG and
+context paths, optional edit-plan hash, test plan, required gates, and next
+actions. Apply still requires an explicit `/v1/files/edit/apply` call with the
+matching `plan_hash`.
+
 ## Use BIBER As An External Agent Model Source
 
 Use this endpoint when an IDE agent, custom conversational agent, internal app,

@@ -17,6 +17,20 @@ POST /v1/chat/completions
 GET  /v1/agent/capabilities
 ```
 
+For Copilot-style clients, custom IDE agents, and other agent gateways, BIBER
+also exposes planning helpers around the model surface:
+
+```text
+POST /v1/repo/rag/index
+POST /v1/repo/rag/search
+POST /v1/repo/context/plan
+POST /v1/agent/orchestration/plan
+POST /v1/files/edit/plan
+POST /v1/files/edit/apply
+POST /v1/tests/run
+POST /v1/tests/diagnose
+```
+
 Authentication accepts either header form:
 
 ```text
@@ -60,6 +74,19 @@ curl http://localhost:8000/v1/chat/completions \
 
 Any client that supports an OpenAI-compatible base URL and API key can point at
 the BIBER API base URL and use `/v1/models` plus `/v1/chat/completions`.
+
+Clients that want a richer coding-agent flow should use the planning helpers
+before calling the model: run `/v1/repo/rag/search` to select candidate files
+from the full allowed repository tree, pass those files through
+`/v1/repo/context/plan`, ask the model for strict JSON edits, validate them with
+`/v1/files/edit/plan`, apply only with the matching `plan_hash`, then run and
+diagnose tests. `/v1/agent/orchestration/plan` packages that intended flow into
+a single planning-only response and performs no model call, file mutation,
+GitHub save, training, or OpenAI mentor call.
+
+The current RAG layer is an MVP lexical/symbol/import index. It improves
+repository context selection and cost control, but it is not yet a production
+vector database, persistent embedding store, or autonomous multi-agent runtime.
 
 The stdlib BIBER agent client can exercise the same OpenAI-compatible endpoint:
 

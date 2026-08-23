@@ -225,6 +225,72 @@ class RepoContextPlanResponse(BaseModel):
     summary: str
 
 
+class RepoRagIndexRequest(BaseModel):
+    max_scan_files: int = Field(default=5000, ge=1, le=20000)
+    max_file_bytes: int = Field(default=120000, ge=1, le=500000)
+
+
+class RepoRagIndexDocument(BaseModel):
+    path: str
+    kind: str
+    project_type: str | None = None
+    size_bytes: int
+    line_count: int
+    sha256: str
+    symbols: list[str]
+    imports: list[str]
+    term_count: int
+
+
+class RepoRagIndexResponse(BaseModel):
+    source: str
+    ok: bool
+    index_version: str
+    index_id: str
+    scanned_files: int
+    indexed_files: int
+    skipped_files: int
+    detected_project_types: list[str]
+    documents: list[RepoRagIndexDocument]
+    skipped: list[dict[str, str]]
+    summary: str
+
+
+class RepoRagSearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    pinned_paths: list[str] = Field(default_factory=list, max_length=50)
+    changed_paths: list[str] = Field(default_factory=list, max_length=50)
+    max_results: int = Field(default=12, ge=1, le=50)
+    max_scan_files: int = Field(default=5000, ge=1, le=20000)
+    max_file_bytes: int = Field(default=120000, ge=1, le=500000)
+
+
+class RepoRagSearchResult(BaseModel):
+    path: str
+    score: int
+    kind: str
+    project_type: str | None = None
+    matched_terms: list[str]
+    reasons: list[str]
+    symbols: list[str]
+    imports: list[str]
+    snippet: str
+
+
+class RepoRagSearchResponse(BaseModel):
+    source: str
+    ok: bool
+    index_version: str
+    index_id: str
+    query: str
+    query_terms: list[str]
+    selected_paths: list[str]
+    results: list[RepoRagSearchResult]
+    index_summary: dict[str, int]
+    skipped: list[dict[str, str]]
+    summary: str
+
+
 class WorkspaceEditRequest(BaseModel):
     path: str = Field(min_length=1)
     old_text: str | None = None
@@ -290,6 +356,37 @@ class WorkspaceEditApplyResponse(BaseModel):
     plan_hash: str
     applied: list[WorkspaceEditResponse]
     files_touched: int
+    summary: str
+
+
+class AgentOrchestrationPlanRequest(BaseModel):
+    instruction: str = Field(min_length=1)
+    pinned_paths: list[str] = Field(default_factory=list, max_length=50)
+    changed_paths: list[str] = Field(default_factory=list, max_length=50)
+    proposed_edits: list[WorkspaceEditRequest] = Field(default_factory=list, max_length=20)
+    test_id: str | None = "python-compileall-api"
+    max_context_files: int = Field(default=12, ge=1, le=50)
+    max_rag_results: int = Field(default=12, ge=1, le=50)
+    max_scan_files: int = Field(default=5000, ge=1, le=20000)
+
+
+class AgentOrchestrationPlanResponse(BaseModel):
+    source: str
+    ok: bool
+    orchestration_version: str
+    instruction: str
+    agents: list[dict[str, Any]]
+    workflow_steps: list[dict[str, Any]]
+    repo_rag: dict[str, Any]
+    repo_context: dict[str, Any]
+    edit_plan: dict[str, Any] | None = None
+    test_plan: dict[str, Any] | None = None
+    required_gates: list[str]
+    hard_blockers: list[str]
+    safe_to_apply: bool
+    mentor_required: bool
+    mentor_optional: bool
+    next_actions: list[str]
     summary: str
 
 

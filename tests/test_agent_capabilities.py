@@ -58,9 +58,12 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert body["endpoints"]["openai_chat_completions"] == "POST /v1/chat/completions"
     assert body["endpoints"]["agent_capabilities"] == "GET /v1/agent/capabilities"
     assert body["endpoints"]["create_session"] == "POST /v1/agent/sessions"
+    assert body["endpoints"]["orchestration_plan"] == "POST /v1/agent/orchestration/plan"
     assert body["endpoints"]["diagnose_test_failure"] == "POST /v1/tests/diagnose"
     assert body["endpoints"]["edit_plan"] == "POST /v1/files/edit/plan"
     assert body["endpoints"]["edit_apply"] == "POST /v1/files/edit/apply"
+    assert body["endpoints"]["repo_rag_index"] == "POST /v1/repo/rag/index"
+    assert body["endpoints"]["repo_rag_search"] == "POST /v1/repo/rag/search"
     external_api = body["features"]["external_agent_api"]
     assert external_api["enabled"] is True
     assert external_api["protocol"] == "openai-compatible-chat-completions"
@@ -87,6 +90,18 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert body["features"]["repo_context"]["planner_supported"] is True
     assert body["features"]["repo_context"]["plan_endpoint"] == "POST /v1/repo/context/plan"
     assert body["features"]["repo_context"]["stack_profiles_supported"] is True
+    assert body["features"]["repo_context"]["full_repo_rag_supported"] is True
+    assert body["features"]["repo_context"]["rag_index_endpoint"] == "POST /v1/repo/rag/index"
+    assert body["features"]["repo_context"]["rag_search_endpoint"] == "POST /v1/repo/rag/search"
+    assert body["features"]["repo_context"]["rag_kind"] == "lexical_symbol_import_mvp"
+    orchestration = body["features"]["multi_agent_orchestration"]
+    assert orchestration["enabled"] is True
+    assert orchestration["plan_endpoint"] == "POST /v1/agent/orchestration/plan"
+    assert orchestration["maturity"] == "planning_contract_mvp"
+    assert orchestration["model_calls_in_plan"] is False
+    assert orchestration["mutation_in_plan"] is False
+    assert orchestration["openai_mentor_disabled_by_default"] is True
+    assert "edit_guard" in orchestration["agents"]
     stack_profiles = {
         profile["id"]: profile
         for profile in body["features"]["repo_context"]["stack_profiles"]

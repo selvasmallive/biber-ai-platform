@@ -146,11 +146,20 @@ curl -X POST http://localhost:8000/v1/chat \
   }'
 ```
 
-`repo_context_paths` is intentionally selected-file context, not automatic repo
-crawling. It is bounded by `BIBER_REPO_CONTEXT_MAX_FILES`,
+`repo_context_paths` remains bounded selected-file context. For larger repos,
+first call the MVP full-repository lexical RAG endpoints
+`POST /v1/repo/rag/index` and `POST /v1/repo/rag/search`, then pass the returned
+`selected_paths` into `/v1/repo/context/plan` or `/v1/chat`. Context is still
+bounded by `BIBER_REPO_CONTEXT_MAX_FILES`,
 `BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE`, and
 `BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES`; obvious secret paths such as `.env` and
 private key files are rejected.
+
+For a planning-only multi-agent workflow, use
+`POST /v1/agent/orchestration/plan`. It plans repo RAG, bounded context,
+strict JSON edit proposals, hash-guarded multi-file edit review, test execution,
+failure diagnosis, and optional human/OpenAI mentor review gates without
+calling the model or mutating files.
 
 OpenAI mentor review is optional and costed. Configure `BIBER_MENTOR_ENABLED`,
 `OPENAI_API_KEY`, and `OPENAI_MODEL` on the server, then opt in per prompt with
