@@ -2,6 +2,7 @@
   "expo": {
     "name": "Lattice",
     "slug": "lattice-wallet",
+    "owner": "latticewallet",
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "lattice",
@@ -49,6 +50,11 @@
           "cameraPermission": "Lattice uses the camera to scan WalletConnect QR codes."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "70f35dd0-b55e-4f38-8132-e25a507f94e5"
+      }
+    }
   }
 }
