@@ -44,6 +44,22 @@ the pushed branch to Vast by Git bundle because the GPU checkout cannot fetch
 from GitHub over HTTPS without credentials, then rerun the live no-apply
 `code-unused-timeout` smoke.
 
+2026-08-23 BIBER Vast code-profile verification checkpoint:
+Complete on the current Vast GPU after syncing commit `3c10502a5` by Git
+bundle. The live 7B no-apply `code-unused-timeout` real-repo smoke passed:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260823T231839048503Z` reports
+`ok=true`, `readiness_ok=true`, `required_target_probe.ok=true`,
+`selected_context_paths=["app/model_registry.py"]`, `planned=1`,
+`plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`, `mutation_performed=false`,
+and `repo_status_unchanged=true`. The first live model attempt returned a safe
+empty edit list, so the existing guarded `required_edit_fallback` produced the
+review-only plan after confirming the exact target text appears once. The plan
+hash is `b4f0a99ea396feb0e09350ba2597993b1f206771296c6ec7e57483d7fdc456f0`.
+Do not apply this plan unless the user explicitly approves it; it is only a
+confidence artifact for the real-repo planning path. No OpenAI mentor, training,
+paid API, credential rotation, or XRIQ/XRIS work occurred.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
