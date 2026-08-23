@@ -4,6 +4,19 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
+2026-08-23 BIBER Vast verification access note:
+Latest pushed BIBER branch is `biber/mvp-resume-20260712` at commit
+`b5beb6b` after the local repo-RAG confidence-smoke checkpoint. Direct SSH from
+this workstation to the current Vast endpoint was attempted with
+`ssh -o BatchMode=yes -o ConnectTimeout=8 -p 16276 root@85.30.169.224 "pwd && hostname"`.
+The host was reachable and printed the Vast welcome banner, but login failed
+with `Permission denied (publickey)`. No credentials were rotated or changed.
+Next GPU-side step: add/attach this workstation's public SSH key to the Vast
+instance, then on the GPU run `cd /workspace/biber-ai-platform`,
+`git pull --ff-only origin biber/mvp-resume-20260712`, and validate the latest
+checkpoint with `/workspace/biber-venv/bin/python scripts/biber_local_confidence_smoke.py --timeout-seconds 240`
+or the equivalent active BIBER venv.
+
 2026-08-23 BIBER local confidence repo-RAG probe checkpoint:
 Complete locally: the real-checkout repo-probe smoke
 `scripts/biber_local_mvp_loop_repo_probe_smoke.py` now runs
