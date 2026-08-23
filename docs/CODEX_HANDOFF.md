@@ -28,6 +28,22 @@ stopped safely because its expected old line in `app/model_registry.py` was
 already absent on this branch; no mutation occurred. No OpenAI mentor, training,
 paid API, credential rotation, or XRIQ/XRIS work occurred.
 
+2026-08-23 BIBER smoke-profile maintenance checkpoint:
+Complete locally after the Vast verification checkpoint above: refreshed the
+stale `code-unused-timeout` built-in profile so it no longer targets the already
+removed `local_model_timeout_seconds` assignment. The profile now uses the
+current `BIBER_CANDIDATE_MODEL_BASE_URL` expression in `app/model_registry.py`
+as a tiny equivalent formatting-plan target, still with one context file and
+`python-compileall-api` as the verification step. Local validation passed
+`git diff --check`, Python `py_compile` for the changed script/test with
+bytecode redirected to a temp pycache, the focused profile assertion, and a mock
+no-apply `--smoke-profile code-unused-timeout` run with `ok=true`,
+`required_target_probe.ok=true`, `selected_context_paths=["app/model_registry.py"]`,
+`plan_outcome=planned_for_review`, and `mutation_performed=false`. Next sync
+the pushed branch to Vast by Git bundle because the GPU checkout cannot fetch
+from GitHub over HTTPS without credentials, then rerun the live no-apply
+`code-unused-timeout` smoke.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit

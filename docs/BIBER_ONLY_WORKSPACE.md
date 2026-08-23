@@ -288,11 +288,11 @@ python scripts/biber_live_provider_real_repo_plan_smoke.py \
   --smoke-profile code-unused-timeout
 ```
 
-This profile asks the local provider to plan removal of one unused assignment in
-`app/model_registry.py`, still with `python-compileall-api` as the verify step
-after any later approved apply. It defaults to one context file so the live 3B
-endpoint with `BIBER_MAX_MODEL_LEN=4096` has room for the prompt. The prompt
-includes a preferred exact JSON edit and must still report
+This profile asks the local provider to plan a tiny equivalent formatting change
+for the candidate-model base URL expression in `app/model_registry.py`, still
+with `python-compileall-api` as the verify step after any later approved apply.
+It defaults to one context file so smaller live endpoints have room for the
+prompt. The prompt includes a preferred exact JSON edit and must still report
 `mutation_performed=false` and stop before apply. If the live 3B model returns
 `{"edits":[]}` for the exact edit, the smoke can use `required_edit_fallback` to
 produce a review-only hash-guarded plan only after confirming the target file

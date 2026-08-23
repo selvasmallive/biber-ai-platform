@@ -72,9 +72,13 @@ SMOKE_PROFILES: dict[str, dict[str, Any]] = {
     "code-unused-timeout": {
         "required_path": "app/model_registry.py",
         "required_old_text": (
-            '    timeout_seconds = getattr(settings, "local_model_timeout_seconds", 180)\n'
+            '    candidate_base_url = os.getenv("BIBER_CANDIDATE_MODEL_BASE_URL") or local_base_url\n'
         ),
-        "required_new_text": "",
+        "required_new_text": (
+            "    candidate_base_url = (\n"
+            '        os.getenv("BIBER_CANDIDATE_MODEL_BASE_URL") or local_base_url\n'
+            "    )\n"
+        ),
         "context_instruction": CODE_PLAN_CONTEXT_INSTRUCTION,
         "max_context_files": "1",
     },
