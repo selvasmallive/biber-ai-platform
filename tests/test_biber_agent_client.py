@@ -21919,6 +21919,129 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
     assert captured["diagnosis_max_context_lines"] == 20
 
 
+def test_run_mvp_loop_local_target_can_seed_context_from_repo_rag(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local mvp-loop repo RAG should not resolve an API key")
+
+    def fake_repo_rag_search_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["rag_target_root"] = target_root
+        captured["rag_payload"] = payload
+        return {
+            "source": "biber_repo_rag_search",
+            "ok": True,
+            "selected_paths": ["src/service.py", "tests/test_service.py"],
+            "results": [],
+            "summary": "Selected service context.",
+        }
+
+    def fake_plan_repo_context_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["context_target_root"] = target_root
+        captured["context_payload"] = payload
+        return {
+            "selected_paths": [
+                "README.md",
+                "src/service.py",
+                "tests/test_service.py",
+            ],
+            "detected_project_types": ["python"],
+            "candidates": [],
+            "skipped": [],
+            "summary": "Selected Python context.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "repo_rag_search_local_target",
+        fake_repo_rag_search_local_target,
+    )
+    monkeypatch.setattr(
+        client,
+        "plan_repo_context_local_target",
+        fake_plan_repo_context_local_target,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "mvp-loop",
+                "--instruction",
+                "Fix service behavior and tests.",
+                "--local-target-root",
+                str(target_root),
+                "--use-repo-rag",
+                "--pinned-path",
+                "README.md",
+                "--changed-path",
+                "src/service.py",
+                "--max-context-files",
+                "4",
+                "--max-scan-files",
+                "200",
+                "--max-rag-results",
+                "5",
+                "--max-rag-file-bytes",
+                "6000",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["ok"] is True
+    assert result["context_mode"] == "local_target_root"
+    assert result["repo_rag_used"] is True
+    assert result["repo_rag_mode"] == "local_target_root"
+    assert result["repo_rag_selected_paths"] == [
+        "src/service.py",
+        "tests/test_service.py",
+    ]
+    assert set(result["steps"]) == {"repo_rag_search", "context_plan"}
+    assert result["selected_context_paths"] == [
+        "README.md",
+        "src/service.py",
+        "tests/test_service.py",
+    ]
+    assert result["agent_report"]["context"]["selected_count"] == 3
+    assert result["agent_report"]["status"] == "needs_test"
+    assert captured["rag_target_root"] == target_root.resolve()
+    assert captured["rag_payload"] == {
+        "query": "Fix service behavior and tests.",
+        "pinned_paths": ["README.md"],
+        "changed_paths": ["src/service.py"],
+        "max_results": 5,
+        "max_scan_files": 200,
+        "max_file_bytes": 6000,
+    }
+    assert captured["context_target_root"] == target_root.resolve()
+    assert captured["context_payload"] == {
+        "instruction": "Fix service behavior and tests.",
+        "pinned_paths": [
+            "README.md",
+            "src/service.py",
+            "tests/test_service.py",
+        ],
+        "changed_paths": ["src/service.py"],
+        "max_files": 4,
+        "max_scan_files": 200,
+    }
+
+
 def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
     monkeypatch,
     tmp_path: Path,

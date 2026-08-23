@@ -4,6 +4,25 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
+2026-08-23 BIBER `mvp-loop --use-repo-rag` checkpoint:
+Complete locally: the existing stdlib `scripts/biber_agent_client.py mvp-loop`
+now has an opt-in `--use-repo-rag` path. When enabled, the loop first runs
+bounded repo-RAG using the loop instruction plus CLI pinned/changed paths,
+records the `repo_rag_search` step, folds the returned `selected_paths` into
+the pinned path list for repo-context planning, and continues through the
+unchanged safe edit/test/GitHub gates. In `--local-target-root` mode this still
+skips BIBER API-key resolution and does not need a live BIBER API, GPU, OpenAI
+mentor, training, paid APIs, credential changes, or XRIQ/XRIS work. Added a
+focused monkeypatched test proving local repo-RAG seeding does not resolve an
+API key and passes the combined path list to context planning. Updated
+`README.md` and `docs/API_EXAMPLES.md` with the new opt-in flow. Local
+validation passed `git diff --check`, Python `py_compile` for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py` with
+bytecode redirected to the system temp directory, and a direct dependency-free
+`mvp-loop --use-repo-rag --local-target-root <temp repo>` smoke. Desktop pytest
+could not run because the bundled local Python does not have `pytest`
+installed; run the focused pytest on the BIBER venv/Vast when available.
+
 2026-08-23 latest BIBER local-target repo-RAG/orchestration client checkpoint:
 Complete locally but not yet promoted: extended `scripts/biber_agent_client.py`
 so `repo-rag-index`, `repo-rag-search`, and `orchestration-plan` support

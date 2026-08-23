@@ -103,6 +103,24 @@ python scripts/biber_agent_client.py repo-rag-search \
   --max-results 8
 ```
 
+The broader MVP loop can also use repo-RAG as an opt-in pre-step before
+bounded context planning:
+
+```bash
+python scripts/biber_agent_client.py mvp-loop \
+  --local-target-root /workspace/biber-ai-platform \
+  --instruction "Fix add service behavior and run the focused Python check." \
+  --use-repo-rag \
+  --changed-path src/service.py \
+  --max-rag-results 8 \
+  --max-context-files 6 \
+  --test-id python-compileall-api \
+  --test-dry-run
+```
+
+`--use-repo-rag` only expands the candidate context path list. The existing
+edit, apply, test, GitHub save, and mentor gates remain unchanged.
+
 ## Plan A Multi-Agent Coding Workflow
 
 Use this when an IDE agent or gateway needs a safe workflow before calling the

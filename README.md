@@ -167,6 +167,12 @@ The stdlib agent client exposes the same no-write workflow with
 to run those planning steps directly against a local checkout without a live
 BIBER API or GPU.
 
+For the existing `mvp-loop`, add `--use-repo-rag` when the likely files are not
+obvious. The loop first runs bounded lexical repo-RAG, feeds those selected
+paths into repo-context planning, and then continues through the same safe edit,
+test, and GitHub gates. This is opt-in context selection only; it does not
+mutate files or call the local model by itself.
+
 OpenAI mentor review is optional and costed. Configure `BIBER_MENTOR_ENABLED`,
 `OPENAI_API_KEY`, and `OPENAI_MODEL` on the server, then opt in per prompt with
 the phrase `Review with OpenAI mentor`:

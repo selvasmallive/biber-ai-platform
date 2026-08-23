@@ -21145,6 +21145,11 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
     ]
     if payload.get("context_mode"):
         lines.append(f"context_mode: {payload.get('context_mode')}")
+    if payload.get("repo_rag_used"):
+        lines.append(
+            "repo_rag_selected_paths: "
+            f"{len(require_list(payload.get('repo_rag_selected_paths')))}"
+        )
     if payload.get("test_mode"):
         lines.append(f"test_mode: {payload.get('test_mode')}")
     runtime_profile_ids = normalize_runtime_profile_ids(
@@ -25012,6 +25017,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     mvp_loop.add_argument("--max-context-files", type=int)
     mvp_loop.add_argument("--max-scan-files", type=int)
+    mvp_loop.add_argument(
+        "--use-repo-rag",
+        action="store_true",
+        help=(
+            "Run repo-rag-search first and feed selected paths into the bounded "
+            "repo-context plan. This is context selection only; it does not "
+            "call a model or mutate files."
+        ),
+    )
+    mvp_loop.add_argument("--max-rag-results", type=int)
+    mvp_loop.add_argument("--max-rag-file-bytes", type=int)
     mvp_loop.add_argument("--runtime-profile-id", action="append", default=None)
     mvp_loop.add_argument("--edit-json", action="append", default=None)
     mvp_loop.add_argument("--edits-file")
@@ -30190,18 +30206,52 @@ def run(args: argparse.Namespace) -> str:
         if args.include_git_state and target_root is not None:
             git_state = git_status_local_target(target_root)
             steps["git_state"] = git_state
+        pinned_paths = combine_cli_paths(
+            args.pinned_path,
+            args.pinned_paths_file,
+            label="--pinned-paths-file",
+        )
+        changed_paths = combine_cli_paths(
+            args.changed_path,
+            args.changed_paths_file,
+            label="--changed-paths-file",
+        )
+        repo_rag_selected_paths: list[str] = []
+        repo_rag_mode: str | None = None
+        if args.use_repo_rag:
+            repo_rag_payload = build_repo_rag_search_payload(
+                query=args.instruction,
+                pinned_paths=pinned_paths,
+                changed_paths=changed_paths,
+                max_results=args.max_rag_results or args.max_context_files,
+                max_scan_files=args.max_scan_files,
+                max_file_bytes=args.max_rag_file_bytes,
+            )
+            if target_root is not None:
+                repo_rag_search_result = repo_rag_search_local_target(
+                    target_root=target_root,
+                    payload=repo_rag_payload,
+                )
+                repo_rag_mode = "local_target_root"
+            else:
+                repo_rag_search_result = repo_rag_search(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=repo_rag_payload,
+                    timeout_seconds=args.timeout_seconds,
+                )
+                repo_rag_mode = "api_workspace_root"
+            steps["repo_rag_search"] = repo_rag_search_result
+            repo_rag_selected_paths = [
+                str(path)
+                for path in require_list(repo_rag_search_result.get("selected_paths"))
+            ]
         context_payload = build_repo_context_payload(
             instruction=args.instruction,
-            pinned_paths=combine_cli_paths(
-                args.pinned_path,
-                args.pinned_paths_file,
-                label="--pinned-paths-file",
+            pinned_paths=dedupe_strings(
+                [*(pinned_paths or []), *repo_rag_selected_paths]
             ),
-            changed_paths=combine_cli_paths(
-                args.changed_path,
-                args.changed_paths_file,
-                label="--changed-paths-file",
-            ),
+            changed_paths=changed_paths,
             max_files=args.max_context_files,
             max_scan_files=args.max_scan_files,
         )
@@ -30231,6 +30281,10 @@ def run(args: argparse.Namespace) -> str:
             "selected_context_paths": selected_context_paths,
             "steps": steps,
         }
+        if args.use_repo_rag:
+            summary["repo_rag_used"] = True
+            summary["repo_rag_mode"] = repo_rag_mode
+            summary["repo_rag_selected_paths"] = repo_rag_selected_paths
         if target_root is not None:
             summary["target_root"] = str(target_root)
             summary["target_root_source"] = target_root_source
