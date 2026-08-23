@@ -92,6 +92,16 @@ The stdlib BIBER agent client can exercise the same OpenAI-compatible endpoint:
 
 ```bash
 export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_agent_client.py repo-rag-search \
+  --query "Find the files needed for the requested repo change." \
+  --changed-path src/biber_api/main.py \
+  --max-results 8 \
+  --output /workspace/outputs/biber-repo-rag-search.json
+python scripts/biber_agent_client.py orchestration-plan \
+  --instruction "Plan the repo change with bounded context, safe edits, and tests." \
+  --changed-path src/biber_api/main.py \
+  --test-id python-compileall-api \
+  --output /workspace/outputs/biber-orchestration-plan.json
 python scripts/biber_agent_client.py external-agent-readiness \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-readiness.json

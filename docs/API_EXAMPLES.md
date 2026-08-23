@@ -81,6 +81,17 @@ curl -X POST http://localhost:8000/v1/repo/rag/index \
   -d '{"max_scan_files": 5000}'
 ```
 
+The stdlib agent client exposes the same no-write flow:
+
+```bash
+export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_agent_client.py repo-rag-index --max-scan-files 5000
+python scripts/biber_agent_client.py repo-rag-search \
+  --query "Fix WalletButton disabled send behavior and tests" \
+  --changed-path src/components/WalletButton.tsx \
+  --max-results 8
+```
+
 ## Plan A Multi-Agent Coding Workflow
 
 Use this when an IDE agent or gateway needs a safe workflow before calling the
@@ -111,6 +122,17 @@ The response includes agent roles (`planner`, `repo_retriever`, `coder`,
 context paths, optional edit-plan hash, test plan, required gates, and next
 actions. Apply still requires an explicit `/v1/files/edit/apply` call with the
 matching `plan_hash`.
+
+The stdlib client can save the same planning-only response:
+
+```bash
+python scripts/biber_agent_client.py orchestration-plan \
+  --instruction "Fix add service behavior and run the focused Python check." \
+  --changed-path src/service.py \
+  --edit-json '{"path":"src/service.py","old_text":"return a - b","new_text":"return a + b","expected_replacements":1}' \
+  --test-id python-compileall-api \
+  --output /workspace/outputs/biber-orchestration-plan.json
+```
 
 ## Use BIBER As An External Agent Model Source
 

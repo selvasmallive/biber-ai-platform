@@ -161,6 +161,10 @@ strict JSON edit proposals, hash-guarded multi-file edit review, test execution,
 failure diagnosis, and optional human/OpenAI mentor review gates without
 calling the model or mutating files.
 
+The stdlib agent client exposes the same no-write workflow with
+`repo-rag-index`, `repo-rag-search`, and `orchestration-plan`; see
+`docs/API_EXAMPLES.md` for runnable commands.
+
 OpenAI mentor review is optional and costed. Configure `BIBER_MENTOR_ENABLED`,
 `OPENAI_API_KEY`, and `OPENAI_MODEL` on the server, then opt in per prompt with
 the phrase `Review with OpenAI mentor`:

@@ -2369,6 +2369,57 @@ def plan_repo_context(
     )
 
 
+def repo_rag_index(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/repo/rag/index",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def repo_rag_search(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/repo/rag/search",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def plan_agent_orchestration(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/agent/orchestration/plan",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def plan_workspace_edit(
     *,
     base_url: str,
@@ -3796,6 +3847,74 @@ def build_repo_context_payload(
     return payload
 
 
+def build_repo_rag_index_payload(
+    *,
+    max_scan_files: int | None,
+    max_file_bytes: int | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if max_scan_files is not None:
+        payload["max_scan_files"] = max_scan_files
+    if max_file_bytes is not None:
+        payload["max_file_bytes"] = max_file_bytes
+    return payload
+
+
+def build_repo_rag_search_payload(
+    *,
+    query: str,
+    pinned_paths: list[str] | None,
+    changed_paths: list[str] | None,
+    max_results: int | None,
+    max_scan_files: int | None,
+    max_file_bytes: int | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"query": query}
+    if pinned_paths is not None:
+        payload["pinned_paths"] = pinned_paths
+    if changed_paths is not None:
+        payload["changed_paths"] = changed_paths
+    if max_results is not None:
+        payload["max_results"] = max_results
+    if max_scan_files is not None:
+        payload["max_scan_files"] = max_scan_files
+    if max_file_bytes is not None:
+        payload["max_file_bytes"] = max_file_bytes
+    return payload
+
+
+def build_agent_orchestration_payload(
+    *,
+    instruction: str,
+    pinned_paths: list[str] | None,
+    changed_paths: list[str] | None,
+    proposed_edits: list[dict[str, Any]],
+    test_id: str | None,
+    no_test: bool,
+    max_context_files: int | None,
+    max_rag_results: int | None,
+    max_scan_files: int | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"instruction": instruction}
+    if pinned_paths is not None:
+        payload["pinned_paths"] = pinned_paths
+    if changed_paths is not None:
+        payload["changed_paths"] = changed_paths
+    if proposed_edits:
+        payload["proposed_edits"] = proposed_edits
+    if no_test:
+        payload["test_id"] = None
+    elif test_id is not None:
+        payload["test_id"] = test_id
+    if max_context_files is not None:
+        payload["max_context_files"] = max_context_files
+    if max_rag_results is not None:
+        payload["max_rag_results"] = max_rag_results
+    if max_scan_files is not None:
+        payload["max_scan_files"] = max_scan_files
+    return payload
+
+
 def load_path_list_file(path_file: str | None, *, label: str) -> list[str]:
     if not path_file:
         return []
@@ -3850,6 +3969,113 @@ def format_repo_context_summary(payload: Mapping[str, Any]) -> str:
         f"selected_paths ({len(selected_paths)}):",
     ]
     lines.extend(f"- {path}" for path in selected_paths)
+    return "\n".join(lines)
+
+
+def format_repo_rag_index_summary(payload: Mapping[str, Any]) -> str:
+    documents = [
+        item
+        for item in require_list(payload.get("documents"))
+        if isinstance(item, dict)
+    ]
+    detected_project_types = [
+        str(project_type)
+        for project_type in require_list(payload.get("detected_project_types"))
+    ]
+    lines = [
+        "BIBER repo RAG index",
+        f"ok: {bool(payload.get('ok'))}",
+        f"index_version: {payload.get('index_version', '-')}",
+        f"index_id: {payload.get('index_id', '-')}",
+        f"scanned_files: {payload.get('scanned_files', 0)}",
+        f"indexed_files: {payload.get('indexed_files', 0)}",
+        f"skipped_files: {payload.get('skipped_files', 0)}",
+        (
+            "detected_project_types: "
+            f"{', '.join(detected_project_types) if detected_project_types else '-'}"
+        ),
+        "top_documents:",
+    ]
+    lines.extend(
+        (
+            f"- {item.get('path', '-')} kind={item.get('kind', '-')} "
+            f"project={item.get('project_type') or '-'}"
+        )
+        for item in documents[:12]
+    )
+    return "\n".join(lines)
+
+
+def format_repo_rag_search_summary(payload: Mapping[str, Any]) -> str:
+    selected_paths = [str(path) for path in require_list(payload.get("selected_paths"))]
+    results = [
+        item
+        for item in require_list(payload.get("results"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repo RAG search",
+        f"ok: {bool(payload.get('ok'))}",
+        f"query: {payload.get('query', '-')}",
+        f"index_id: {payload.get('index_id', '-')}",
+        f"selected_paths ({len(selected_paths)}):",
+    ]
+    lines.extend(f"- {path}" for path in selected_paths)
+    if results:
+        lines.append("top_results:")
+        lines.extend(
+            (
+                f"- {item.get('path', '-')} score={item.get('score', 0)} "
+                f"reasons={','.join(str(reason) for reason in require_list(item.get('reasons'))) or '-'}"
+            )
+            for item in results[:8]
+        )
+    return "\n".join(lines)
+
+
+def format_agent_orchestration_plan_summary(payload: Mapping[str, Any]) -> str:
+    repo_rag = require_mapping(payload.get("repo_rag"))
+    repo_context = require_mapping(payload.get("repo_context"))
+    edit_plan = payload.get("edit_plan")
+    edit_plan_payload = edit_plan if isinstance(edit_plan, Mapping) else {}
+    test_plan = payload.get("test_plan")
+    test_plan_payload = test_plan if isinstance(test_plan, Mapping) else {}
+    selected_paths = [
+        str(path) for path in require_list(repo_context.get("selected_paths"))
+    ]
+    workflow_steps = [
+        item
+        for item in require_list(payload.get("workflow_steps"))
+        if isinstance(item, dict)
+    ]
+    hard_blockers = [str(item) for item in require_list(payload.get("hard_blockers"))]
+    required_gates = [str(item) for item in require_list(payload.get("required_gates"))]
+    lines = [
+        "BIBER agent orchestration plan",
+        f"ok: {bool(payload.get('ok'))}",
+        f"safe_to_apply: {bool(payload.get('safe_to_apply'))}",
+        f"orchestration_version: {payload.get('orchestration_version', '-')}",
+        f"repo_rag_ok: {bool(repo_rag.get('ok'))}",
+        f"edit_plan_hash: {edit_plan_payload.get('plan_hash', '-')}",
+        f"test_id: {test_plan_payload.get('test_id', '-')}",
+        f"selected_context_paths ({len(selected_paths)}):",
+    ]
+    lines.extend(f"- {path}" for path in selected_paths)
+    if workflow_steps:
+        lines.append("workflow_steps:")
+        lines.extend(
+            (
+                f"- {item.get('name', '-')} agent={item.get('agent', '-')} "
+                f"status={item.get('status', '-')}"
+            )
+            for item in workflow_steps
+        )
+    if hard_blockers:
+        lines.append("hard_blockers:")
+        lines.extend(f"- {blocker}" for blocker in hard_blockers)
+    if required_gates:
+        lines.append("required_gates:")
+        lines.extend(f"- {gate}" for gate in required_gates[:10])
     return "\n".join(lines)
 
 
@@ -24084,6 +24310,62 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plan_context.add_argument("--max-files", type=int)
     plan_context.add_argument("--max-scan-files", type=int)
 
+    repo_rag_index_parser = subparsers.add_parser(
+        "repo-rag-index",
+        help="Build a safe full allowed-repository RAG index summary.",
+    )
+    repo_rag_index_parser.add_argument("--max-scan-files", type=int)
+    repo_rag_index_parser.add_argument("--max-file-bytes", type=int)
+    repo_rag_index_parser.add_argument("--output", help="Optional JSON artifact path.")
+
+    repo_rag_search_parser = subparsers.add_parser(
+        "repo-rag-search",
+        help="Search the safe full allowed-repository RAG index for context paths.",
+    )
+    repo_rag_search_parser.add_argument("--query", required=True)
+    repo_rag_search_parser.add_argument("--pinned-path", action="append", default=None)
+    repo_rag_search_parser.add_argument("--changed-path", action="append", default=None)
+    repo_rag_search_parser.add_argument(
+        "--pinned-paths-file",
+        help="Newline-delimited pinned repo-RAG paths. Blank lines and # comments are ignored.",
+    )
+    repo_rag_search_parser.add_argument(
+        "--changed-paths-file",
+        help="Newline-delimited changed repo-RAG paths. Blank lines and # comments are ignored.",
+    )
+    repo_rag_search_parser.add_argument("--max-results", type=int)
+    repo_rag_search_parser.add_argument("--max-scan-files", type=int)
+    repo_rag_search_parser.add_argument("--max-file-bytes", type=int)
+    repo_rag_search_parser.add_argument("--output", help="Optional JSON artifact path.")
+
+    orchestration_plan_parser = subparsers.add_parser(
+        "orchestration-plan",
+        help="Plan the BIBER repo-RAG, context, edit, test, and review workflow.",
+    )
+    orchestration_plan_parser.add_argument("--instruction", required=True)
+    orchestration_plan_parser.add_argument("--pinned-path", action="append", default=None)
+    orchestration_plan_parser.add_argument("--changed-path", action="append", default=None)
+    orchestration_plan_parser.add_argument(
+        "--pinned-paths-file",
+        help="Newline-delimited pinned orchestration paths. Blank lines and # comments are ignored.",
+    )
+    orchestration_plan_parser.add_argument(
+        "--changed-paths-file",
+        help="Newline-delimited changed orchestration paths. Blank lines and # comments are ignored.",
+    )
+    orchestration_plan_parser.add_argument("--edit-json", action="append", default=None)
+    orchestration_plan_parser.add_argument("--edits-file")
+    orchestration_plan_parser.add_argument("--test-id")
+    orchestration_plan_parser.add_argument(
+        "--no-test",
+        action="store_true",
+        help="Set test_id=null for a planning-only workflow without a test step.",
+    )
+    orchestration_plan_parser.add_argument("--max-context-files", type=int)
+    orchestration_plan_parser.add_argument("--max-rag-results", type=int)
+    orchestration_plan_parser.add_argument("--max-scan-files", type=int)
+    orchestration_plan_parser.add_argument("--output", help="Optional JSON artifact path.")
+
     plan_edit = subparsers.add_parser(
         "plan-edit",
         help="Validate a bounded workspace edit plan without writing files.",
@@ -29495,6 +29777,96 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(plan, indent=2, sort_keys=True)
             if args.print_json
             else format_repo_context_summary(plan)
+        )
+    if args.command == "repo-rag-index":
+        payload = build_repo_rag_index_payload(
+            max_scan_files=args.max_scan_files,
+            max_file_bytes=args.max_file_bytes,
+        )
+        index = repo_rag_index(
+            base_url=base_url,
+            api_key=api_key,
+            payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        if args.output:
+            index["artifact_path"] = str(Path(args.output))
+            write_json_artifact(index, args.output)
+        return (
+            json.dumps(index, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repo_rag_index_summary(index)
+        )
+    if args.command == "repo-rag-search":
+        payload = build_repo_rag_search_payload(
+            query=args.query,
+            pinned_paths=combine_cli_paths(
+                args.pinned_path,
+                args.pinned_paths_file,
+                label="--pinned-paths-file",
+            ),
+            changed_paths=combine_cli_paths(
+                args.changed_path,
+                args.changed_paths_file,
+                label="--changed-paths-file",
+            ),
+            max_results=args.max_results,
+            max_scan_files=args.max_scan_files,
+            max_file_bytes=args.max_file_bytes,
+        )
+        search = repo_rag_search(
+            base_url=base_url,
+            api_key=api_key,
+            payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        if args.output:
+            search["artifact_path"] = str(Path(args.output))
+            write_json_artifact(search, args.output)
+        return (
+            json.dumps(search, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repo_rag_search_summary(search)
+        )
+    if args.command == "orchestration-plan":
+        proposed_edits: list[dict[str, Any]] = []
+        if args.edit_json or args.edits_file:
+            proposed_edits = load_workspace_edits(
+                edit_json_values=args.edit_json,
+                edits_file=args.edits_file,
+            )
+        payload = build_agent_orchestration_payload(
+            instruction=args.instruction,
+            pinned_paths=combine_cli_paths(
+                args.pinned_path,
+                args.pinned_paths_file,
+                label="--pinned-paths-file",
+            ),
+            changed_paths=combine_cli_paths(
+                args.changed_path,
+                args.changed_paths_file,
+                label="--changed-paths-file",
+            ),
+            proposed_edits=proposed_edits,
+            test_id=args.test_id,
+            no_test=args.no_test,
+            max_context_files=args.max_context_files,
+            max_rag_results=args.max_rag_results,
+            max_scan_files=args.max_scan_files,
+        )
+        plan = plan_agent_orchestration(
+            base_url=base_url,
+            api_key=api_key,
+            payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        if args.output:
+            plan["artifact_path"] = str(Path(args.output))
+            write_json_artifact(plan, args.output)
+        return (
+            json.dumps(plan, indent=2, sort_keys=True)
+            if args.print_json
+            else format_agent_orchestration_plan_summary(plan)
         )
     if args.command == "plan-edit":
         edits = load_workspace_edits(

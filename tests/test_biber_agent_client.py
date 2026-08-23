@@ -20667,6 +20667,243 @@ def test_run_plan_context_json_uses_client_workflow(monkeypatch, tmp_path: Path)
     assert json.loads(output)["selected_paths"] == ["README.md"]
 
 
+def test_run_repo_rag_index_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_repo_rag_index(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "source": "biber_repo_rag_index",
+            "ok": True,
+            "index_version": "repo-rag-v1",
+            "index_id": "abc123",
+            "scanned_files": 2,
+            "indexed_files": 1,
+            "skipped_files": 1,
+            "detected_project_types": ["python"],
+            "documents": [{"path": "src/app.py", "kind": "source"}],
+            "skipped": [],
+            "summary": "Indexed 1 file.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "repo_rag_index", fake_repo_rag_index)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "repo-rag-index",
+            "--max-scan-files",
+            "50",
+            "--max-file-bytes",
+            "4000",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["base_url"] == "http://127.0.0.1:8000"
+    assert captured["api_key"] == "test-key"
+    assert captured["payload"] == {
+        "max_scan_files": 50,
+        "max_file_bytes": 4000,
+    }
+    assert json.loads(output)["source"] == "biber_repo_rag_index"
+
+
+def test_run_repo_rag_search_json_uses_client_workflow(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    changed_paths_file = tmp_path / "changed-paths.txt"
+    changed_paths_file.write_text("tests/test_app.py\n", encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_repo_rag_search(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "source": "biber_repo_rag_search",
+            "ok": True,
+            "index_version": "repo-rag-v1",
+            "index_id": "abc123",
+            "query": "fix app tests",
+            "query_terms": ["app", "tests"],
+            "selected_paths": ["src/app.py", "tests/test_app.py"],
+            "results": [
+                {
+                    "path": "src/app.py",
+                    "score": 140,
+                    "reasons": ["changed_path"],
+                }
+            ],
+            "index_summary": {"scanned_files": 2, "indexed_files": 2},
+            "skipped": [],
+            "summary": "Selected 2 files.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "repo_rag_search", fake_repo_rag_search)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "repo-rag-search",
+            "--query",
+            "fix app tests",
+            "--pinned-path",
+            "README.md",
+            "--changed-path",
+            "src/app.py",
+            "--changed-paths-file",
+            str(changed_paths_file),
+            "--max-results",
+            "6",
+            "--max-scan-files",
+            "100",
+            "--max-file-bytes",
+            "8000",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["payload"] == {
+        "query": "fix app tests",
+        "pinned_paths": ["README.md"],
+        "changed_paths": ["src/app.py", "tests/test_app.py"],
+        "max_results": 6,
+        "max_scan_files": 100,
+        "max_file_bytes": 8000,
+    }
+    assert json.loads(output)["selected_paths"] == ["src/app.py", "tests/test_app.py"]
+
+
+def test_run_orchestration_plan_json_uses_client_workflow(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    pinned_paths_file = tmp_path / "pinned-paths.txt"
+    pinned_paths_file.write_text("README.md\n", encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_plan_agent_orchestration(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "source": "biber_agent_orchestration_plan",
+            "ok": True,
+            "safe_to_apply": False,
+            "orchestration_version": "agent-orchestration-plan-v1",
+            "repo_rag": {"ok": True, "selected_paths": ["src/app.py"]},
+            "repo_context": {"selected_paths": ["src/app.py", "README.md"]},
+            "edit_plan": {"plan_hash": "d" * 64},
+            "test_plan": {"test_id": "python-compileall-api"},
+            "workflow_steps": [{"name": "repo_rag_search", "agent": "repo_retriever", "status": "ok"}],
+            "required_gates": ["human_review_edit_plan"],
+            "hard_blockers": [],
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "plan_agent_orchestration", fake_plan_agent_orchestration)
+
+    edit_json = json.dumps(
+        {
+            "path": "src/app.py",
+            "old_text": "return False",
+            "new_text": "return True",
+        }
+    )
+    args = client.parse_args(
+        [
+            "--json",
+            "orchestration-plan",
+            "--instruction",
+            "Fix app behavior.",
+            "--pinned-paths-file",
+            str(pinned_paths_file),
+            "--changed-path",
+            "src/app.py",
+            "--edit-json",
+            edit_json,
+            "--test-id",
+            "python-compileall-api",
+            "--max-context-files",
+            "5",
+            "--max-rag-results",
+            "7",
+            "--max-scan-files",
+            "200",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["payload"] == {
+        "instruction": "Fix app behavior.",
+        "pinned_paths": ["README.md"],
+        "changed_paths": ["src/app.py"],
+        "proposed_edits": [
+            {
+                "path": "src/app.py",
+                "old_text": "return False",
+                "new_text": "return True",
+            }
+        ],
+        "test_id": "python-compileall-api",
+        "max_context_files": 5,
+        "max_rag_results": 7,
+        "max_scan_files": 200,
+    }
+    assert json.loads(output)["safe_to_apply"] is False
+
+
 def test_run_plan_edit_json_uses_client_workflow(monkeypatch) -> None:
     captured: dict[str, object] = {}
 

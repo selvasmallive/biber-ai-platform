@@ -4,8 +4,27 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
-2026-08-23 latest BIBER repo-RAG/orchestration MVP checkpoint:
-Complete locally but not yet promoted: added CPU-only MVP building blocks for
+2026-08-23 latest BIBER repo-RAG/orchestration client checkpoint:
+Complete in this checkpoint: the next narrow CPU-only step exposes the
+repo-RAG and planning-only orchestration endpoints through
+`scripts/biber_agent_client.py`. New no-write commands are `repo-rag-index`,
+`repo-rag-search`, and `orchestration-plan`; they reuse bearer-key auth,
+bounded path-list helpers, edit JSON loading, optional JSON artifact output,
+and concise terminal summaries. `orchestration-plan` can accept proposed edits
+for dry-run planning only and still does not call a model, mutate files, use
+OpenAI mentor, run training, push to GitHub, or touch XRIQ/XRIS. Added focused
+monkeypatched client tests in `tests/test_biber_agent_client.py` and documented
+the commands in `README.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_EXTERNAL_AGENT_API.md`. Local validation passed `git diff --check`,
+`py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+and a direct no-pytest client smoke for `repo-rag-index`, `repo-rag-search`,
+and `orchestration-plan`. Next safe step after promotion: run these commands
+against the live BIBER API on Vast, then use `repo-rag-search` selected paths as
+bounded context for the next MVP coding loop.
+
+2026-08-23 BIBER repo-RAG/orchestration MVP checkpoint:
+Promoted in commit `89015d5` on branch `biber/mvp-resume-20260712`: added
+CPU-only MVP building blocks for
 stronger repository understanding and safer agent workflows without using GPU,
 training, OpenAI mentor, paid APIs, credentials, or XRIQ/XRIS work. New
 `src/biber_api/repo_rag.py` builds a full allowed-repository lexical/symbol/
