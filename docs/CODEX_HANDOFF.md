@@ -4,7 +4,25 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
-2026-08-23 latest BIBER repo-RAG/orchestration client checkpoint:
+2026-08-23 latest BIBER local-target repo-RAG/orchestration client checkpoint:
+Complete locally but not yet promoted: extended `scripts/biber_agent_client.py`
+so `repo-rag-index`, `repo-rag-search`, and `orchestration-plan` support
+`--local-target-root <repo>`. In local-target mode these commands run directly
+against a checkout using the local BIBER modules, skip BIBER API-key resolution,
+do not require the live FastAPI server or GPU, and still perform no file
+mutation, model call, OpenAI mentor call, training, GitHub write, or XRIQ/XRIS
+work. This makes repo discovery and workflow planning cheaper before spending
+live model time. Added local-target tests in `tests/test_biber_agent_client.py`
+and documented local examples in `README.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_EXTERNAL_AGENT_API.md`. Local validation passed `git diff --check`,
+`py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+and a direct no-pytest smoke that disabled `resolve_api_key` and exercised
+actual local-target `repo-rag-index`, `repo-rag-search`, and
+`orchestration-plan` against a temporary Python repo. Next safe step after
+promotion: use local-target RAG/orchestration to pick the next bounded BIBER
+MVP edit before any live Vast/model call.
+
+2026-08-23 BIBER repo-RAG/orchestration client checkpoint:
 Complete in this checkpoint: the next narrow CPU-only step exposes the
 repo-RAG and planning-only orchestration endpoints through
 `scripts/biber_agent_client.py`. New no-write commands are `repo-rag-index`,

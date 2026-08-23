@@ -92,6 +92,17 @@ python scripts/biber_agent_client.py repo-rag-search \
   --max-results 8
 ```
 
+For CPU-local planning without a running BIBER API, add
+`--local-target-root`:
+
+```bash
+python scripts/biber_agent_client.py repo-rag-search \
+  --local-target-root /workspace/biber-ai-platform \
+  --query "Fix WalletButton disabled send behavior and tests" \
+  --changed-path src/components/WalletButton.tsx \
+  --max-results 8
+```
+
 ## Plan A Multi-Agent Coding Workflow
 
 Use this when an IDE agent or gateway needs a safe workflow before calling the
@@ -132,6 +143,16 @@ python scripts/biber_agent_client.py orchestration-plan \
   --edit-json '{"path":"src/service.py","old_text":"return a - b","new_text":"return a + b","expected_replacements":1}' \
   --test-id python-compileall-api \
   --output /workspace/outputs/biber-orchestration-plan.json
+```
+
+The same planning contract can run locally without API credentials:
+
+```bash
+python scripts/biber_agent_client.py orchestration-plan \
+  --local-target-root /workspace/biber-ai-platform \
+  --instruction "Fix add service behavior and run the focused Python check." \
+  --changed-path src/service.py \
+  --test-id python-compileall-api
 ```
 
 ## Use BIBER As An External Agent Model Source

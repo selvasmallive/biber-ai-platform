@@ -102,6 +102,12 @@ python scripts/biber_agent_client.py orchestration-plan \
   --changed-path src/biber_api/main.py \
   --test-id python-compileall-api \
   --output /workspace/outputs/biber-orchestration-plan.json
+python scripts/biber_agent_client.py orchestration-plan \
+  --local-target-root /workspace/biber-ai-platform \
+  --instruction "Plan the repo change locally before spending live model time." \
+  --changed-path src/biber_api/main.py \
+  --no-test \
+  --output /workspace/outputs/biber-local-orchestration-plan.json
 python scripts/biber_agent_client.py external-agent-readiness \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-readiness.json

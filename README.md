@@ -163,7 +163,9 @@ calling the model or mutating files.
 
 The stdlib agent client exposes the same no-write workflow with
 `repo-rag-index`, `repo-rag-search`, and `orchestration-plan`; see
-`docs/API_EXAMPLES.md` for runnable commands.
+`docs/API_EXAMPLES.md` for runnable commands. Add `--local-target-root <repo>`
+to run those planning steps directly against a local checkout without a live
+BIBER API or GPU.
 
 OpenAI mentor review is optional and costed. Configure `BIBER_MENTOR_ENABLED`,
 `OPENAI_API_KEY`, and `OPENAI_MODEL` on the server, then opt in per prompt with

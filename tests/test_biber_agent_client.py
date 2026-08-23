@@ -20810,6 +20810,65 @@ def test_run_repo_rag_search_json_uses_client_workflow(
     assert json.loads(output)["selected_paths"] == ["src/app.py", "tests/test_app.py"]
 
 
+def test_run_repo_rag_search_local_target_skips_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local repo-rag-search should not resolve an API key")
+
+    def fake_repo_rag_search_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured.update({"target_root": target_root, "payload": payload})
+        return {
+            "source": "biber_repo_rag_search",
+            "ok": True,
+            "index_version": "repo-rag-v1",
+            "index_id": "abc123",
+            "query": "fix app tests",
+            "query_terms": ["app", "tests"],
+            "selected_paths": ["src/app.py"],
+            "results": [],
+            "index_summary": {"scanned_files": 1, "indexed_files": 1},
+            "skipped": [],
+            "summary": "Selected 1 file.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "repo_rag_search_local_target",
+        fake_repo_rag_search_local_target,
+    )
+
+    args = client.parse_args(
+        [
+            "--json",
+            "repo-rag-search",
+            "--query",
+            "fix app tests",
+            "--changed-path",
+            "src/app.py",
+            "--local-target-root",
+            str(tmp_path),
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["target_root"] == tmp_path
+    assert captured["payload"] == {
+        "query": "fix app tests",
+        "changed_paths": ["src/app.py"],
+    }
+    assert json.loads(output)["selected_paths"] == ["src/app.py"]
+
+
 def test_run_orchestration_plan_json_uses_client_workflow(
     monkeypatch,
     tmp_path: Path,
@@ -20900,6 +20959,67 @@ def test_run_orchestration_plan_json_uses_client_workflow(
         "max_context_files": 5,
         "max_rag_results": 7,
         "max_scan_files": 200,
+    }
+    assert json.loads(output)["safe_to_apply"] is False
+
+
+def test_run_orchestration_plan_local_target_skips_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local orchestration-plan should not resolve an API key")
+
+    def fake_plan_agent_orchestration_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured.update({"target_root": target_root, "payload": payload})
+        return {
+            "source": "biber_agent_orchestration_plan",
+            "ok": True,
+            "safe_to_apply": False,
+            "orchestration_version": "agent-orchestration-plan-v1",
+            "repo_rag": {"ok": True, "selected_paths": ["src/app.py"]},
+            "repo_context": {"selected_paths": ["src/app.py"]},
+            "edit_plan": None,
+            "test_plan": None,
+            "workflow_steps": [],
+            "required_gates": ["openai_mentor_optional_and_disabled_by_default"],
+            "hard_blockers": [],
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "plan_agent_orchestration_local_target",
+        fake_plan_agent_orchestration_local_target,
+    )
+
+    args = client.parse_args(
+        [
+            "--json",
+            "orchestration-plan",
+            "--instruction",
+            "Plan local repo fix.",
+            "--changed-path",
+            "src/app.py",
+            "--no-test",
+            "--local-target-root",
+            str(tmp_path),
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["target_root"] == tmp_path
+    assert captured["payload"] == {
+        "instruction": "Plan local repo fix.",
+        "changed_paths": ["src/app.py"],
+        "test_id": None,
     }
     assert json.loads(output)["safe_to_apply"] is False
 

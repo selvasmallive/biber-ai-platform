@@ -2694,6 +2694,100 @@ def plan_repo_context_local_target(
         raise BiberAgentClientError(str(exc)) from exc
 
 
+def repo_rag_index_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.repo_context import RepoContextError
+    from biber_api.repo_rag import build_repo_rag_index
+
+    root = validate_local_target_root(target_root)
+    try:
+        return build_repo_rag_index(
+            root=str(root),
+            max_scan_files=int(payload.get("max_scan_files") or 5000),
+            max_file_bytes=int(payload.get("max_file_bytes") or 120000),
+        )
+    except (RepoContextError, TypeError, ValueError) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
+def repo_rag_search_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.repo_context import RepoContextError
+    from biber_api.repo_rag import search_repo_rag
+
+    root = validate_local_target_root(target_root)
+    query = payload.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise BiberAgentClientError("Local repo RAG search requires query.")
+    try:
+        return search_repo_rag(
+            root=str(root),
+            query=query,
+            pinned_paths=[str(item) for item in require_list(payload.get("pinned_paths"))],
+            changed_paths=[str(item) for item in require_list(payload.get("changed_paths"))],
+            max_results=int(payload.get("max_results") or 12),
+            max_scan_files=int(payload.get("max_scan_files") or 5000),
+            max_file_bytes=int(payload.get("max_file_bytes") or 120000),
+        )
+    except (RepoContextError, TypeError, ValueError) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
+def plan_agent_orchestration_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.orchestration import plan_agent_orchestration as local_plan
+    from biber_api.repo_context import RepoContextError
+    from biber_api.test_runner import UnknownTestCommandError
+    from biber_api.workspace_edit import (
+        WorkspaceEditConfigurationError,
+        WorkspaceEditError,
+    )
+
+    root = validate_local_target_root(target_root)
+    instruction = payload.get("instruction")
+    if not isinstance(instruction, str) or not instruction.strip():
+        raise BiberAgentClientError("Local orchestration plan requires instruction.")
+    test_id_value = payload["test_id"] if "test_id" in payload else "python-compileall-api"
+    test_id = str(test_id_value) if isinstance(test_id_value, str) else None
+    try:
+        return local_plan(
+            settings=local_workspace_edit_settings(root),  # type: ignore[arg-type]
+            instruction=instruction,
+            pinned_paths=[str(item) for item in require_list(payload.get("pinned_paths"))],
+            changed_paths=[str(item) for item in require_list(payload.get("changed_paths"))],
+            proposed_edits=[
+                dict(item)
+                for item in require_list(payload.get("proposed_edits"))
+                if isinstance(item, Mapping)
+            ],
+            test_id=test_id,
+            max_context_files=int(payload.get("max_context_files") or 12),
+            max_rag_results=int(payload.get("max_rag_results") or 12),
+            max_scan_files=int(payload.get("max_scan_files") or 5000),
+        )
+    except (
+        RepoContextError,
+        UnknownTestCommandError,
+        WorkspaceEditConfigurationError,
+        WorkspaceEditError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
 def apply_workspace_edit_plan_local_target(
     *,
     target_root: Path,
@@ -24316,6 +24410,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     repo_rag_index_parser.add_argument("--max-scan-files", type=int)
     repo_rag_index_parser.add_argument("--max-file-bytes", type=int)
+    repo_rag_index_parser.add_argument(
+        "--local-target-root",
+        help="Run the repo RAG index locally against this repository root instead of the API.",
+    )
     repo_rag_index_parser.add_argument("--output", help="Optional JSON artifact path.")
 
     repo_rag_search_parser = subparsers.add_parser(
@@ -24336,6 +24434,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     repo_rag_search_parser.add_argument("--max-results", type=int)
     repo_rag_search_parser.add_argument("--max-scan-files", type=int)
     repo_rag_search_parser.add_argument("--max-file-bytes", type=int)
+    repo_rag_search_parser.add_argument(
+        "--local-target-root",
+        help="Run the repo RAG search locally against this repository root instead of the API.",
+    )
     repo_rag_search_parser.add_argument("--output", help="Optional JSON artifact path.")
 
     orchestration_plan_parser = subparsers.add_parser(
@@ -24364,6 +24466,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     orchestration_plan_parser.add_argument("--max-context-files", type=int)
     orchestration_plan_parser.add_argument("--max-rag-results", type=int)
     orchestration_plan_parser.add_argument("--max-scan-files", type=int)
+    orchestration_plan_parser.add_argument(
+        "--local-target-root",
+        help="Run the orchestration plan locally against this repository root instead of the API.",
+    )
     orchestration_plan_parser.add_argument("--output", help="Optional JSON artifact path.")
 
     plan_edit = subparsers.add_parser(
@@ -29392,7 +29498,16 @@ def run(args: argparse.Namespace) -> str:
         and (not args.create_pr or args.github_dry_run)
     )
     apply_repair_edits_uses_only_local_steps = apply_repair_edits_has_local_target(args)
-    if mvp_loop_uses_only_local_steps or apply_repair_edits_uses_only_local_steps:
+    repo_planning_uses_local_target = args.command in {
+        "repo-rag-index",
+        "repo-rag-search",
+        "orchestration-plan",
+    } and bool(getattr(args, "local_target_root", None))
+    if (
+        mvp_loop_uses_only_local_steps
+        or apply_repair_edits_uses_only_local_steps
+        or repo_planning_uses_local_target
+    ):
         api_key = ""
         base_url = args.base_url.rstrip("/")
     else:
@@ -29783,12 +29898,18 @@ def run(args: argparse.Namespace) -> str:
             max_scan_files=args.max_scan_files,
             max_file_bytes=args.max_file_bytes,
         )
-        index = repo_rag_index(
-            base_url=base_url,
-            api_key=api_key,
-            payload=payload,
-            timeout_seconds=args.timeout_seconds,
-        )
+        if args.local_target_root:
+            index = repo_rag_index_local_target(
+                target_root=Path(args.local_target_root),
+                payload=payload,
+            )
+        else:
+            index = repo_rag_index(
+                base_url=base_url,
+                api_key=api_key,
+                payload=payload,
+                timeout_seconds=args.timeout_seconds,
+            )
         if args.output:
             index["artifact_path"] = str(Path(args.output))
             write_json_artifact(index, args.output)
@@ -29814,12 +29935,18 @@ def run(args: argparse.Namespace) -> str:
             max_scan_files=args.max_scan_files,
             max_file_bytes=args.max_file_bytes,
         )
-        search = repo_rag_search(
-            base_url=base_url,
-            api_key=api_key,
-            payload=payload,
-            timeout_seconds=args.timeout_seconds,
-        )
+        if args.local_target_root:
+            search = repo_rag_search_local_target(
+                target_root=Path(args.local_target_root),
+                payload=payload,
+            )
+        else:
+            search = repo_rag_search(
+                base_url=base_url,
+                api_key=api_key,
+                payload=payload,
+                timeout_seconds=args.timeout_seconds,
+            )
         if args.output:
             search["artifact_path"] = str(Path(args.output))
             write_json_artifact(search, args.output)
@@ -29854,12 +29981,18 @@ def run(args: argparse.Namespace) -> str:
             max_rag_results=args.max_rag_results,
             max_scan_files=args.max_scan_files,
         )
-        plan = plan_agent_orchestration(
-            base_url=base_url,
-            api_key=api_key,
-            payload=payload,
-            timeout_seconds=args.timeout_seconds,
-        )
+        if args.local_target_root:
+            plan = plan_agent_orchestration_local_target(
+                target_root=Path(args.local_target_root),
+                payload=payload,
+            )
+        else:
+            plan = plan_agent_orchestration(
+                base_url=base_url,
+                api_key=api_key,
+                payload=payload,
+                timeout_seconds=args.timeout_seconds,
+            )
         if args.output:
             plan["artifact_path"] = str(Path(args.output))
             write_json_artifact(plan, args.output)
