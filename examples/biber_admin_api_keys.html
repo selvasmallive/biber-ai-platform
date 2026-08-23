@@ -161,6 +161,42 @@
       align-items: start;
     }
 
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      min-height: 96px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #344054;
+    }
+
+    .summary-card span,
+    .summary-card code {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -260,6 +296,82 @@
       display: block;
     }
 
+    .notice {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .command-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .command-block {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #101828;
+    }
+
+    .command-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .command-title {
+      color: #344054;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .command-block pre {
+      margin: 0;
+      padding: 12px;
+      color: #e4e7ec;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .quickstart-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .quickstart-item {
+      min-height: 70px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .quickstart-item strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #475467;
+    }
+
+    .quickstart-item code {
+      color: var(--text);
+      font-size: 13px;
+      word-break: break-word;
+    }
+
     .key-value {
       width: 100%;
       margin-top: 8px;
@@ -343,6 +455,11 @@
         grid-template-columns: 1fr;
       }
 
+      .summary-grid,
+      .quickstart-grid {
+        grid-template-columns: 1fr;
+      }
+
       .topbar {
         align-items: flex-start;
         flex-direction: column;
@@ -363,73 +480,166 @@
       <div id="auth-status" class="status"><span class="dot"></span><span>Signed out</span></div>
     </header>
 
+    <section class="summary-grid" aria-label="Admin console overview">
+      <article class="summary-card">
+        <strong>API Base</strong>
+        <span id="api-base">Detecting from page origin</span>
+      </article>
+      <article class="summary-card">
+        <strong>Model Source</strong>
+        <code>biber-dev-core-v1</code>
+      </article>
+      <article class="summary-card">
+        <strong>Admin Endpoint</strong>
+        <code>/v1/admin/api-keys</code>
+      </article>
+      <article class="summary-card">
+        <strong>Credential Handling</strong>
+        <span>Admin key stays in browser memory for this page session only.</span>
+      </article>
+    </section>
+
     <section class="layout">
-      <div class="panel">
-        <div class="panel-header">
-          <h2>Admin Sign In</h2>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Admin Sign In</h2>
+          </div>
+          <div class="panel-body">
+            <form id="auth-form" autocomplete="off">
+              <div class="field">
+                <label for="admin-key">Admin API key</label>
+                <input id="admin-key" name="admin-key" type="password" required autocomplete="off">
+              </div>
+              <div class="actions">
+                <button type="submit">Sign In</button>
+                <button id="sign-out" class="secondary" type="button">Sign Out</button>
+              </div>
+            </form>
+            <div id="auth-message" class="message" role="status"></div>
+          </div>
         </div>
-        <div class="panel-body">
-          <form id="auth-form" autocomplete="off">
-            <div class="field">
-              <label for="admin-key">Admin API key</label>
-              <input id="admin-key" name="admin-key" type="password" required autocomplete="off">
-            </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Connection Checks</h2>
+          </div>
+          <div class="panel-body">
+            <p class="notice">Use these checks after DNS, tunnel, or Vast API changes.</p>
             <div class="actions">
-              <button type="submit">Sign In</button>
-              <button id="sign-out" class="secondary" type="button">Sign Out</button>
+              <button id="check-health" class="secondary" type="button">Check Health</button>
+              <button id="check-admin" class="secondary" type="button">Check Admin API</button>
             </div>
-          </form>
-          <div id="auth-message" class="message" role="status"></div>
+            <div id="check-message" class="message" role="status"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Setup</h2>
+          </div>
+          <div class="panel-body">
+            <p class="notice">Copy these no-secret commands when preparing the Vast server. Paste secrets only at the terminal prompt.</p>
+            <div class="command-list">
+              <div class="command-block">
+                <div class="command-head">
+                  <span class="command-title">Admin setup status</span>
+                  <button class="secondary copy-snippet" type="button" data-copy-target="setup-status-command">Copy</button>
+                </div>
+                <pre id="setup-status-command"></pre>
+              </div>
+              <div class="command-block">
+                <div class="command-head">
+                  <span class="command-title">Configure admin key on Vast</span>
+                  <button class="secondary copy-snippet" type="button" data-copy-target="configure-admin-command">Copy</button>
+                </div>
+                <pre id="configure-admin-command"></pre>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-header toolbar">
-          <h2>User API Keys</h2>
-          <button id="refresh" class="secondary" type="button">Refresh</button>
-        </div>
-        <div class="panel-body">
-          <form id="issue-form" autocomplete="off">
-            <div class="field">
-              <label for="user-id">User ID</label>
-              <input id="user-id" name="user-id" type="text" required maxlength="128" autocomplete="off">
-            </div>
-            <div class="field">
-              <label for="label">Label</label>
-              <input id="label" name="label" type="text" maxlength="128" autocomplete="off">
-            </div>
-            <div class="actions">
-              <button id="issue" type="submit">Issue Key</button>
-            </div>
-          </form>
-
-          <div id="key-output" class="key-output">
-            <strong>New user API key</strong>
-            <input id="new-key" class="key-value" readonly>
-            <div class="actions copy-actions">
-              <button id="copy-key" class="secondary" type="button">Copy</button>
-              <button id="hide-key" class="secondary" type="button">Hide</button>
-            </div>
+      <div class="stack">
+        <div class="panel">
+          <div class="panel-header toolbar">
+            <h2>User API Keys</h2>
+            <button id="refresh" class="secondary" type="button">Refresh</button>
           </div>
+          <div class="panel-body">
+            <form id="issue-form" autocomplete="off">
+              <div class="field">
+                <label for="user-id">User ID</label>
+                <input id="user-id" name="user-id" type="text" required maxlength="128" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="label">Label</label>
+                <input id="label" name="label" type="text" maxlength="128" autocomplete="off">
+              </div>
+              <div class="actions">
+                <button id="issue" type="submit">Issue Key</button>
+              </div>
+            </form>
 
-          <div id="main-message" class="message" role="status"></div>
+            <div id="key-output" class="key-output">
+              <strong>New user API key</strong>
+              <input id="new-key" class="key-value" readonly>
+              <div class="actions copy-actions">
+                <button id="copy-key" class="secondary" type="button">Copy</button>
+                <button id="copy-client-with-key" class="secondary" type="button">Copy Client Env</button>
+                <button id="hide-key" class="secondary" type="button">Hide</button>
+              </div>
+            </div>
+
+            <div id="main-message" class="message" role="status"></div>
+          </div>
+          <div class="table-wrap">
+            <table aria-label="User API keys">
+              <thead>
+                <tr>
+                  <th>Key ID</th>
+                  <th>User</th>
+                  <th>Label</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="keys-body">
+                <tr><td colspan="6" class="empty">Sign in to load keys.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table aria-label="User API keys">
-            <thead>
-              <tr>
-                <th>Key ID</th>
-                <th>User</th>
-                <th>Label</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="keys-body">
-              <tr><td colspan="6" class="empty">Sign in to load keys.</td></tr>
-            </tbody>
-          </table>
+
+        <div class="panel">
+          <div class="panel-header toolbar">
+            <h2>External Agent Quickstart</h2>
+            <button id="copy-client-env" class="secondary" type="button">Copy Template</button>
+          </div>
+          <div class="panel-body">
+            <div class="quickstart-grid">
+              <div class="quickstart-item">
+                <strong>Base URL</strong>
+                <code id="quickstart-base"></code>
+              </div>
+              <div class="quickstart-item">
+                <strong>Model</strong>
+                <code>biber-dev-core-v1</code>
+              </div>
+              <div class="quickstart-item">
+                <strong>Auth</strong>
+                <code>Authorization: Bearer &lt;user-key&gt;</code>
+              </div>
+            </div>
+            <div class="command-block">
+              <div class="command-head">
+                <span class="command-title">Client environment template</span>
+              </div>
+              <pre id="client-env-template"></pre>
+            </div>
+            <div id="quickstart-message" class="message" role="status"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -445,9 +655,27 @@
     const authStatus = document.querySelector("#auth-status");
     const authMessage = document.querySelector("#auth-message");
     const mainMessage = document.querySelector("#main-message");
+    const checkMessage = document.querySelector("#check-message");
+    const quickstartMessage = document.querySelector("#quickstart-message");
     const keysBody = document.querySelector("#keys-body");
     const keyOutput = document.querySelector("#key-output");
     const newKeyInput = document.querySelector("#new-key");
+    const apiOrigin = window.location.origin && window.location.protocol !== "file:"
+      ? window.location.origin
+      : "https://api.beaverapi.com";
+    const apiBaseUrl = `${apiOrigin}/v1`;
+    const setupStatusCommand = `cd /workspace/biber-ai-platform
+python scripts/biber_admin_key_setup_status.py \\
+  --dotenv .env \\
+  --allow-missing \\
+  --output /workspace/outputs/biber-admin-key-setup-status.json`;
+    const configureAdminCommand = `cd /workspace/biber-ai-platform
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+export BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED=1
+bash scripts/vast_configure_admin_api_key.sh
+unset BIBER_ADMIN_API_KEY BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED`;
 
     function setMessage(node, text, type = "") {
       node.textContent = text;
@@ -468,6 +696,21 @@
         "Authorization": `Bearer ${state.adminKey}`,
         "Content-Type": "application/json"
       };
+    }
+
+    function clientEnvTemplate(apiKey = "<issued-user-key>") {
+      return `BIBER_OPENAI_BASE_URL=${apiBaseUrl}
+BIBER_MODEL=biber-dev-core-v1
+BIBER_API_KEY=${apiKey}`;
+    }
+
+    async function copyText(text, node, successText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        setMessage(node, successText, "success");
+      } catch (error) {
+        setMessage(node, `Copy failed: ${error.message}`, "error");
+      }
     }
 
     async function api(path, options = {}) {
@@ -537,6 +780,34 @@
       setMessage(mainMessage, "");
       const payload = await api("/v1/admin/api-keys");
       renderKeys(payload.keys || []);
+      return payload;
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch("/health", { headers: { "Accept": "application/json" } });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || `HTTP ${response.status}`);
+        }
+        setMessage(checkMessage, `Health OK: ${payload.service || "biber-api"}.`, "success");
+      } catch (error) {
+        setMessage(checkMessage, error.message, "error");
+      }
+    }
+
+    async function checkAdminApi() {
+      if (!state.adminKey) {
+        setMessage(checkMessage, "Sign in with the admin key first.", "error");
+        return;
+      }
+      try {
+        const payload = await loadKeys();
+        const count = Array.isArray(payload.keys) ? payload.keys.length : 0;
+        setMessage(checkMessage, `Admin API OK: ${count} user key records visible.`, "success");
+      } catch (error) {
+        setMessage(checkMessage, error.message, "error");
+      }
     }
 
     async function signIn(event) {
@@ -605,14 +876,32 @@
       loadKeys().catch((error) => setMessage(mainMessage, error.message, "error"));
     });
     document.querySelector("#copy-key").addEventListener("click", async () => {
-      await navigator.clipboard.writeText(newKeyInput.value);
-      setMessage(mainMessage, "Copied new user key.", "success");
+      await copyText(newKeyInput.value, mainMessage, "Copied new user key.");
+    });
+    document.querySelector("#copy-client-with-key").addEventListener("click", async () => {
+      await copyText(clientEnvTemplate(newKeyInput.value), mainMessage, "Copied client environment with new user key.");
+    });
+    document.querySelector("#copy-client-env").addEventListener("click", async () => {
+      await copyText(clientEnvTemplate(), quickstartMessage, "Copied client environment template.");
+    });
+    document.querySelector("#check-health").addEventListener("click", checkHealth);
+    document.querySelector("#check-admin").addEventListener("click", checkAdminApi);
+    document.querySelectorAll(".copy-snippet").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const target = document.querySelector(`#${button.dataset.copyTarget}`);
+        await copyText(target.textContent, checkMessage, "Copied command.");
+      });
     });
     document.querySelector("#hide-key").addEventListener("click", () => {
       newKeyInput.value = "";
       keyOutput.className = "key-output";
     });
 
+    document.querySelector("#api-base").textContent = apiBaseUrl;
+    document.querySelector("#quickstart-base").textContent = apiBaseUrl;
+    document.querySelector("#setup-status-command").textContent = setupStatusCommand;
+    document.querySelector("#configure-admin-command").textContent = configureAdminCommand;
+    document.querySelector("#client-env-template").textContent = clientEnvTemplate();
     setSignedIn(false);
   </script>
 </body>

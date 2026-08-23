@@ -306,10 +306,13 @@ DELETE /v1/admin/api-keys/{key_id}
 ```
 
 The console lets an admin sign in with the admin API key, list user keys, issue
-per-user keys, copy the one-time plaintext key, and revoke active keys. The
-admin key is held only in browser memory for the current page session. The page
-does not store admin/user keys in git or generated artifacts, and the server
-still stores only key hashes plus safe metadata.
+per-user keys, copy the one-time plaintext key, and revoke active keys. It also
+shows the detected API base, a direct health/admin connection check, no-secret
+Vast setup commands, and an external-agent environment template for clients
+such as Copilot-style tools, Gemini Code Assist workflows, or custom agents.
+The admin key is held only in browser memory for the current page session. The
+page does not store admin/user keys in git or generated artifacts, and the
+server still stores only key hashes plus safe metadata.
 
 Verify the console without secrets:
 

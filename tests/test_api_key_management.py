@@ -110,6 +110,10 @@ def test_admin_console_serves_key_management_ui_without_secret_values(tmp_path: 
     assert "Admin API key" in body
     assert "Issue Key" in body
     assert "Revoke" in body
+    assert "Connection Checks" in body
+    assert "External Agent Quickstart" in body
+    assert "BIBER_OPENAI_BASE_URL" in body
+    assert "BIBER_CONFIGURE_ADMIN_API_KEY_APPROVED" in body
     assert "real-admin-secret" not in body
     assert "bootstrap-key" not in body
 

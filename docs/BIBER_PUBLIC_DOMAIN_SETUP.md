@@ -252,10 +252,12 @@ https://api.beaverapi.com/admin/api-keys
 
 The console accepts `BIBER_ADMIN_API_KEY`, calls the same
 `/v1/admin/api-keys` endpoints, displays a newly issued user API key once, and
-keeps the admin key only in browser memory for that page session. Before giving
-anyone else access, protect `/admin` and `/admin/*` with Cloudflare Access, a
-VPN, or an equivalent admin-only edge rule. Keep `/v1/chat/completions` public
-only behind user API-key auth.
+keeps the admin key only in browser memory for that page session. It also
+includes connection checks, no-secret Vast setup snippets, and an external
+agent client environment template. Before giving anyone else access, protect
+`/admin` and `/admin/*` with Cloudflare Access, a VPN, or an equivalent
+admin-only edge rule. Keep `/v1/chat/completions` public only behind user
+API-key auth.
 
 ### Cloudflare Access For Admin Routes
 

@@ -133,6 +133,9 @@ def console_checks(
         "Admin API key",
         "Issue Key",
         "Revoke",
+        "Connection Checks",
+        "External Agent Quickstart",
+        "BIBER_OPENAI_BASE_URL",
     ]
     markers_missing = [marker for marker in required_markers if marker not in body]
     admin_key_leaked = bool(admin_key_value and admin_key_value in body)

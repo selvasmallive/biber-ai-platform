@@ -32,7 +32,8 @@ def served_console_response() -> dict[str, object]:
     return fake_response(
         status_code=200,
         body=(
-            "BIBER Admin /v1/admin/api-keys Admin API key Issue Key Revoke"
+            "BIBER Admin /v1/admin/api-keys Admin API key Issue Key Revoke "
+            "Connection Checks External Agent Quickstart BIBER_OPENAI_BASE_URL"
         ),
         headers={
             "cache-control": "no-store",

@@ -1,8 +1,30 @@
 # Codex Handoff
 
-Last updated: 2026-08-19
+Last updated: 2026-08-23
 
 ## Current Goal
+
+2026-08-23 latest BIBER admin website MVP checkpoint:
+Complete locally: upgraded the FastAPI-served admin console at `/admin` and
+`/admin/api-keys` into a fuller operator MVP without adding a separate hosted
+site or user-account system. The page now includes an overview, connection
+checks, no-secret Vast setup snippets, the existing sign-in/list/issue/revoke
+user-key flow, and an external-agent environment template for clients that use
+BIBER as an OpenAI-compatible model source. Admin keys still stay only in
+browser memory for the current page session, newly issued user API keys are
+shown once, and no backend admin API routes or credential-generation behavior
+changed. Readiness markers now verify `Connection Checks`, `External Agent
+Quickstart`, and `BIBER_OPENAI_BASE_URL` in the served console. Local validation
+passed Python `py_compile` with a temp pycache, a dependency-free direct
+admin-console readiness check, static HTML marker/no-secret checks,
+`node --check` for the embedded browser script, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+workstation cannot run the FastAPI `TestClient` test because FastAPI is not
+installed locally; run that on Vast after syncing. No OpenAI mentor, training,
+credential rotation, paid APIs, or XRIQ/XRIS work occurred. Next
+credential-dependent step remains deliberate: configure/persist
+`BIBER_ADMIN_API_KEY` through `scripts/vast_configure_admin_api_key.sh`, then
+run the documented admin-console list-flow readiness smoke.
 
 2026-08-19 latest BIBER admin key setup-status checkpoint:
 Complete: added `scripts/biber_admin_key_setup_status.py`, a no-secret,
