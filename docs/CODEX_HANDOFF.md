@@ -4,6 +4,28 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
+2026-08-23 latest BIBER admin-key configuration checkpoint:
+Complete on Vast: after explicit user approval, a new `BIBER_ADMIN_API_KEY` was
+generated server-side on the current Vast GPU, persisted into
+`/workspace/biber-ai-platform/.env`, and FastAPI only was restarted through the
+guarded `scripts/vast_configure_admin_api_key.sh` path. The admin key was not
+printed to chat, logs, docs, commits, or readiness artifacts. Pre-config status
+artifact:
+`/workspace/outputs/biber-admin-key-setup-status-pre-config.json` reported
+`status=admin_key_missing`. Post-config status artifact:
+`/workspace/outputs/biber-admin-key-setup-status-post-config-e8608d0.json`
+reported `status=admin_key_configured`, `admin_api_key_source=dotenv_file`, and
+`credential_rotation_performed=false`. Authenticated admin-console list-flow
+readiness passed and saved
+`/workspace/outputs/biber-admin-console-list-flow-local-e8608d0.json` with
+`ok=true`, `admin_console_list_flow.ready=true`,
+`authenticated_admin_list_ok=true`, `authenticated_admin_key_count=0`,
+`admin_api_key_included=false`, and `raw_key_records_included=false`. No OpenAI
+mentor, training, paid APIs, or XRIQ/XRIS work occurred. Next safe step: use the
+admin console or `scripts/biber_agent_client.py issue-api-key` to issue a
+per-user BIBER API key for external agents; do not give normal clients the admin
+key or bootstrap key.
+
 2026-08-23 latest BIBER admin website MVP checkpoint:
 Complete: commit `3ae464c` upgrades the FastAPI-served admin console at
 `/admin` and `/admin/api-keys` into a fuller operator MVP without adding a
