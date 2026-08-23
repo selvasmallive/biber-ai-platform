@@ -261,6 +261,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "path_file_selected_paths": mvp_loop_repo_probe.get(
                 "path_file_selected_paths"
             ),
+            "repo_rag_used": mvp_loop_repo_probe.get("repo_rag_used"),
+            "repo_rag_ok": mvp_loop_repo_probe.get("repo_rag_ok"),
+            "repo_rag_path_hits": mvp_loop_repo_probe.get("repo_rag_path_hits"),
+            "repo_rag_selected_paths": mvp_loop_repo_probe.get(
+                "repo_rag_selected_paths"
+            ),
             "selected_context_paths": mvp_loop_repo_probe.get("selected_context_paths"),
             "detected_project_types": mvp_loop_repo_probe.get("detected_project_types"),
             "test_id": mvp_loop_repo_probe.get("test_id"),

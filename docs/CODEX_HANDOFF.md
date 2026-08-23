@@ -4,6 +4,24 @@ Last updated: 2026-08-23
 
 ## Current Goal
 
+2026-08-23 BIBER local confidence repo-RAG probe checkpoint:
+Complete locally: the real-checkout repo-probe smoke
+`scripts/biber_local_mvp_loop_repo_probe_smoke.py` now runs
+`mvp-loop --use-repo-rag --local-target-root <this checkout>` and verifies
+that repo-RAG selects the inline changed path, changed-paths-file entry, and
+pinned-paths-file entry before bounded context planning. The combined
+`scripts/biber_local_confidence_smoke.py` summary now carries compact
+`repo_rag_used`, `repo_rag_ok`, `repo_rag_path_hits`, and
+`repo_rag_selected_paths` fields under `mvp_loop_repo_probe`, and
+`show-confidence-smoke` / `list-confidence-smokes` surface the repo-RAG probe
+signal. Updated `docs/BIBER_ONLY_WORKSPACE.md` with the new confidence-gate
+behavior. Local validation passed Python `py_compile` for the changed scripts
+and tests, `git diff --check`, the focused
+`scripts/biber_local_mvp_loop_repo_probe_smoke.py` smoke, and the full
+`scripts/biber_local_confidence_smoke.py --timeout-seconds 240` suite with
+`ok=true` and 11/11 checks. No live API, GPU, OpenAI mentor, training, paid
+API, credential, GitHub write inside the smoke, or XRIQ/XRIS work occurred.
+
 2026-08-23 BIBER `mvp-loop --use-repo-rag` checkpoint:
 Complete locally: the existing stdlib `scripts/biber_agent_client.py mvp-loop`
 now has an opt-in `--use-repo-rag` path. When enabled, the loop first runs

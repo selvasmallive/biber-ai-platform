@@ -2,9 +2,9 @@
 """Probe BIBER's local MVP-loop against this real repo without edits.
 
 This smoke runs scripts/biber_agent_client.py mvp-loop with --local-target-root
-pointing at the current BIBER checkout. It captures git state, selects repo
-context, and dry-runs an allowlisted test without requiring BIBER API auth,
-OpenAI mentor, Vast GPU, or training.
+pointing at the current BIBER checkout. It captures git state, uses repo-RAG
+to seed repo context, and dry-runs an allowlisted test without requiring BIBER
+API auth, OpenAI mentor, Vast GPU, or training.
 """
 
 from __future__ import annotations
@@ -95,6 +95,9 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "--local-target-root",
         str(repo_root),
         "--include-git-state",
+        "--use-repo-rag",
+        "--max-rag-results",
+        "8",
         "--changed-path",
         "scripts/biber_agent_client.py",
         "--changed-paths-file",
@@ -130,6 +133,12 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
     context_plan = mvp_result.get("steps", {}).get("context_plan", {})
     if not isinstance(context_plan, dict):
         context_plan = {}
+    repo_rag_search = mvp_result.get("steps", {}).get("repo_rag_search", {})
+    if not isinstance(repo_rag_search, dict):
+        repo_rag_search = {}
+    repo_rag_selected_paths = [
+        str(path) for path in mvp_result.get("repo_rag_selected_paths", [])
+    ]
 
     summary = {
         "source": "biber_local_mvp_loop_repo_probe_smoke",
@@ -142,6 +151,12 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and report_test.get("test_id") == "python-compileall-api"
             and report_repo.get("branch")
             and git_state.get("available") is True
+            and mvp_result.get("repo_rag_used") is True
+            and mvp_result.get("repo_rag_mode") == "local_target_root"
+            and repo_rag_search.get("ok") is True
+            and "scripts/biber_agent_client.py" in repo_rag_selected_paths
+            and "docs/BIBER_ONLY_WORKSPACE.md" in repo_rag_selected_paths
+            and "README.md" in repo_rag_selected_paths
             and "scripts/biber_agent_client.py" in selected_paths
             and "docs/BIBER_ONLY_WORKSPACE.md" in selected_paths
             and "README.md" in selected_paths
@@ -159,6 +174,15 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "path_list_files_used": True,
         "pinned_paths_file": str(pinned_paths_file),
         "changed_paths_file": str(changed_paths_file),
+        "repo_rag_used": mvp_result.get("repo_rag_used") is True,
+        "repo_rag_mode": mvp_result.get("repo_rag_mode"),
+        "repo_rag_ok": repo_rag_search.get("ok") is True,
+        "repo_rag_selected_paths": len(repo_rag_selected_paths),
+        "repo_rag_path_hits": {
+            "inline_changed": "scripts/biber_agent_client.py" in repo_rag_selected_paths,
+            "file_changed": "docs/BIBER_ONLY_WORKSPACE.md" in repo_rag_selected_paths,
+            "file_pinned": "README.md" in repo_rag_selected_paths,
+        },
         "path_file_selected_paths": {
             "inline_changed": "scripts/biber_agent_client.py" in selected_paths,
             "file_changed": "docs/BIBER_ONLY_WORKSPACE.md" in selected_paths,

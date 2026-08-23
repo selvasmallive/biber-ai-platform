@@ -274,6 +274,8 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert '"mvp_loop_repo_probe"' in text
     assert "path_list_files_used" in text
     assert "path_file_selected_paths" in text
+    assert "repo_rag_used" in text
+    assert "repo_rag_path_hits" in text
     assert "biber_live_provider_real_repo_plan_smoke.py" in text
     assert "live_provider_real_repo_plan_mock" in text
     assert '"live_provider_real_repo_plan"' in text
@@ -334,6 +336,13 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
         "mvp_loop_repo_probe": {
             "path_list_files_used": True,
             "path_file_selected_paths": {
+                "inline_changed": True,
+                "file_changed": True,
+                "file_pinned": True,
+            },
+            "repo_rag_used": True,
+            "repo_rag_ok": True,
+            "repo_rag_path_hits": {
                 "inline_changed": True,
                 "file_changed": True,
                 "file_pinned": True,
@@ -417,9 +426,14 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "gpu_required: False" in output
     assert "local_github_dry_run_artifacts" in output
     assert "mvp_loop_repo_probe: path_list_files_used=True" in output
+    assert "repo_rag_used=True" in output
+    assert "repo_rag_ok=True" in output
     assert "inline_changed=True" in output
     assert "file_changed=True" in output
     assert "file_pinned=True" in output
+    assert "rag_inline_changed=True" in output
+    assert "rag_file_changed=True" in output
+    assert "rag_file_pinned=True" in output
     assert "live_provider_real_repo_plan: mode=mock outcome=planned_for_review" in output
     assert "mutation_performed=False" in output
     assert "github_dry_run_artifacts: matched=2" in output
@@ -473,6 +487,7 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert list_result["gpu_required"] is False
     assert list_result["api_required"] is False
     assert list_result["artifacts"][0]["repo_probe_path_list_files_used"] is True
+    assert list_result["artifacts"][0]["repo_probe_repo_rag_used"] is True
     assert (
         list_result["artifacts"][0]["live_verified_repair_github_mode"]
         == "fixture"
@@ -498,6 +513,7 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "BIBER local confidence smoke artifacts (2)" in list_summary
     assert "failed: 1" in list_summary
     assert "repo_probe_path_files=True" in list_summary
+    assert "repo_probe_rag=True" in list_summary
     assert "live_verified_bridge=True" in list_summary
     assert "live_verified_bridge_mode=fixture" in list_summary
     assert "live_verified_bridge_matched=2" in list_summary
@@ -12662,8 +12678,11 @@ def test_local_mvp_loop_repo_probe_smoke_documents_real_repo_dry_run() -> None:
     assert "--include-git-state" in text
     assert "--changed-paths-file" in text
     assert "--pinned-paths-file" in text
+    assert "--use-repo-rag" in text
     assert "path_list_files_used" in text
     assert "path_file_selected_paths" in text
+    assert "repo_rag_used" in text
+    assert "repo_rag_path_hits" in text
     assert "--test-dry-run" in text
     assert "repo_status_unchanged" in text
     assert "scripts/biber_agent_client.py" in text

@@ -625,10 +625,13 @@ in fixture mode, and the local repair-loop smoke together. It is the preferred
 pre-live-provider gate before asking for Vast GPU credentials or pointing BIBER
 at a real local Qwen/vLLM endpoint.
 The real-checkout repo-probe also verifies that `mvp-loop` accepts
-`--pinned-paths-file` and `--changed-paths-file` in the local path.
+`--pinned-paths-file`, `--changed-paths-file`, and `--use-repo-rag` in the
+local path. Its confidence summary records both path-list selection evidence
+and repo-RAG path-hit evidence for the inline changed file, changed-paths file,
+and pinned-paths file.
 `show-confidence-smoke` and `list-confidence-smokes` surface this path-list
-evidence plus the live verified-repair GitHub dry-run bridge status from saved
-confidence artifacts.
+and repo-RAG evidence plus the live verified-repair GitHub dry-run bridge
+status from saved confidence artifacts.
 `list-mvp-loops --output` can save the discovered loop artifacts and repair
 next-step metadata for later resume, and `show-mvp-loop-list` summarizes that
 saved list without rerunning the scan.
@@ -715,10 +718,11 @@ python scripts/biber_local_mvp_loop_repo_probe_smoke.py
 ```
 
 The smoke points `mvp-loop --local-target-root` at this BIBER checkout with
-`--include-git-state`, changed-path hints, and `--test-dry-run`. It verifies
-real repo context selection, git-state capture, dry-run test reporting, and
-that the repo status is unchanged by the probe. It does not require BIBER API,
-OpenAI, Vast GPU, or training credentials.
+`--include-git-state`, `--use-repo-rag`, changed-path hints, and
+`--test-dry-run`. It verifies real repo RAG seeding, bounded context selection,
+git-state capture, dry-run test reporting, and that the repo status is
+unchanged by the probe. It does not require BIBER API, OpenAI, Vast GPU, or
+training credentials.
 
 To run only the full local MVP-loop repair smoke:
 

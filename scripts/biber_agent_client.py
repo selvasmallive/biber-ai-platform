@@ -18576,6 +18576,9 @@ def summarize_confidence_smoke_artifact(
         "repo_probe_path_list_files_used": (
             mvp_loop_repo_probe.get("path_list_files_used") is True
         ),
+        "repo_probe_repo_rag_used": (
+            mvp_loop_repo_probe.get("repo_rag_used") is True
+        ),
         "real_repo_plan_review_status": real_repo_plan.get("review_status"),
         "real_repo_plan_mutation_performed": (
             real_repo_plan.get("mutation_performed") is True
@@ -20744,12 +20747,20 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
         path_file_selected_paths = require_mapping(
             mvp_loop_repo_probe.get("path_file_selected_paths")
         )
+        repo_rag_path_hits = require_mapping(
+            mvp_loop_repo_probe.get("repo_rag_path_hits")
+        )
         lines.append(
             "mvp_loop_repo_probe: "
             f"path_list_files_used={mvp_loop_repo_probe.get('path_list_files_used')} "
+            f"repo_rag_used={mvp_loop_repo_probe.get('repo_rag_used')} "
+            f"repo_rag_ok={mvp_loop_repo_probe.get('repo_rag_ok')} "
             f"inline_changed={path_file_selected_paths.get('inline_changed')} "
             f"file_changed={path_file_selected_paths.get('file_changed')} "
             f"file_pinned={path_file_selected_paths.get('file_pinned')} "
+            f"rag_inline_changed={repo_rag_path_hits.get('inline_changed')} "
+            f"rag_file_changed={repo_rag_path_hits.get('file_changed')} "
+            f"rag_file_pinned={repo_rag_path_hits.get('file_pinned')} "
             f"repo_status_unchanged={mvp_loop_repo_probe.get('repo_status_unchanged')}"
         )
     if real_repo_plan:
@@ -20831,6 +20842,7 @@ def format_confidence_smoke_artifact_list_summary(payload: Mapping[str, Any]) ->
                     f"gpu_required={artifact.get('gpu_required')}",
                     f"api_required={artifact.get('api_required')}",
                     f"repo_probe_path_files={artifact.get('repo_probe_path_list_files_used')}",
+                    f"repo_probe_rag={artifact.get('repo_probe_repo_rag_used')}",
                     f"live_verified_bridge={artifact.get('live_verified_repair_github_verified')}",
                     f"live_verified_bridge_mode={artifact.get('live_verified_repair_github_mode') or '-'}",
                     f"live_verified_bridge_matched={artifact.get('live_verified_repair_github_dry_run_artifacts_matched', 0)}",
