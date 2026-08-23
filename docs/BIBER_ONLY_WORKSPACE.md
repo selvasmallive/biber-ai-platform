@@ -176,8 +176,9 @@ For the real `beaverapi.com` domain, use
 [`docs/BIBER_PUBLIC_DOMAIN_SETUP.md`](BIBER_PUBLIC_DOMAIN_SETUP.md). The
 recommended MVP endpoint is `https://api.beaverapi.com/v1` through Cloudflare
 Tunnel to the Vast BIBER API on `127.0.0.1:8000`.
-Use `--include-git-state` for repo work so the artifact records the local
-branch, short HEAD, dirty status, and `git status --short` before edits/tests.
+Use `--include-git-state` for local MVP loop and local orchestration repo work
+so artifacts record the local branch, short HEAD, dirty status, and
+`git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows
 drive-relative paths are rejected, and repo-context scanning skips symlinked
 entries so local context does not follow links outside the target repo.

@@ -79,6 +79,17 @@ Active BIBER docs were cleaned up so future sessions do not follow stale
 formatting target, smaller live endpoints generically, and the same no-apply /
 explicit-approval contract.
 
+2026-08-23 BIBER orchestration git-state checkpoint:
+Complete locally: `orchestration-plan --include-git-state` now works for
+local-target planning. It requires `--local-target-root`, avoids API-key
+resolution, records `target_git` plus `target_git_clean`, includes the Git line
+in the human summary, and remains read-only. Local validation passed Python
+`py_compile` for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`, `git diff --check`, direct positive/guard
+CLI behavior checks, and a real local orchestration smoke against this checkout
+that recorded branch `biber/mvp-resume-20260712`, head `ca6ebae`, and dirty
+state from the in-progress files.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit

@@ -4130,6 +4130,7 @@ def format_repo_rag_search_summary(payload: Mapping[str, Any]) -> str:
 def format_agent_orchestration_plan_summary(payload: Mapping[str, Any]) -> str:
     repo_rag = require_mapping(payload.get("repo_rag"))
     repo_context = require_mapping(payload.get("repo_context"))
+    target_git = require_mapping(payload.get("target_git"))
     edit_plan = payload.get("edit_plan")
     edit_plan_payload = edit_plan if isinstance(edit_plan, Mapping) else {}
     test_plan = payload.get("test_plan")
@@ -4149,6 +4150,15 @@ def format_agent_orchestration_plan_summary(payload: Mapping[str, Any]) -> str:
         f"ok: {bool(payload.get('ok'))}",
         f"safe_to_apply: {bool(payload.get('safe_to_apply'))}",
         f"orchestration_version: {payload.get('orchestration_version', '-')}",
+        (
+            "target_git: "
+            f"available={target_git.get('available', '-')} "
+            f"branch={target_git.get('branch', '-')} "
+            f"head={target_git.get('head', '-')} "
+            f"dirty={target_git.get('dirty', '-')}"
+        )
+        if target_git
+        else "target_git: -",
         f"repo_rag_ok: {bool(repo_rag.get('ok'))}",
         f"edit_plan_hash: {edit_plan_payload.get('plan_hash', '-')}",
         f"test_id: {test_plan_payload.get('test_id', '-')}",
@@ -24487,6 +24497,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--local-target-root",
         help="Run the orchestration plan locally against this repository root instead of the API.",
     )
+    orchestration_plan_parser.add_argument(
+        "--include-git-state",
+        action="store_true",
+        help="Record local target branch/head/dirty state; requires --local-target-root.",
+    )
     orchestration_plan_parser.add_argument("--output", help="Optional JSON artifact path.")
 
     plan_edit = subparsers.add_parser(
@@ -29532,6 +29547,14 @@ def run(args: argparse.Namespace) -> str:
         "orchestration-plan",
     } and bool(getattr(args, "local_target_root", None))
     if (
+        args.command == "orchestration-plan"
+        and getattr(args, "include_git_state", False)
+        and not getattr(args, "local_target_root", None)
+    ):
+        raise BiberAgentClientError(
+            "orchestration-plan --include-git-state requires --local-target-root."
+        )
+    if (
         mvp_loop_uses_only_local_steps
         or apply_repair_edits_uses_only_local_steps
         or repo_planning_uses_local_target
@@ -29990,6 +30013,12 @@ def run(args: argparse.Namespace) -> str:
                 edit_json_values=args.edit_json,
                 edits_file=args.edits_file,
             )
+        target_git: dict[str, Any] | None = None
+        local_target_root = (
+            Path(args.local_target_root) if args.local_target_root else None
+        )
+        if args.include_git_state and local_target_root is not None:
+            target_git = git_status_local_target(local_target_root)
         payload = build_agent_orchestration_payload(
             instruction=args.instruction,
             pinned_paths=combine_cli_paths(
@@ -30009,9 +30038,9 @@ def run(args: argparse.Namespace) -> str:
             max_rag_results=args.max_rag_results,
             max_scan_files=args.max_scan_files,
         )
-        if args.local_target_root:
+        if local_target_root is not None:
             plan = plan_agent_orchestration_local_target(
-                target_root=Path(args.local_target_root),
+                target_root=local_target_root,
                 payload=payload,
             )
         else:
@@ -30020,6 +30049,12 @@ def run(args: argparse.Namespace) -> str:
                 api_key=api_key,
                 payload=payload,
                 timeout_seconds=args.timeout_seconds,
+            )
+        if target_git is not None:
+            plan = dict(plan)
+            plan["target_git"] = target_git
+            plan["target_git_clean"] = (
+                target_git.get("available") is True and target_git.get("dirty") is False
             )
         if args.output:
             plan["artifact_path"] = str(Path(args.output))

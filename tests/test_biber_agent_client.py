@@ -21017,6 +21017,18 @@ def test_run_orchestration_plan_local_target_skips_api_key(
         "plan_agent_orchestration_local_target",
         fake_plan_agent_orchestration_local_target,
     )
+    monkeypatch.setattr(
+        client,
+        "git_status_local_target",
+        lambda target_root: {
+            "available": True,
+            "target_root": str(target_root),
+            "branch": "biber/mvp",
+            "head": "abc1234",
+            "dirty": False,
+            "status_short": [],
+        },
+    )
 
     args = client.parse_args(
         [
@@ -21029,10 +21041,12 @@ def test_run_orchestration_plan_local_target_skips_api_key(
             "--no-test",
             "--local-target-root",
             str(tmp_path),
+            "--include-git-state",
         ]
     )
 
     output = client.run(args)
+    result = json.loads(output)
 
     assert captured["target_root"] == tmp_path
     assert captured["payload"] == {
@@ -21040,7 +21054,37 @@ def test_run_orchestration_plan_local_target_skips_api_key(
         "changed_paths": ["src/app.py"],
         "test_id": None,
     }
-    assert json.loads(output)["safe_to_apply"] is False
+    assert result["safe_to_apply"] is False
+    assert result["target_git_clean"] is True
+    assert result["target_git"]["branch"] == "biber/mvp"
+    assert "target_git: available=True branch=biber/mvp head=abc1234 dirty=False" in (
+        client.format_agent_orchestration_plan_summary(result)
+    )
+
+
+def test_run_orchestration_plan_git_state_requires_local_target(monkeypatch) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "git-state validation should happen before API key resolution"
+        )
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    try:
+        client.run(
+            client.parse_args(
+                [
+                    "orchestration-plan",
+                    "--instruction",
+                    "Plan repo work.",
+                    "--include-git-state",
+                ]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert "--include-git-state requires --local-target-root" in str(exc)
+    else:
+        raise AssertionError("expected include-git-state to require local target root")
 
 
 def test_run_plan_edit_json_uses_client_workflow(monkeypatch) -> None:
