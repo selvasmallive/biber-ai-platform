@@ -89,6 +89,13 @@ in the human summary, and remains read-only. Local validation passed Python
 CLI behavior checks, and a real local orchestration smoke against this checkout
 that recorded branch `biber/mvp-resume-20260712`, head `ca6ebae`, and dirty
 state from the in-progress files.
+Follow-up Vast validation passed after syncing commit `dd8797150`: read-only
+`orchestration-plan --include-git-state --local-target-root /workspace/biber-ai-platform`
+saved `/workspace/outputs/biber-orchestration-git-state-dd87971.json` and
+printed `target_git` with `available=True`, branch
+`biber/mvp-resume-20260712`, head `dd8797150`, and `dirty=False`; it also
+reported `repo_rag_ok=True`, `safe_to_apply=False`, and no mutation, GitHub
+request, OpenAI mentor, or training.
 
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
