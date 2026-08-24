@@ -18,6 +18,10 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def object_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def run_smoke_script(
     *,
     repo_root: Path,
@@ -195,6 +199,13 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        vscode_orchestration = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_vscode_extension_orchestration_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+            script_args=["--mock"],
+        )
 
     checks = [
         compact_check("local_openai_provider_http", provider),
@@ -215,6 +226,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
         ),
         compact_check("local_repair_loop", repair_loop),
         compact_check("vscode_extension_contract", vscode_extension),
+        compact_check("vscode_extension_orchestration_mock", vscode_orchestration),
     ]
     summary = {
         "source": "biber_local_confidence_smoke",
@@ -380,6 +392,18 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "checks": len(vscode_extension.get("checks", [])),
             "failed": len(vscode_extension.get("failed", [])),
         },
+        "vscode_extension_orchestration": {
+            "status": vscode_orchestration.get("status"),
+            "checks": len(vscode_orchestration.get("checks", [])),
+            "failed": len(vscode_orchestration.get("failed", [])),
+            "request_sent": vscode_orchestration.get("request_sent"),
+            "model_request_sent": vscode_orchestration.get("model_request_sent"),
+            "mentor_used": vscode_orchestration.get("mentor_used"),
+            "training_allowed": vscode_orchestration.get("training_allowed"),
+            "safe_to_apply": object_value(
+                vscode_orchestration.get("summary")
+            ).get("safe_to_apply"),
+        },
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))
@@ -392,7 +416,8 @@ def parse_args() -> argparse.Namespace:
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
             "real-repo probe, full local MVP repair, GitHub dry-run handoff, "
             "GitHub dry-run artifact, live verified-repair GitHub bridge, "
-            "local repair-loop, and VS Code extension contract smokes as one "
+            "local repair-loop, VS Code extension contract, and VS Code "
+            "orchestration mock smokes as one "
             "no-GPU confidence gate."
         )
     )

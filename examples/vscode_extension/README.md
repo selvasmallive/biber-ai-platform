@@ -90,3 +90,16 @@ python scripts/biber_vscode_extension_connection_smoke.py \
 Set `BIBER_API_KEY` first. The smoke calls only `/v1/agent/capabilities`, sends
 no repository data, sends the same BIBER client identity headers as the
 extension, and redacts secret-like fields from its artifact.
+
+To test the same orchestration planning flow without launching VS Code, run:
+
+```bash
+python scripts/biber_vscode_extension_orchestration_smoke.py \
+  --base-url http://127.0.0.1:8000/v1 \
+  --changed-path docs/BIBER_ONLY_WORKSPACE.md
+```
+
+That smoke calls only `/v1/agent/orchestration/plan`, sends bounded path hints
+and a bounded instruction, sends no file contents, and verifies that the
+response remains planning-only with no model request, GitHub save, training, or
+OpenAI mentor call.
