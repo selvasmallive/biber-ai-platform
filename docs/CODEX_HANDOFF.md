@@ -126,6 +126,36 @@ real public use because client-side guards can be bypassed. No OpenAI mentor,
 paid API, training, credential rotation, destructive Git, or XRIQ/XRIS work
 occurred.
 
+2026-08-23 BIBER external API guard + Vast restart checkpoint:
+Complete for the security-first external agent/API path that supports VS Code
+and future conversational-agent clients. Commits `3a09fec` and `5c2066e` added
+server-side MVP request guards for both active API trees (`src/biber_api/*` and
+legacy Vast `app/*`): `/v1/*` requests now have an opt-out
+`BIBER_API_GUARD_ENABLED` gate, `BIBER_API_MAX_REQUEST_BYTES` payload cap,
+in-memory per-process `BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE` limiter keyed
+by API-key hash when present and client IP otherwise, 413 for oversized
+requests, 429 with `Retry-After` for throttled requests, and no raw API-key
+logging. The capabilities response now advertises
+`features.external_agent_api.server_side_protections` and explicitly states
+that client-side guards are not trusted. Vast validation passed
+`/workspace/biber-venv/bin/python scripts/biber_api_request_guard_smoke.py --output /workspace/outputs/biber-api-request-guard-smoke-5c2066e.json`
+with `ok=true` and 14/14 checks; the standard Vast confidence gate
+`/workspace/outputs/biber-local-confidence-smoke-5c2066e.json` passed with
+`ok=true` and 12/12 checks. Commit `da639fa` added
+`scripts/vast_restart_api_direct.sh`, a FastAPI-only restart helper for API
+code/env changes. It was run on the current Vast GPU, restarted only the BIBER
+API (new API pid `18150`), left vLLM running at `127.0.0.1:8001/v1`, and
+confirmed `/health` ready. A live capabilities check saved
+`/workspace/outputs/biber-live-capabilities-api-guard-da639fa.json`; its
+server-side protections show `api_guard_enabled=true`, `scope=/v1/*`,
+`identity=api_key_hash_or_client_ip`, `max_request_bytes=1048576`,
+`rate_limit_requests_per_minute=120`, and
+`client_side_guards_are_not_trusted=true`. Production/public hardening still
+needs Cloudflare/WAF/rate limits, a shared quota store, audit logging, key
+rotation workflows, and abuse monitoring, but the BIBER MVP no longer relies
+only on the VS Code extension for API protection. No OpenAI mentor, training,
+paid API, credential rotation, destructive Git, or XRIQ/XRIS work occurred.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
