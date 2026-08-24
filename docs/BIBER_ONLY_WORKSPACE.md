@@ -194,6 +194,18 @@ run `python scripts/biber_vscode_extension_compile_smoke.py`; this performs
 `npm ci` and `npm run compile` inside `examples/vscode_extension`, so it may
 download npm packages and is intentionally not part of the default Python-only
 confidence gate.
+Use the connection smoke to exercise the same API readiness flow as
+`BIBER: Test API Connection` without launching VS Code:
+
+```bash
+python scripts/biber_vscode_extension_connection_smoke.py \
+  --base-url <biber-openai-base-url>
+```
+
+It requires `BIBER_API_KEY`, calls only `/v1/agent/capabilities`, sends no
+repository data, and summarizes the advertised server-side protections. Add
+`--allow-missing-api-key` when you need a redacted blocked artifact rather than
+a failed process.
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 For the real `beaverapi.com` domain, use

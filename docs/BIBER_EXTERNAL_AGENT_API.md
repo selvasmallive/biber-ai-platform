@@ -101,6 +101,18 @@ These editor-side controls are only a first shield; the BIBER API must still
 enforce authentication, server-side rate limits, quotas, payload size limits,
 logging redaction, and abuse monitoring.
 
+To validate that same connection-test flow without launching VS Code, run:
+
+```bash
+export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_vscode_extension_connection_smoke.py \
+  --base-url http://127.0.0.1:8000/v1 \
+  --output /workspace/outputs/biber-vscode-extension-connection-smoke.json
+```
+
+This calls only `/v1/agent/capabilities`, sends no repository data, and reports
+whether server-side protections are advertised.
+
 Clients that want a richer coding-agent flow should use the planning helpers
 before calling the model: run `/v1/repo/rag/search` to select candidate files
 from the full allowed repository tree, pass those files through

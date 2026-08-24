@@ -79,3 +79,13 @@ From the repository root, the same build can be checked with:
 ```bash
 python scripts/biber_vscode_extension_compile_smoke.py
 ```
+
+To test the same API readiness flow without launching VS Code, run:
+
+```bash
+python scripts/biber_vscode_extension_connection_smoke.py \
+  --base-url http://127.0.0.1:8000/v1
+```
+
+Set `BIBER_API_KEY` first. The smoke calls only `/v1/agent/capabilities`, sends
+no repository data, and redacts secret-like fields from its artifact.
