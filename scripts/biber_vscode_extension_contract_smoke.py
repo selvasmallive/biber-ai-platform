@@ -80,6 +80,8 @@ def main() -> int:
             check("context.secrets.store" in extension_text, "secret_storage_store"),
             check("context.secrets.get" in extension_text, "secret_storage_get"),
             check("Authorization" in extension_text, "bearer_auth_header"),
+            check("User-Agent" in extension_text, "api_client_user_agent"),
+            check("X-BIBER-Client" in extension_text, "api_client_identity_header"),
             check("checkRateLimit" in extension_text, "client_rate_limit"),
             check("inFlightRequest" in extension_text, "single_flight_guard"),
             check("AbortController" in extension_text, "request_timeout_abort"),

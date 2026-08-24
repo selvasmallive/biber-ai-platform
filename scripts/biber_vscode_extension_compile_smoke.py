@@ -95,6 +95,8 @@ def main() -> int:
                     "/agent/orchestration/plan" in extension_text,
                     "compiled_orchestration_endpoint",
                 ),
+                check("User-Agent" in extension_text, "compiled_api_client_user_agent"),
+                check("X-BIBER-Client" in extension_text, "compiled_api_client_identity_header"),
             ]
         )
 

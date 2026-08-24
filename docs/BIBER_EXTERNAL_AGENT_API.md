@@ -38,6 +38,15 @@ Authorization: Bearer <api-key>
 x-api-key: <api-key>
 ```
 
+Public HTTPS clients should also send a clear client identity header so
+Cloudflare and server logs can distinguish BIBER API clients from anonymous
+automation:
+
+```text
+User-Agent: BIBER-VSCode-Extension-MVP/0.1
+X-BIBER-Client: biber-vscode-extension-mvp
+```
+
 The bootstrap key source is `BIBER_API_KEYS`. Put comma-separated bootstrap
 keys in the server environment or `.env` file. Do not commit `.env` or paste
 keys into chat.

@@ -17,6 +17,8 @@ from typing import Any
 
 DEFAULT_BASE_URL = "https://api.beaverapi.com/v1"
 CAPABILITIES_PATH = "/agent/capabilities"
+CLIENT_NAME = "biber-vscode-extension-mvp"
+CLIENT_USER_AGENT = "BIBER-VSCode-Extension-MVP/0.1"
 
 
 def redact(value: Any) -> Any:
@@ -82,7 +84,12 @@ def build_url(base_url: str, path: str) -> str:
 def fetch_capabilities(base_url: str, api_key: str, timeout_seconds: float) -> dict[str, Any]:
     request = urllib.request.Request(
         build_url(base_url, CAPABILITIES_PATH),
-        headers={"Authorization": f"Bearer {api_key}"},
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": CLIENT_USER_AGENT,
+            "X-BIBER-Client": CLIENT_NAME,
+        },
         method="GET",
     )
     with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
@@ -165,6 +172,8 @@ def run_connection_check(
         "api_required": True,
         "base_url": base_url,
         "capabilities_url": build_url(base_url, CAPABILITIES_PATH),
+        "client_name": CLIENT_NAME,
+        "client_user_agent": CLIENT_USER_AGENT,
         "api_key_configured": bool(api_key),
         "request_sent": request_sent,
         "external_network_required": not base_url.startswith("http://127.0.0.1")

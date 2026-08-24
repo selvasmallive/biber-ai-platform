@@ -88,4 +88,5 @@ python scripts/biber_vscode_extension_connection_smoke.py \
 ```
 
 Set `BIBER_API_KEY` first. The smoke calls only `/v1/agent/capabilities`, sends
-no repository data, and redacts secret-like fields from its artifact.
+no repository data, sends the same BIBER client identity headers as the
+extension, and redacts secret-like fields from its artifact.

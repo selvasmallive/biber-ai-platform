@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 
 const API_KEY_SECRET = "biber.apiKey";
+const CLIENT_NAME = "biber-vscode-extension-mvp";
+const CLIENT_USER_AGENT = "BIBER-VSCode-Extension-MVP/0.1";
 const OUTPUT_CHANNEL = "BIBER";
 const CAPABILITIES_PATH = "/agent/capabilities";
 const ORCHESTRATION_PATH = "/agent/orchestration/plan";
@@ -103,7 +105,7 @@ async function orchestrationPlan(
     max_rag_results: 8,
     max_scan_files: 2000,
     client: {
-      name: "biber-vscode-extension-mvp",
+      name: CLIENT_NAME,
       model: config.model,
       sends_file_contents: false,
       openai_mentor: false,
@@ -249,7 +251,10 @@ async function requestJson(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers: Record<string, string> = {
+    "Accept": "application/json",
     "Authorization": `Bearer ${apiKey}`,
+    "User-Agent": CLIENT_USER_AGENT,
+    "X-BIBER-Client": CLIENT_NAME,
   };
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   if (body !== undefined) {
