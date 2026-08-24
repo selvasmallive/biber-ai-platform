@@ -174,6 +174,9 @@ in-memory limiter as a local safety net rather than a replacement for
 Cloudflare/WAF limits and a shared production quota store. Run
 `python scripts/biber_api_request_guard_smoke.py` from a BIBER environment with
 FastAPI installed before exposing a new API host.
+After API-only code or `.env` changes on Vast, prefer
+`bash scripts/vast_restart_api_direct.sh` so the FastAPI process reloads without
+restarting vLLM.
 Use `examples/external_agent/` for minimal generic-client examples that require
 only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 `python scripts/biber_external_agent_examples_smoke.py` for an offline
