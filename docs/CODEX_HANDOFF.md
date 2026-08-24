@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 ## Current Goal
 
@@ -248,6 +248,37 @@ reports `ok=true`, `status=passed`, `request_sent=true`,
 `client_side_guards_are_not_trusted=true`. No OpenAI mentor, model generation,
 training, paid API, credential rotation, destructive Git, or XRIQ/XRIS work
 occurred.
+
+2026-08-24 BIBER VS Code public-domain client-header checkpoint:
+Complete in commit `7b44648`: the VS Code extension and its connection smoke
+now send explicit API-client identity headers, `User-Agent:
+BIBER-VSCode-Extension-MVP/0.1` and `X-BIBER-Client:
+biber-vscode-extension-mvp`, on external-agent API calls. This fixed the
+public `https://api.beaverapi.com/v1` connection-test path after the first
+anonymous Python-style public smoke was blocked by Cloudflare with HTTP 403
+error code 1010. The endpoint itself was healthy; a manual curl with those
+headers returned HTTP 200 before the client change. Local validation passed
+`git diff --check`, Python `py_compile` for the changed smoke scripts, the
+mock connection smoke, the VS Code contract smoke with 45/45 checks,
+`npm run compile`, and `scripts/biber_local_confidence_smoke.py
+--timeout-seconds 240` with 12/12 checks. The commit was pushed to
+`biber/mvp-resume-20260712`, synced to the current Vast GPU by Git bundle, and
+verified on Vast with these artifacts:
+`/workspace/outputs/biber-vscode-extension-connection-smoke-7b44648-local.json`
+passed with `ok=true`, `status=passed`, 7/7 checks, `request_sent=true`, and
+`model_request_sent=false`;
+`/workspace/outputs/biber-vscode-extension-public-connection-smoke-7b44648.json`
+passed against `https://api.beaverapi.com/v1` with `ok=true`, `status=passed`,
+7/7 checks, `request_sent=true`, and `model_request_sent=false`;
+`/workspace/outputs/biber-vscode-extension-contract-smoke-7b44648.json` passed
+with 45/45 checks; and
+`/workspace/outputs/biber-local-confidence-smoke-7b44648.json` passed with
+`ok=true`, 12/12 checks, `git_dirty=false`, and `vscode_extension.failed=0`.
+No OpenAI mentor, model generation, training, paid API, credential rotation,
+destructive Git, or XRIQ/XRIS work occurred. Next narrow BIBER MVP step:
+continue improving the extension/API agent flow in small no-training steps,
+with server-side API guards treated as authoritative and client-side limits
+treated only as UX protection.
 
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
