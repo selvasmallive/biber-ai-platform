@@ -171,7 +171,9 @@ The public `/v1/*` API path has an MVP server-side request guard in both
 `BIBER_API_GUARD_ENABLED=true`, tune `BIBER_API_MAX_REQUEST_BYTES` and
 `BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE` for the deployment, and treat the
 in-memory limiter as a local safety net rather than a replacement for
-Cloudflare/WAF limits and a shared production quota store.
+Cloudflare/WAF limits and a shared production quota store. Run
+`python scripts/biber_api_request_guard_smoke.py` from a BIBER environment with
+FastAPI installed before exposing a new API host.
 Use `examples/external_agent/` for minimal generic-client examples that require
 only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 `python scripts/biber_external_agent_examples_smoke.py` for an offline

@@ -162,6 +162,8 @@ python scripts/biber_agent_client.py external-agent-handoff-package \
   --output /workspace/outputs/biber-external-agent-handoff-package.json
 python scripts/biber_agent_client.py show-external-agent-handoff-package \
   /workspace/outputs/biber-external-agent-handoff-package.json
+python scripts/biber_api_request_guard_smoke.py \
+  --output /workspace/outputs/biber-api-request-guard-smoke.json
 python scripts/biber_vscode_extension_contract_smoke.py \
   --output /workspace/outputs/biber-vscode-extension-contract-smoke.json
 python scripts/biber_agent_client.py admin-api-key-contract-smoke \
