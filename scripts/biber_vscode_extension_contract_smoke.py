@@ -25,6 +25,9 @@ def main() -> int:
     package_path = EXTENSION_ROOT / "package.json"
     package_lock_path = EXTENSION_ROOT / "package-lock.json"
     gitignore_path = EXTENSION_ROOT / ".gitignore"
+    vscodeignore_path = EXTENSION_ROOT / ".vscodeignore"
+    license_path = EXTENSION_ROOT / "LICENSE.md"
+    changelog_path = EXTENSION_ROOT / "CHANGELOG.md"
     readme_path = EXTENSION_ROOT / "README.md"
     extension_path = EXTENSION_ROOT / "src" / "extension.ts"
     tsconfig_path = EXTENSION_ROOT / "tsconfig.json"
@@ -34,6 +37,9 @@ def main() -> int:
         package_path,
         package_lock_path,
         gitignore_path,
+        vscodeignore_path,
+        license_path,
+        changelog_path,
         readme_path,
         extension_path,
         tsconfig_path,
@@ -43,6 +49,7 @@ def main() -> int:
     package = json.loads(package_path.read_text(encoding="utf-8"))
     package_lock = json.loads(package_lock_path.read_text(encoding="utf-8"))
     gitignore_text = gitignore_path.read_text(encoding="utf-8")
+    vscodeignore_text = vscodeignore_path.read_text(encoding="utf-8")
     commands = {
         item.get("command")
         for item in package.get("contributes", {}).get("commands", [])
@@ -52,11 +59,26 @@ def main() -> int:
         "properties", {}
     )
     dev_dependencies = package.get("devDependencies", {})
+    scripts = package.get("scripts", {})
     extension_text = extension_path.read_text(encoding="utf-8")
     readme_text = readme_path.read_text(encoding="utf-8")
 
     checks.extend(
         [
+            check(package.get("name") == "biber-ai-assistant", "package_name_marketplace_ready"),
+            check(
+                package.get("publisher") == "flat-electronics-canada",
+                "publisher_flat_electronics_canada",
+            ),
+            check(package.get("displayName") == "BIBER AI Assistant", "display_name_public"),
+            check(package.get("pricing") == "Free", "pricing_free"),
+            check(package.get("license") == "SEE LICENSE IN LICENSE.md", "license_declared"),
+            check("Machine Learning" in package.get("categories", []), "category_machine_learning"),
+            check("repository" in package, "repository_declared"),
+            check("bugs" in package, "bugs_declared"),
+            check("capabilities" in package, "capabilities_declared"),
+            check("vsce package" in scripts.get("package", ""), "script_package_vsce"),
+            check("vsce publish" in scripts.get("publish", ""), "script_publish_vsce"),
             check("biber.setApiKey" in commands, "command:set_api_key"),
             check("biber.clearApiKey" in commands, "command:clear_api_key"),
             check("biber.testConnection" in commands, "command:test_connection"),
@@ -76,7 +98,13 @@ def main() -> int:
             ),
             check("node_modules/" in gitignore_text, "gitignore:node_modules"),
             check("out/" in gitignore_text, "gitignore:out"),
+            check("dist/" in gitignore_text, "gitignore:dist"),
             check("*.vsix" in gitignore_text, "gitignore:vsix"),
+            check("node_modules/**" in vscodeignore_text, "vscodeignore:node_modules"),
+            check("src/**" in vscodeignore_text, "vscodeignore:src"),
+            check("dist/**" in vscodeignore_text, "vscodeignore:dist"),
+            check("out/**/*.map" in vscodeignore_text, "vscodeignore:source_maps"),
+            check(".gitignore" in vscodeignore_text, "vscodeignore:gitignore"),
             check("context.secrets.store" in extension_text, "secret_storage_store"),
             check("context.secrets.get" in extension_text, "secret_storage_get"),
             check("Authorization" in extension_text, "bearer_auth_header"),

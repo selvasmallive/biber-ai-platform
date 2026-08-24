@@ -194,6 +194,12 @@ run `python scripts/biber_vscode_extension_compile_smoke.py`; this performs
 `npm ci` and `npm run compile` inside `examples/vscode_extension`, so it may
 download npm packages and is intentionally not part of the default Python-only
 confidence gate.
+When preparing a VS Code Marketplace build, run
+`python scripts/biber_vscode_extension_package_smoke.py`; it compiles, packages
+`examples/vscode_extension/dist/biber-ai-assistant-0.1.0.vsix`, and install-tests
+the VSIX in an isolated temporary VS Code profile. If a Windows/OneDrive file
+lock blocks `npm ci` after dependencies are already installed, rerun the compile
+or package smoke with `--skip-npm-ci`.
 Use the connection smoke to exercise the same API readiness flow as
 `BIBER: Test API Connection` without launching VS Code:
 

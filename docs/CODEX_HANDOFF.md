@@ -318,6 +318,50 @@ agent path by packaging/install-testing the VS Code extension or adding the
 first read-only editor-side orchestration output shaping, still behind the
 same API-key and no-file-content contract.
 
+2026-08-24 BIBER VS Code Marketplace package/install checkpoint:
+Complete locally for the first Marketplace-ready VSIX. The extension manifest
+now publishes as `flat-electronics-canada.biber-ai-assistant`, display name
+`BIBER AI Assistant`, version `0.1.0`, pricing `Free`, with repository/bugs
+metadata, workspace capability declarations, `LICENSE.md`, `CHANGELOG.md`, and
+`.vscodeignore`. Added `@vscode/vsce` as a pinned dev packaging dependency,
+`npm run package`, `npm run publish`, and
+`scripts/biber_vscode_extension_package_smoke.py`, which compiles, packages,
+and install-tests the VSIX in an isolated temporary VS Code profile. Also added
+`docs/BIBER_VSCODE_MARKETPLACE_RELEASE.md` with the release checklist,
+security posture, inference-only rule, and explicit note that MCP is not
+required for Marketplace `0.1.0` because the BIBER API gateway is the model
+security boundary.
+
+Local validation passed Python `py_compile` with temp pycache, `git diff
+--check`, `scripts/biber_vscode_extension_contract_smoke.py` with 65/65
+checks, `scripts/biber_vscode_extension_compile_smoke.py --skip-npm-ci` with
+`ok=true` and 11/11 checks, `scripts/biber_vscode_extension_package_smoke.py
+--skip-npm-ci` with `ok=true` and 12/12 checks, and
+`scripts/biber_local_confidence_smoke.py --timeout-seconds 240` with
+`ok=true`, 13/13 checks, `vscode_extension.checks=65`, and
+`vscode_extension_orchestration.failed=0`. `--skip-npm-ci` was used only
+because Windows/OneDrive intermittently locked generated `node_modules` files;
+`npm install` repaired dependencies and reported `found 0 vulnerabilities`.
+The final local VSIX is
+`examples/vscode_extension/dist/biber-ai-assistant-0.1.0.vsix` (`8975` bytes);
+the isolated VS Code install test listed
+`flat-electronics-canada.biber-ai-assistant@0.1.0`. The VSIX contained only
+`LICENSE.md`, `CHANGELOG.md`, `package.json`, `README.md`, and
+`out/extension.js` under the extension payload. Vast public no-model smokes
+also passed after this checkpoint:
+`/workspace/outputs/biber-vscode-extension-public-connection-smoke-marketplace-prep.json`
+reports `ok=true`, 7/7 checks, `model_request_sent=false`; and
+`/workspace/outputs/biber-vscode-extension-public-orchestration-smoke-marketplace-prep.json`
+reports `ok=true`, 17/17 checks, `safe_to_apply=false`,
+`model_request_sent=false`, `mentor_used=false`, and `training_allowed=false`.
+
+Publishing to Marketplace is deliberately NOT done yet. It requires the owner
+to provide or enter a Visual Studio Marketplace/Azure DevOps token for
+publisher `flat-electronics-canada` with Marketplace Manage permission. Do not
+paste that token into chat or commit it. Use the release runbook and run
+`npx vsce login flat-electronics-canada`, then `npm run publish`, only after
+the user explicitly approves publishing with the token handled outside chat.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit

@@ -1,8 +1,8 @@
-# BIBER VS Code Extension MVP
+# BIBER AI Assistant
 
-This is the minimal VS Code extension shape for testing BIBER as a
-Copilot-style local/remote coding assistant without overbuilding the editor
-client.
+BIBER AI Assistant is a secure VS Code client for testing BIBER as a
+Copilot-style local/remote coding assistant. Version `0.1.0` focuses on API
+readiness and orchestration planning before direct file mutation is enabled.
 
 The first command surface is intentionally small:
 
@@ -49,7 +49,7 @@ These client-side controls are not a substitute for server-side protections.
 The BIBER API must still enforce authentication, per-key quotas, server-side
 rate limits, payload size limits, logging redaction, and abuse monitoring.
 
-## MVP Limitation
+## Current Limitation
 
 The current orchestration call is a planning contract test. It is useful for
 editor integration because it verifies API keys, URL configuration, path hints,
@@ -80,6 +80,13 @@ From the repository root, the same build can be checked with:
 python scripts/biber_vscode_extension_compile_smoke.py
 ```
 
+Package and install-test the VSIX into an isolated temporary VS Code profile
+with:
+
+```bash
+python scripts/biber_vscode_extension_package_smoke.py
+```
+
 To test the same API readiness flow without launching VS Code, run:
 
 ```bash
@@ -103,3 +110,14 @@ That smoke calls only `/v1/agent/orchestration/plan`, sends bounded path hints
 and a bounded instruction, sends no file contents, and verifies that the
 response remains planning-only with no model request, GitHub save, training, or
 OpenAI mentor call.
+
+## Marketplace
+
+The Marketplace extension ID is:
+
+```text
+flat-electronics-canada.biber-ai-assistant
+```
+
+See the repository release checklist for packaging and publishing steps:
+https://github.com/selvasmallive/biber-ai-platform/blob/biber/mvp-resume-20260712/docs/BIBER_VSCODE_MARKETPLACE_RELEASE.md

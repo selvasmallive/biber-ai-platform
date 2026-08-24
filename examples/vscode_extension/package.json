@@ -1,15 +1,45 @@
 {
-  "name": "biber-vscode-extension-mvp",
-  "displayName": "BIBER MVP",
-  "description": "Minimal secure VS Code client for BIBER orchestration planning.",
+  "name": "biber-ai-assistant",
+  "displayName": "BIBER AI Assistant",
+  "description": "Secure VS Code client for BIBER AI orchestration planning.",
   "version": "0.1.0",
-  "publisher": "biber-ai",
+  "publisher": "flat-electronics-canada",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "pricing": "Free",
   "engines": {
     "vscode": "^1.92.0"
   },
   "categories": [
+    "Machine Learning",
     "Other"
   ],
+  "keywords": [
+    "biber",
+    "ai",
+    "coding-assistant",
+    "orchestration",
+    "repo-context",
+    "local-model",
+    "openai-compatible"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/selvasmallive/biber-ai-platform.git"
+  },
+  "homepage": "https://api.beaverapi.com",
+  "bugs": {
+    "url": "https://github.com/selvasmallive/biber-ai-platform/issues"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "BIBER only sends bounded path hints and user-entered instructions in this release; it does not read or upload file contents."
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "BIBER can test the API connection in virtual workspaces. Orchestration path hints depend on VS Code workspace-relative file paths."
+    }
+  },
   "activationEvents": [
     "onCommand:biber.setApiKey",
     "onCommand:biber.clearApiKey",
@@ -82,11 +112,14 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
+    "package": "vsce package",
+    "publish": "vsce publish",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
     "@types/node": "20.11.0",
     "@types/vscode": "1.92.0",
+    "@vscode/vsce": "^3.9.2",
     "typescript": "5.5.4"
   }
 }

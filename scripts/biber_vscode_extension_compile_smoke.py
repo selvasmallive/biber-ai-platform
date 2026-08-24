@@ -62,6 +62,11 @@ def main() -> int:
         action="store_true",
         help="Write a blocked artifact and exit 0 when npm is unavailable.",
     )
+    parser.add_argument(
+        "--skip-npm-ci",
+        action="store_true",
+        help="Use existing node_modules and run compile only. Useful when OneDrive locks generated npm files.",
+    )
     args = parser.parse_args()
 
     npm = shutil.which("npm")
@@ -73,12 +78,16 @@ def main() -> int:
     ]
     commands: list[dict[str, Any]] = []
     blockers: list[str] = []
+    notes: list[str] = []
 
     if not npm:
         blockers.append("npm_not_available")
     else:
-        commands.append(run_command([npm, "ci"], args.timeout_seconds))
-        if commands[-1]["ok"]:
+        if not args.skip_npm_ci:
+            commands.append(run_command([npm, "ci"], args.timeout_seconds))
+        else:
+            notes.append("npm_ci_skipped")
+        if args.skip_npm_ci or commands[-1]["ok"]:
             commands.append(run_command([npm, "run", "compile"], args.timeout_seconds))
 
     extension_js = EXTENSION_ROOT / "out" / "extension.js"
@@ -121,6 +130,7 @@ def main() -> int:
         "checks": checks,
         "commands": commands,
         "blockers": blockers,
+        "notes": notes,
         "failed": [
             item
             for item in checks
