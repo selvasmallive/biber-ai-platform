@@ -206,6 +206,21 @@ It requires `BIBER_API_KEY`, calls only `/v1/agent/capabilities`, sends no
 repository data, and summarizes the advertised server-side protections. Add
 `--allow-missing-api-key` when you need a redacted blocked artifact rather than
 a failed process.
+
+Use the orchestration smoke to exercise the same planning-only command as
+`BIBER: Plan With BIBER Orchestration` without launching VS Code:
+
+```bash
+python scripts/biber_vscode_extension_orchestration_smoke.py \
+  --base-url <biber-openai-base-url> \
+  --changed-path docs/BIBER_ONLY_WORKSPACE.md
+```
+
+It requires `BIBER_API_KEY`, calls only `/v1/agent/orchestration/plan`, sends
+bounded path hints instead of file contents, and verifies the response remains
+planning-only with no model request, GitHub save, training, or OpenAI mentor
+call.
+
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 For the real `beaverapi.com` domain, use

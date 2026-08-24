@@ -122,6 +122,22 @@ python scripts/biber_vscode_extension_connection_smoke.py \
 This calls only `/v1/agent/capabilities`, sends no repository data, and reports
 whether server-side protections are advertised.
 
+To validate the VS Code orchestration command shape without launching VS Code,
+run:
+
+```bash
+export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_vscode_extension_orchestration_smoke.py \
+  --base-url http://127.0.0.1:8000/v1 \
+  --changed-path docs/BIBER_ONLY_WORKSPACE.md \
+  --output /workspace/outputs/biber-vscode-extension-orchestration-smoke.json
+```
+
+This calls only `/v1/agent/orchestration/plan`, sends bounded path hints and a
+bounded instruction, sends no file contents, and verifies the response remains
+planning-only with `safe_to_apply=false`, no model request, no GitHub save, no
+training, and no OpenAI mentor call.
+
 Clients that want a richer coding-agent flow should use the planning helpers
 before calling the model: run `/v1/repo/rag/search` to select candidate files
 from the full allowed repository tree, pass those files through
