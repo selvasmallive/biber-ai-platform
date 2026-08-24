@@ -280,6 +280,44 @@ continue improving the extension/API agent flow in small no-training steps,
 with server-side API guards treated as authoritative and client-side limits
 treated only as UX protection.
 
+2026-08-24 BIBER VS Code orchestration-smoke + legacy Vast API checkpoint:
+Complete in commits `c5252f6`, `9dbbfef`, and `6e15fa1`. Added
+`scripts/biber_vscode_extension_orchestration_smoke.py`, a stdlib helper that
+mirrors `BIBER: Plan With BIBER Orchestration` without launching VS Code. It
+calls only `/v1/agent/orchestration/plan`, sends bounded path hints and a
+bounded instruction, sends the same `User-Agent` / `X-BIBER-Client` headers as
+the extension, sends no file contents, and verifies the response is still
+planning-only (`safe_to_apply=false`, no model request, no GitHub save, no
+training, no OpenAI mentor call). The no-GPU local confidence gate now includes
+this mock orchestration smoke and reports 13 checks instead of 12. Local
+validation passed Python `py_compile` with temp pycache, `git diff --check`,
+the orchestration mock smoke with 20/20 checks, and
+`scripts/biber_local_confidence_smoke.py --timeout-seconds 240` with
+`ok=true`, 13/13 checks, and `vscode_extension_orchestration.failed=0`.
+
+During Vast validation, the first local/public live orchestration smokes at
+commit `9dbbfef` returned HTTP 404 because the running Vast FastAPI process
+uses the legacy `app/main.py` entrypoint, while the orchestration route existed
+only in `src/biber_api/main.py`. Commit `6e15fa1` added the mirrored
+planning-only orchestration module/route to `app/*` and advertised it in
+legacy capabilities. After syncing by Git bundle and running the documented
+FastAPI-only restart (`bash scripts/vast_restart_api_direct.sh`), both live
+smokes passed:
+`/workspace/outputs/biber-vscode-extension-orchestration-smoke-6e15fa1-local.json`
+and
+`/workspace/outputs/biber-vscode-extension-orchestration-smoke-6e15fa1-public.json`
+each report `ok=true`, `status=passed`, 17/17 checks, `request_sent=true`,
+`model_request_sent=false`, `safe_to_apply=false`, `mentor_used=false`, and
+`training_allowed=false`. The refreshed Vast confidence gate
+`/workspace/outputs/biber-local-confidence-smoke-6e15fa1.json` reports
+`ok=true`, 13/13 checks, and `vscode_extension_orchestration.failed=0`. The
+FastAPI restart changed only the API process; vLLM remained running. No OpenAI
+mentor, model generation, training, paid API, credential rotation, destructive
+Git, or XRIQ/XRIS work occurred. Next narrow step: continue the extension/API
+agent path by packaging/install-testing the VS Code extension or adding the
+first read-only editor-side orchestration output shaping, still behind the
+same API-key and no-file-content contract.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
