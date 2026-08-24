@@ -49,6 +49,21 @@ default to `.biber-runtime/biber-api-keys.json` under the repo context root.
 The store records key hashes and safe metadata only. The plaintext API key is
 returned once when the admin issues it.
 
+The BIBER API also has an MVP server-side guard for public client paths. It
+applies to `/v1/*`, rejects oversized requests by `Content-Length`, and rate
+limits by API-key hash when a key is present or by client IP before auth. The
+defaults are intentionally conservative and configurable:
+
+```text
+BIBER_API_GUARD_ENABLED=true
+BIBER_API_MAX_REQUEST_BYTES=1048576
+BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE=120
+```
+
+The rate-limit state is in-memory per API process in this MVP. For production,
+put Cloudflare/WAF limits and a shared store such as Redis in front of this
+guard, but do not remove the in-app checks.
+
 `POST /v1/chat/completions` defaults to the configured swappable BIBER model
 registry. The raw GPU runtime remains behind BIBER; external clients should talk
 to the BIBER API, not directly to vLLM. OpenAI mentor is optional and disabled

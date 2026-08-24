@@ -67,6 +67,9 @@ class BiberSettings:
     azure_blob_container: str
     admin_api_key: str | None = None
     api_key_store_path: str = ""
+    api_guard_enabled: bool = True
+    api_max_request_bytes: int = 1048576
+    api_rate_limit_requests_per_minute: int = 120
     default_model: str = "biber-dev-core-v1"
     runtime_profiles_enabled: bool = False
     repo_context_root: str = "."
@@ -99,6 +102,11 @@ def get_settings() -> BiberSettings:
         api_keys=_csv(os.getenv("BIBER_API_KEYS")),
         admin_api_key=os.getenv("BIBER_ADMIN_API_KEY") or None,
         api_key_store_path=_default_api_key_store_path(repo_context_root),
+        api_guard_enabled=_bool(os.getenv("BIBER_API_GUARD_ENABLED"), default=True),
+        api_max_request_bytes=int(os.getenv("BIBER_API_MAX_REQUEST_BYTES", "1048576")),
+        api_rate_limit_requests_per_minute=int(
+            os.getenv("BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
+        ),
         priority_passcodes=_priority_passcodes(os.getenv("BIBER_PRIORITY_PASSCODES")),
         local_model_base_url=os.getenv("BIBER_LOCAL_MODEL_BASE_URL", "http://localhost:8000/v1"),
         local_model_name=os.getenv("BIBER_LOCAL_MODEL_NAME", "biber-dev-core"),

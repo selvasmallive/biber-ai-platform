@@ -56,6 +56,11 @@ class Settings:
     demo_api_key: str = os.getenv("BIBER_DEMO_API_KEY", "dev-api-key-change-me")
     api_keys: tuple[str, ...] = _csv(os.getenv("BIBER_API_KEYS"))
     admin_api_key: str | None = os.getenv("BIBER_ADMIN_API_KEY") or None
+    api_guard_enabled: bool = _bool(os.getenv("BIBER_API_GUARD_ENABLED"), default=True)
+    api_max_request_bytes: int = int(os.getenv("BIBER_API_MAX_REQUEST_BYTES", "1048576"))
+    api_rate_limit_requests_per_minute: int = int(
+        os.getenv("BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
+    )
 
     passcode_full_gpu: str = os.getenv("BIBER_PASSCODE_FULL_GPU", "BIBER_FULL_GPU_DEMO")
     passcode_20_gpu: str = os.getenv("BIBER_PASSCODE_20_GPU", "BIBER_20_GPU_DEMO")

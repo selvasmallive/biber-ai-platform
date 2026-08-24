@@ -73,6 +73,14 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert external_api["authentication"]["admin_key_management_api"] == "mvp"
     assert external_api["authentication"]["admin_key_management_ui"] == "mvp"
     assert external_api["authentication"]["per_user_key_issuance"] == "mvp"
+    protections = external_api["server_side_protections"]
+    assert protections["api_guard_enabled"] is True
+    assert protections["scope"] == "/v1/*"
+    assert protections["identity"] == "api_key_hash_or_client_ip"
+    assert protections["max_request_bytes"] == 1048576
+    assert protections["rate_limit_requests_per_minute"] == 120
+    assert protections["rate_limit_state"] == "in_memory_per_process_mvp"
+    assert protections["client_side_guards_are_not_trusted"] is True
     assert external_api["endpoints"]["chat_completions"] == "POST /v1/chat/completions"
     assert external_api["endpoints"]["admin_api_keys"] == "GET/POST/DELETE /v1/admin/api-keys"
     assert external_api["endpoints"]["admin_api_keys_console"] == "GET /admin/api-keys"

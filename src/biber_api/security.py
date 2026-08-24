@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
+from time import monotonic
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -21,12 +23,103 @@ class AdminAuthContext:
     role: str = "admin"
 
 
+@dataclass(frozen=True)
+class RequestGuardDecision:
+    status_code: int
+    detail: str
+    headers: dict[str, str]
+
+
+_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
+_RATE_LIMIT_MAX_IDENTITIES = 10000
+
+
 def _extract_api_key(request: Request) -> str | None:
     api_key = request.headers.get("x-api-key")
     authorization = request.headers.get("authorization")
     if authorization and authorization.startswith("Bearer "):
         api_key = authorization.removeprefix("Bearer ").strip()
     return api_key
+
+
+def _extract_content_length(request: Request) -> int | None:
+    raw_value = request.headers.get("content-length")
+    if raw_value is None:
+        return None
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _request_guard_identity(request: Request) -> str:
+    api_key = _extract_api_key(request)
+    if api_key:
+        return f"key:{api_key_id(api_key)}"
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return f"ip:{forwarded_for.split(',', 1)[0].strip()}"
+    if request.client and request.client.host:
+        return f"ip:{request.client.host}"
+    return "ip:unknown"
+
+
+def clear_api_request_guard_state() -> None:
+    _RATE_LIMIT_BUCKETS.clear()
+
+
+def check_api_request_guard(
+    request: Request,
+    settings: BiberSettings,
+) -> RequestGuardDecision | None:
+    if not settings.api_guard_enabled or not request.url.path.startswith("/v1/"):
+        return None
+
+    max_request_bytes = settings.api_max_request_bytes
+    content_length = _extract_content_length(request)
+    if (
+        max_request_bytes > 0
+        and content_length is not None
+        and content_length > max_request_bytes
+    ):
+        return RequestGuardDecision(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="BIBER API request body is too large.",
+            headers={
+                "X-BIBER-Max-Request-Bytes": str(max_request_bytes),
+            },
+        )
+
+    limit = settings.api_rate_limit_requests_per_minute
+    if limit <= 0:
+        return None
+
+    now = monotonic()
+    window_start = now - _RATE_LIMIT_WINDOW_SECONDS
+    identity = _request_guard_identity(request)
+    bucket = _RATE_LIMIT_BUCKETS.setdefault(identity, [])
+    while bucket and bucket[0] < window_start:
+        bucket.pop(0)
+    if len(_RATE_LIMIT_BUCKETS) > _RATE_LIMIT_MAX_IDENTITIES:
+        for key, timestamps in list(_RATE_LIMIT_BUCKETS.items()):
+            if not timestamps or timestamps[-1] < window_start:
+                _RATE_LIMIT_BUCKETS.pop(key, None)
+
+    if len(bucket) >= limit:
+        retry_after = max(1, ceil(bucket[0] + _RATE_LIMIT_WINDOW_SECONDS - now))
+        return RequestGuardDecision(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="BIBER API request rate limit exceeded.",
+            headers={
+                "Retry-After": str(retry_after),
+                "X-BIBER-RateLimit-Limit": str(limit),
+            },
+        )
+
+    bucket.append(now)
+    return None
 
 
 def _store_has_records(path: str) -> bool:

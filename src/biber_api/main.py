@@ -5,9 +5,9 @@ from pathlib import Path
 from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi import Path as ApiPath
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from .agent_sessions import (
     AgentSessionStoreError,
@@ -74,7 +74,12 @@ from .schemas import (
     WorkspaceEditPlanResponse,
     WorkspaceEditResponse,
 )
-from .security import AuthContext, require_admin_api_key, require_api_key
+from .security import (
+    AuthContext,
+    check_api_request_guard,
+    require_admin_api_key,
+    require_api_key,
+)
 from .test_runner import (
     TestRunnerConfigurationError,
     UnknownTestCommandError,
@@ -118,6 +123,25 @@ app = FastAPI(
     version="0.1.0",
     description="Phase 1 API for biber-dev-core local GPU inference.",
 )
+
+
+def _request_settings(request: Request) -> BiberSettings:
+    settings_provider = request.app.dependency_overrides.get(get_settings)
+    if settings_provider is not None:
+        return settings_provider()
+    return get_settings()
+
+
+@app.middleware("http")
+async def api_request_guard_middleware(request: Request, call_next):
+    decision = check_api_request_guard(request, _request_settings(request))
+    if decision is not None:
+        return JSONResponse(
+            status_code=decision.status_code,
+            content={"detail": decision.detail},
+            headers=decision.headers,
+        )
+    return await call_next(request)
 
 
 def _read_xriq_dashboard_html() -> str:
@@ -301,6 +325,17 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                     "admin_key_management_api": "mvp",
                     "admin_key_management_ui": "mvp",
                     "per_user_key_issuance": "mvp",
+                },
+                "server_side_protections": {
+                    "api_guard_enabled": settings.api_guard_enabled,
+                    "scope": "/v1/*",
+                    "identity": "api_key_hash_or_client_ip",
+                    "max_request_bytes": settings.api_max_request_bytes,
+                    "rate_limit_requests_per_minute": (
+                        settings.api_rate_limit_requests_per_minute
+                    ),
+                    "rate_limit_state": "in_memory_per_process_mvp",
+                    "client_side_guards_are_not_trusted": True,
                 },
                 "endpoints": {
                     "models": "GET /v1/models",

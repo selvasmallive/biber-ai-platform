@@ -166,6 +166,12 @@ Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external
 agent client.
+The public `/v1/*` API path has an MVP server-side request guard in both
+`src/biber_api` and the direct Vast `app` entrypoint. Keep
+`BIBER_API_GUARD_ENABLED=true`, tune `BIBER_API_MAX_REQUEST_BYTES` and
+`BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE` for the deployment, and treat the
+in-memory limiter as a local safety net rather than a replacement for
+Cloudflare/WAF limits and a shared production quota store.
 Use `examples/external_agent/` for minimal generic-client examples that require
 only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 `python scripts/biber_external_agent_examples_smoke.py` for an offline

@@ -12,9 +12,10 @@ from fastapi import (
     HTTPException,
     Path as ApiPath,
     Query,
+    Request,
     UploadFile,
 )
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.agent_sessions import (
@@ -25,7 +26,12 @@ from app.agent_sessions import (
 )
 from app.api_key_store import issue_api_key, list_public_key_records, revoke_api_key
 from app.azure_backup import AzureBackupDisabled, AzureBlobBackup
-from app.auth import require_admin_api_key, require_api_key, get_priority_from_passcode
+from app.auth import (
+    check_api_request_guard,
+    get_priority_from_passcode,
+    require_admin_api_key,
+    require_api_key,
+)
 from app.config import settings
 from app.github_client import (
     GitHubClient,
@@ -87,6 +93,18 @@ app = FastAPI(
     version="0.1.0",
     description="Private GPU-backed BIBER AI platform"
 )
+
+
+@app.middleware("http")
+async def api_request_guard_middleware(request: Request, call_next):
+    decision = check_api_request_guard(request)
+    if decision is not None:
+        return JSONResponse(
+            status_code=decision.status_code,
+            content={"detail": decision.detail},
+            headers=decision.headers,
+        )
+    return await call_next(request)
 
 
 def _read_xriq_dashboard_html() -> str:
@@ -587,6 +605,17 @@ def _agent_capabilities() -> dict[str, object]:
                     "admin_key_management_api": "mvp",
                     "admin_key_management_ui": "mvp",
                     "per_user_key_issuance": "mvp",
+                },
+                "server_side_protections": {
+                    "api_guard_enabled": settings.api_guard_enabled,
+                    "scope": "/v1/*",
+                    "identity": "api_key_hash_or_client_ip",
+                    "max_request_bytes": settings.api_max_request_bytes,
+                    "rate_limit_requests_per_minute": (
+                        settings.api_rate_limit_requests_per_minute
+                    ),
+                    "rate_limit_state": "in_memory_per_process_mvp",
+                    "client_side_guards_are_not_trusted": True,
                 },
                 "endpoints": {
                     "models": "GET /v1/models",
