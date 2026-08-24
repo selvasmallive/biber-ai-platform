@@ -224,6 +224,31 @@ with `--allow-missing-npm`; it saved
 `status=blocked`, `blockers=["npm_not_available"]`, and no API/GPU/model/
 mentor/training/GitHub request. This is expected for the current Vast image.
 
+2026-08-24 BIBER VS Code live connection-smoke checkpoint:
+Complete in commit `adcb506`: added
+`scripts/biber_vscode_extension_connection_smoke.py`, a stdlib smoke that
+mirrors the VS Code extension's `BIBER: Test API Connection` command without
+launching VS Code. It enforces the same HTTPS-or-localhost base URL rule, uses
+`BIBER_API_KEY` or `--api-key`, calls only `/v1/agent/capabilities`, sends no
+prompt/repo paths/file contents, redacts secret-like fields, and summarizes the
+advertised `server_side_protections`. It includes `--mock` for offline local
+validation and `--allow-missing-api-key` for redacted blocked artifacts. Local
+validation passed Python `py_compile`, `git diff --check`, the mock connection
+smoke with `ok=true`, the non-local HTTP guard check (blocked before request),
+and the full `scripts/biber_local_confidence_smoke.py --timeout-seconds 240`
+with `ok=true` and 12/12 checks. The commit was pushed to
+`biber/mvp-resume-20260712`, synced to Vast by Git bundle, and run against the
+current Vast FastAPI endpoint with the existing remote `.env` key:
+`/workspace/outputs/biber-vscode-extension-connection-smoke-adcb506.json`
+reports `ok=true`, `status=passed`, `request_sent=true`,
+`model_request_sent=false`, `gpu_required=false`, `mentor_used=false`,
+`training_allowed=false`, and server-side protections
+`api_guard_enabled=true`, `scope=/v1/*`, `identity=api_key_hash_or_client_ip`,
+`max_request_bytes=1048576`, `rate_limit_requests_per_minute=120`, and
+`client_side_guards_are_not_trusted=true`. No OpenAI mentor, model generation,
+training, paid API, credential rotation, destructive Git, or XRIQ/XRIS work
+occurred.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
