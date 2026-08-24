@@ -189,6 +189,11 @@ command sends bounded path hints rather than file contents, and local
 single-flight/rate-limit/timeout/HTTPS guards are present. Run
 `python scripts/biber_vscode_extension_contract_smoke.py` before changing that
 scaffold.
+When npm is available and you need to prove the extension actually compiles,
+run `python scripts/biber_vscode_extension_compile_smoke.py`; this performs
+`npm ci` and `npm run compile` inside `examples/vscode_extension`, so it may
+download npm packages and is intentionally not part of the default Python-only
+confidence gate.
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 For the real `beaverapi.com` domain, use

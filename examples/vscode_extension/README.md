@@ -73,3 +73,9 @@ npm run compile
 
 Then open this folder in VS Code and run the extension host. Keep the first live
 tests against a private tunnel or a low-quota per-user API key.
+
+From the repository root, the same build can be checked with:
+
+```bash
+python scripts/biber_vscode_extension_compile_smoke.py
+```

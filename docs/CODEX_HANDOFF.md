@@ -209,6 +209,15 @@ explicitly needed. Vast repo-side validation still passed with
 (`ok=true`, 43/43 checks) and
 `/workspace/outputs/biber-local-confidence-smoke-6feb66a.json` (`ok=true`,
 12/12 checks, `git_dirty=false`).
+Follow-up local tooling checkpoint added
+`scripts/biber_vscode_extension_compile_smoke.py`, which wraps `npm ci` and
+`npm run compile`, verifies `out/extension.js` plus source map are produced,
+and checks the compiled output still contains the test-connection,
+capabilities, and orchestration endpoints. Local validation passed Python
+`py_compile`, `git diff --check`, and the new compile smoke with `ok=true`;
+the smoke reports `external_network_required=true` because npm may need the
+registry/cache, and it is intentionally not part of the default Python-only
+BIBER confidence gate.
 
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
