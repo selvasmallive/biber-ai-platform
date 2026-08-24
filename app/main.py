@@ -44,6 +44,7 @@ from app.github_client import (
 )
 from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.model_registry import ModelRegistryError, build_model_registry
+from app.orchestration import plan_agent_orchestration
 from app.repo_context import (
     RepoContextError,
     list_repo_context_stack_profiles,
@@ -455,6 +456,37 @@ class WorkspaceEditApplyResponse(BaseModel):
     summary: str
 
 
+class AgentOrchestrationPlanRequest(BaseModel):
+    instruction: str = Field(min_length=1)
+    pinned_paths: list[str] = Field(default_factory=list, max_length=50)
+    changed_paths: list[str] = Field(default_factory=list, max_length=50)
+    proposed_edits: list[WorkspaceEditRequest] = Field(default_factory=list, max_length=20)
+    test_id: str | None = "python-compileall-api"
+    max_context_files: int = Field(default=12, ge=1, le=50)
+    max_rag_results: int = Field(default=12, ge=1, le=50)
+    max_scan_files: int = Field(default=5000, ge=1, le=20000)
+
+
+class AgentOrchestrationPlanResponse(BaseModel):
+    source: str
+    ok: bool
+    orchestration_version: str
+    instruction: str
+    agents: list[dict[str, Any]]
+    workflow_steps: list[dict[str, Any]]
+    repo_rag: dict[str, Any]
+    repo_context: dict[str, Any]
+    edit_plan: dict[str, Any] | None = None
+    test_plan: dict[str, Any] | None = None
+    required_gates: list[str]
+    hard_blockers: list[str]
+    safe_to_apply: bool
+    mentor_required: bool
+    mentor_optional: bool
+    next_actions: list[str]
+    summary: str
+
+
 class AgentSessionRequest(BaseModel):
     instruction: str = Field(min_length=1)
     model: str | None = None
@@ -548,6 +580,7 @@ def _agent_capabilities() -> dict[str, object]:
             "create_session": "POST /v1/agent/sessions",
             "list_sessions": "GET /v1/agent/sessions",
             "get_session": "GET /v1/agent/sessions/{session_id}",
+            "orchestration_plan": "POST /v1/agent/orchestration/plan",
             "run_test": "POST /v1/tests/run",
             "diagnose_test_failure": "POST /v1/tests/diagnose",
             "edit_file": "POST /v1/files/edit",
@@ -567,6 +600,24 @@ def _agent_capabilities() -> dict[str, object]:
                 "planner_supported": True,
                 "stack_profiles_supported": True,
                 "stack_profiles": list_repo_context_stack_profiles(),
+            },
+            "multi_agent_orchestration": {
+                "enabled": True,
+                "plan_endpoint": "POST /v1/agent/orchestration/plan",
+                "maturity": "planning_contract_mvp",
+                "agents": [
+                    "planner",
+                    "repo_retriever",
+                    "coder",
+                    "edit_guard",
+                    "test_diagnoser",
+                    "reviewer",
+                    "git_saver",
+                ],
+                "model_calls_in_plan": False,
+                "mutation_in_plan": False,
+                "openai_mentor_optional": True,
+                "openai_mentor_disabled_by_default": True,
             },
             "workspace_edit": {
                 "enabled": True,
@@ -622,6 +673,7 @@ def _agent_capabilities() -> dict[str, object]:
                     "chat_completions": "POST /v1/chat/completions",
                     "native_chat": "POST /v1/chat",
                     "agent_capabilities": "GET /v1/agent/capabilities",
+                    "orchestration_plan": "POST /v1/agent/orchestration/plan",
                     "admin_api_keys": "GET/POST/DELETE /v1/admin/api-keys",
                     "admin_api_keys_console": "GET /admin/api-keys",
                 },
@@ -911,6 +963,33 @@ def apply_workspace_file_edits(
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditApplyResponse.model_validate(result)
+
+
+@app.post(
+    "/v1/agent/orchestration/plan",
+    response_model=AgentOrchestrationPlanResponse,
+)
+def agent_orchestration_plan(
+    req: AgentOrchestrationPlanRequest,
+    auth=Depends(require_api_key),
+):
+    try:
+        result = plan_agent_orchestration(
+            settings=settings,
+            instruction=req.instruction,
+            pinned_paths=req.pinned_paths,
+            changed_paths=req.changed_paths,
+            proposed_edits=[edit.model_dump() for edit in req.proposed_edits],
+            test_id=req.test_id,
+            max_context_files=req.max_context_files,
+            max_rag_results=req.max_rag_results,
+            max_scan_files=req.max_scan_files,
+        )
+    except (RepoContextError, WorkspaceEditError, UnknownTestCommandError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return AgentOrchestrationPlanResponse.model_validate(result)
 
 
 @app.get("/v1/agent/sessions")
