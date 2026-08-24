@@ -201,6 +201,14 @@ credential rotation, destructive Git, or XRIQ/XRIS work occurred. Next useful
 extension step is either VSIX packaging/install testing or a live
 `BIBER: Test API Connection` run through the current Vast/Cloudflare endpoint
 using a low-quota user API key.
+Follow-up Vast sync for commit `6feb66a` succeeded by Git bundle. Vast does not
+currently have `npm` installed, so `npm ci`/`npm run compile` were not run
+there; do not install Node on the GPU unless extension packaging on that host is
+explicitly needed. Vast repo-side validation still passed with
+`/workspace/outputs/biber-vscode-extension-contract-smoke-6feb66a.json`
+(`ok=true`, 43/43 checks) and
+`/workspace/outputs/biber-local-confidence-smoke-6feb66a.json` (`ok=true`,
+12/12 checks, `git_dirty=false`).
 
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
