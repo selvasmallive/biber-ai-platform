@@ -23,15 +23,26 @@ def main() -> int:
     args = parser.parse_args()
 
     package_path = EXTENSION_ROOT / "package.json"
+    package_lock_path = EXTENSION_ROOT / "package-lock.json"
+    gitignore_path = EXTENSION_ROOT / ".gitignore"
     readme_path = EXTENSION_ROOT / "README.md"
     extension_path = EXTENSION_ROOT / "src" / "extension.ts"
     tsconfig_path = EXTENSION_ROOT / "tsconfig.json"
 
     checks: list[dict[str, Any]] = []
-    for path in (package_path, readme_path, extension_path, tsconfig_path):
+    for path in (
+        package_path,
+        package_lock_path,
+        gitignore_path,
+        readme_path,
+        extension_path,
+        tsconfig_path,
+    ):
         checks.append(check(path.is_file(), f"exists:{path.relative_to(ROOT)}"))
 
     package = json.loads(package_path.read_text(encoding="utf-8"))
+    package_lock = json.loads(package_lock_path.read_text(encoding="utf-8"))
+    gitignore_text = gitignore_path.read_text(encoding="utf-8")
     commands = {
         item.get("command")
         for item in package.get("contributes", {}).get("commands", [])
@@ -40,6 +51,7 @@ def main() -> int:
     config_props = package.get("contributes", {}).get("configuration", {}).get(
         "properties", {}
     )
+    dev_dependencies = package.get("devDependencies", {})
     extension_text = extension_path.read_text(encoding="utf-8")
     readme_text = readme_path.read_text(encoding="utf-8")
 
@@ -54,6 +66,17 @@ def main() -> int:
             check("biber.requestTimeoutMs" in config_props, "config:timeout"),
             check("biber.maxPromptChars" in config_props, "config:prompt_limit"),
             check("biber.maxChangedPaths" in config_props, "config:changed_path_limit"),
+            check(
+                package_lock.get("lockfileVersion") == 3,
+                "package_lock:npm_lockfile_v3",
+            ),
+            check(
+                dev_dependencies.get("@types/vscode") == "1.92.0",
+                "dependency:vscode_types_pinned_to_engine",
+            ),
+            check("node_modules/" in gitignore_text, "gitignore:node_modules"),
+            check("out/" in gitignore_text, "gitignore:out"),
+            check("*.vsix" in gitignore_text, "gitignore:vsix"),
             check("context.secrets.store" in extension_text, "secret_storage_store"),
             check("context.secrets.get" in extension_text, "secret_storage_get"),
             check("Authorization" in extension_text, "bearer_auth_header"),

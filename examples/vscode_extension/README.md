@@ -67,7 +67,7 @@ orchestration from the extension until the API URL, key, or server is fixed.
 Install dependencies only when you are actively developing the extension:
 
 ```bash
-npm install
+npm ci
 npm run compile
 ```
 

@@ -183,6 +183,25 @@ installing the extension dev dependencies (`npm install` in
 step. No OpenAI mentor, training, paid API, credential rotation, destructive
 Git, or XRIQ/XRIS work occurred.
 
+2026-08-24 BIBER VS Code compile checkpoint:
+Complete locally after the connection-test checkpoint. Installed only the
+extension dev dependencies in `examples/vscode_extension`, pinned them for
+reproducible builds (`@types/node=20.11.0`, `@types/vscode=1.92.0` to match the
+declared VS Code engine, `typescript=5.5.4`), and added
+`examples/vscode_extension/package-lock.json`. Added
+`examples/vscode_extension/.gitignore` so `node_modules/`, compiled `out/`,
+and `*.vsix` packages stay generated/untracked. The extension README now uses
+`npm ci` before `npm run compile`. Local validation passed `npm ci`,
+`npm run compile`, `git diff --check`, Python `py_compile` for
+`scripts/biber_vscode_extension_contract_smoke.py`, the VS Code extension
+contract smoke with `ok=true` and 43/43 checks, and the full
+`scripts/biber_local_confidence_smoke.py --timeout-seconds 240` with `ok=true`
+and 12/12 checks. No GPU/model call, OpenAI mentor, training, paid API,
+credential rotation, destructive Git, or XRIQ/XRIS work occurred. Next useful
+extension step is either VSIX packaging/install testing or a live
+`BIBER: Test API Connection` run through the current Vast/Cloudflare endpoint
+using a low-quota user API key.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
