@@ -183,10 +183,12 @@ only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 fake-server validation before live GPU testing.
 Use `examples/vscode_extension/` for the VS Code extension MVP scaffold. It is
 an orchestration-planning client first: API keys live in SecretStorage, calls
-are explicit user commands, the first command sends bounded path hints rather
-than file contents, and local single-flight/rate-limit/timeout/HTTPS guards are
-present. Run `python scripts/biber_vscode_extension_contract_smoke.py` before
-changing that scaffold.
+are explicit user commands, `BIBER: Test API Connection` checks
+`/v1/agent/capabilities` without sending repository data, the orchestration
+command sends bounded path hints rather than file contents, and local
+single-flight/rate-limit/timeout/HTTPS guards are present. Run
+`python scripts/biber_vscode_extension_contract_smoke.py` before changing that
+scaffold.
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 For the real `beaverapi.com` domain, use

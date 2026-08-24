@@ -8,6 +8,8 @@ The first command surface is intentionally small:
 
 - `BIBER: Set API Key` stores the user API key in VS Code SecretStorage.
 - `BIBER: Clear API Key` removes the stored key.
+- `BIBER: Test API Connection` calls `/v1/agent/capabilities` without sending
+  repository data and prints a redacted readiness summary.
 - `BIBER: Plan With BIBER Orchestration` calls the planning-only
   `/v1/agent/orchestration/plan` endpoint.
 
@@ -40,6 +42,7 @@ The extension must protect the BIBER API and the user's code workspace:
 - Enforce single-flight requests so repeated clicks do not fan out.
 - Enforce request timeouts with `AbortController`.
 - Avoid automatic retry storms; failed calls should stop and show one error.
+- Validate the API connection with capabilities before using orchestration.
 - Keep OpenAI mentor disabled by default and do not expose admin APIs.
 
 These client-side controls are not a substitute for server-side protections.
@@ -53,6 +56,11 @@ editor integration because it verifies API keys, URL configuration, path hints,
 repo planning output, and user-facing workflow. It does not yet implement a
 full autonomous editor agent, streaming chat, background indexing, or direct
 multi-file apply in VS Code.
+
+Use `BIBER: Test API Connection` first after installing or changing the API
+URL/key. It should show the BIBER service/version/model plus server-side guard
+metadata such as payload caps and rate limits. If that check fails, do not run
+orchestration from the extension until the API URL, key, or server is fixed.
 
 ## Local Development
 

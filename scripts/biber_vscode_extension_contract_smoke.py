@@ -47,6 +47,7 @@ def main() -> int:
         [
             check("biber.setApiKey" in commands, "command:set_api_key"),
             check("biber.clearApiKey" in commands, "command:clear_api_key"),
+            check("biber.testConnection" in commands, "command:test_connection"),
             check("biber.orchestrationPlan" in commands, "command:orchestration_plan"),
             check("biber.openaiBaseUrl" in config_props, "config:base_url"),
             check("biber.maxRequestsPerMinute" in config_props, "config:rate_limit"),
@@ -61,11 +62,15 @@ def main() -> int:
             check("AbortController" in extension_text, "request_timeout_abort"),
             check("assertAllowedBaseUrl" in extension_text, "https_or_localhost_guard"),
             check("sends_file_contents: false" in extension_text, "no_file_contents_mvp"),
+            check("testConnection" in extension_text, "connection_test_command_handler"),
+            check("/agent/capabilities" in extension_text, "capabilities_endpoint"),
+            check("server_side_protections" in extension_text, "server_side_protection_summary"),
             check("/agent/orchestration/plan" in extension_text, "orchestration_endpoint"),
             check("SecretStorage" in readme_text, "readme_secret_storage"),
             check("rate limit" in readme_text.lower(), "readme_rate_limit"),
             check("single-flight" in readme_text.lower(), "readme_single_flight"),
             check("HTTPS" in readme_text, "readme_https"),
+            check("Test API Connection" in readme_text, "readme_connection_test"),
             check(
                 "Do not point the extension at the raw vLLM" in readme_text,
                 "readme_no_raw_vllm",

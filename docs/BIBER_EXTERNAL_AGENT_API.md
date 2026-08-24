@@ -91,13 +91,15 @@ Any client that supports an OpenAI-compatible base URL and API key can point at
 the BIBER API base URL and use `/v1/models` plus `/v1/chat/completions`.
 
 For a VS Code client, use `examples/vscode_extension/` as the MVP starting
-point. It stores per-user keys in VS Code SecretStorage, calls the planning-only
-orchestration endpoint by explicit user command, sends bounded path hints
-instead of file contents in the first MVP command, and includes client-side
-single-flight, per-minute request limiting, HTTPS-or-localhost URL enforcement,
-and request timeouts. These editor-side controls are only a first shield; the
-BIBER API must still enforce authentication, server-side rate limits, quotas,
-payload size limits, logging redaction, and abuse monitoring.
+point. It stores per-user keys in VS Code SecretStorage, has a
+`BIBER: Test API Connection` command that calls `/v1/agent/capabilities`
+without sending repository data, calls the planning-only orchestration endpoint
+by explicit user command, sends bounded path hints instead of file contents in
+the first MVP command, and includes client-side single-flight, per-minute
+request limiting, HTTPS-or-localhost URL enforcement, and request timeouts.
+These editor-side controls are only a first shield; the BIBER API must still
+enforce authentication, server-side rate limits, quotas, payload size limits,
+logging redaction, and abuse monitoring.
 
 Clients that want a richer coding-agent flow should use the planning helpers
 before calling the model: run `/v1/repo/rag/search` to select candidate files

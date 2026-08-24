@@ -13,6 +13,7 @@
   "activationEvents": [
     "onCommand:biber.setApiKey",
     "onCommand:biber.clearApiKey",
+    "onCommand:biber.testConnection",
     "onCommand:biber.orchestrationPlan"
   ],
   "main": "./out/extension.js",
@@ -25,6 +26,10 @@
       {
         "command": "biber.clearApiKey",
         "title": "BIBER: Clear API Key"
+      },
+      {
+        "command": "biber.testConnection",
+        "title": "BIBER: Test API Connection"
       },
       {
         "command": "biber.orchestrationPlan",

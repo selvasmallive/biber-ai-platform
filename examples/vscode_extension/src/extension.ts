@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 const API_KEY_SECRET = "biber.apiKey";
 const OUTPUT_CHANNEL = "BIBER";
+const CAPABILITIES_PATH = "/agent/capabilities";
 const ORCHESTRATION_PATH = "/agent/orchestration/plan";
 
 let inFlightRequest: Promise<void> | undefined;
@@ -23,6 +24,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("biber.setApiKey", () => setApiKey(context)),
     vscode.commands.registerCommand("biber.clearApiKey", () => clearApiKey(context)),
+    vscode.commands.registerCommand("biber.testConnection", () =>
+      runSingleFlight(() => testConnection(context, output))
+    ),
     vscode.commands.registerCommand("biber.orchestrationPlan", () =>
       runSingleFlight(() => orchestrationPlan(context, output))
     )
@@ -126,6 +130,39 @@ async function orchestrationPlan(
   }
 }
 
+async function testConnection(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel
+): Promise<void> {
+  const config = readConfig();
+  const apiKey = await context.secrets.get(API_KEY_SECRET);
+  if (!apiKey) {
+    vscode.window.showWarningMessage("Set a BIBER API key before testing the API.");
+    await vscode.commands.executeCommand("biber.setApiKey");
+    return;
+  }
+
+  output.appendLine("Testing BIBER API connection...");
+  output.show(true);
+
+  try {
+    assertAllowedBaseUrl(config.openaiBaseUrl);
+    checkRateLimit(config.maxRequestsPerMinute);
+    const response = await getJson(
+      config.openaiBaseUrl,
+      CAPABILITIES_PATH,
+      apiKey,
+      config.requestTimeoutMs
+    );
+    const summary = summarizeCapabilities(response);
+    output.appendLine(JSON.stringify(summary, null, 2));
+    vscode.window.showInformationMessage("BIBER API connection is ready.");
+  } catch (error) {
+    output.appendLine(`BIBER connection test failed: ${errorMessage(error)}`);
+    vscode.window.showErrorMessage("BIBER API connection test failed. See output.");
+  }
+}
+
 function readConfig(): BiberConfig {
   const config = vscode.workspace.getConfiguration("biber");
   return {
@@ -189,16 +226,40 @@ async function postJson(
   payload: unknown,
   timeoutMs: number
 ): Promise<unknown> {
+  return requestJson(openaiBaseUrl, path, apiKey, timeoutMs, "POST", payload);
+}
+
+async function getJson(
+  openaiBaseUrl: string,
+  path: string,
+  apiKey: string,
+  timeoutMs: number
+): Promise<unknown> {
+  return requestJson(openaiBaseUrl, path, apiKey, timeoutMs, "GET");
+}
+
+async function requestJson(
+  openaiBaseUrl: string,
+  path: string,
+  apiKey: string,
+  timeoutMs: number,
+  method: "GET" | "POST",
+  payload?: unknown
+): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${apiKey}`,
+  };
+  const body = payload === undefined ? undefined : JSON.stringify(payload);
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   try {
     const response = await fetch(`${openaiBaseUrl.replace(/\/+$/, "")}${path}`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      method,
+      headers,
+      body,
       signal: controller.signal,
     });
     const text = await response.text();
@@ -209,6 +270,33 @@ async function postJson(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function summarizeCapabilities(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return { service: "unknown", server_side_protections: "missing" };
+  }
+  const payload = value as Record<string, unknown>;
+  const features = objectValue(payload.features);
+  const externalAgentApi = objectValue(features.external_agent_api);
+  const protections = objectValue(externalAgentApi.server_side_protections);
+  return redactForOutput({
+    service: payload.service,
+    version: payload.version,
+    default_model: payload.default_model,
+    server_side_protections: {
+      api_guard_enabled: protections.api_guard_enabled,
+      scope: protections.scope,
+      identity: protections.identity,
+      max_request_bytes: protections.max_request_bytes,
+      rate_limit_requests_per_minute: protections.rate_limit_requests_per_minute,
+      client_side_guards_are_not_trusted: protections.client_side_guards_are_not_trusted,
+    },
+  });
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
 function redactForOutput(value: unknown): unknown {
