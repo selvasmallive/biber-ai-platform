@@ -156,6 +156,33 @@ rotation workflows, and abuse monitoring, but the BIBER MVP no longer relies
 only on the VS Code extension for API protection. No OpenAI mentor, training,
 paid API, credential rotation, destructive Git, or XRIQ/XRIS work occurred.
 
+2026-08-23 BIBER VS Code connection-test checkpoint:
+Complete in commit `133f8e9`: the VS Code extension MVP now has
+`BIBER: Test API Connection`, which uses the same SecretStorage API key,
+HTTPS-or-localhost URL guard, local per-minute limiter, single-flight behavior,
+request timeout, and output redaction as orchestration, but sends no prompt,
+repo paths, or file contents. It calls `/v1/agent/capabilities` and prints a
+redacted readiness summary with service/version/default model plus
+`server_side_protections` so users can verify the API guard before running
+orchestration. Updated `examples/vscode_extension/README.md`,
+`docs/BIBER_EXTERNAL_AGENT_API.md`, and `docs/BIBER_ONLY_WORKSPACE.md`; the
+offline contract smoke now checks the new command and capabilities endpoint,
+raising the VS Code contract from 31 to 36 checks. Local validation passed
+`git diff --check`, Python `py_compile` for
+`scripts/biber_vscode_extension_contract_smoke.py`, the extension contract
+smoke with `ok=true` and 36/36 checks, and full
+`scripts/biber_local_confidence_smoke.py --timeout-seconds 240` with `ok=true`
+and 12/12 checks. The commit was pushed to `biber/mvp-resume-20260712` and
+synced to Vast by Git bundle; Vast validation passed
+`/workspace/outputs/biber-vscode-extension-contract-smoke-133f8e9.json` with
+36/36 checks and `/workspace/outputs/biber-local-confidence-smoke-133f8e9.json`
+with `ok=true`, 12/12 checks, `git_dirty=false`, and
+`vscode_extension.failed=0`. TypeScript compile/package testing still requires
+installing the extension dev dependencies (`npm install` in
+`examples/vscode_extension/`) and remains a later explicit dependency/download
+step. No OpenAI mentor, training, paid API, credential rotation, destructive
+Git, or XRIQ/XRIS work occurred.
+
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
 At the time, the pushed BIBER branch was `biber/mvp-resume-20260712` at commit
