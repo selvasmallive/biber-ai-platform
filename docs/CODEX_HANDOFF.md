@@ -218,6 +218,11 @@ capabilities, and orchestration endpoints. Local validation passed Python
 the smoke reports `external_network_required=true` because npm may need the
 registry/cache, and it is intentionally not part of the default Python-only
 BIBER confidence gate.
+After syncing commit `abaa3ef` to Vast, the new compile smoke was run there
+with `--allow-missing-npm`; it saved
+`/workspace/outputs/biber-vscode-extension-compile-smoke-abaa3ef.json` with
+`status=blocked`, `blockers=["npm_not_available"]`, and no API/GPU/model/
+mentor/training/GitHub request. This is expected for the current Vast image.
 
 2026-08-23 BIBER Vast verification access note, superseded:
 This earlier note is superseded by the Vast verification checkpoint above.
