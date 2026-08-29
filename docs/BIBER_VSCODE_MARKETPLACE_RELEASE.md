@@ -18,6 +18,7 @@ flat-electronics-canada.biber-ai-assistant
 Version `0.1.0` is intentionally a planning-first extension:
 
 - Stores API keys in VS Code SecretStorage.
+- Ships the Marketplace icon from `media/icon.png`.
 - Tests `/v1/agent/capabilities` before orchestration.
 - Calls `/v1/agent/orchestration/plan` by explicit user command.
 - Sends bounded instructions and bounded workspace-relative path hints.
@@ -56,6 +57,10 @@ as a local tool bridge for filesystem, datasource, or workflow integrations,
 but it should not be treated as the security boundary for the model.
 
 ## Package And Install Test
+
+The Marketplace icon is declared in `package.json` as `media/icon.png`. Keep
+that PNG in the package; do not replace it with an SVG because `vsce` rejects
+user-provided SVG icons for publishing.
 
 From the extension root:
 
@@ -125,6 +130,8 @@ with the secret injected by the CI provider.
 
 - `package.json.publisher` is `flat-electronics-canada`.
 - `package.json.name` is `biber-ai-assistant`.
+- `package.json.icon` is `media/icon.png`.
+- `media/icon.png` exists and is included in the VSIX.
 - `npm ci` passes.
 - `npm run compile` passes.
 - `npm run package` creates `biber-ai-assistant-0.1.0.vsix`.

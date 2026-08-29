@@ -1,8 +1,23 @@
 # Codex Handoff
 
-Last updated: 2026-08-24
+Last updated: 2026-08-29
 
 ## Current Goal
+
+2026-08-29 BIBER VS Code Marketplace icon checkpoint:
+Complete locally after the first Marketplace upload showed the default/blank
+extension icon while verifying. The VS Code package now declares
+`package.json.icon=media/icon.png`, includes a Marketplace-safe PNG at
+`examples/vscode_extension/media/icon.png`, and the icon-aware package smoke
+verifies the VSIX contains `extension/media/icon.png`. Rebuilt VSIX:
+`C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\vscode_extension\dist\biber-ai-assistant-0.1.0.vsix`.
+Validation passed `scripts/biber_vscode_extension_contract_smoke.py` with
+70/70 checks and `scripts/biber_vscode_extension_package_smoke.py
+--skip-npm-ci` with `ok=true`, including isolated VS Code install as
+`flat-electronics-canada.biber-ai-assistant@0.1.0`. Use this rebuilt VSIX for
+manual Marketplace upload if the already-uploaded verifying item does not show
+the icon. No GPU/model call, OpenAI mentor, training, credential rotation,
+destructive Git, or XRIQ/XRIS work occurred.
 
 2026-08-23 BIBER Vast verification checkpoint:
 Complete on the current Vast GPU after SSH key access was fixed. Because the

@@ -26,6 +26,7 @@ def main() -> int:
     package_lock_path = EXTENSION_ROOT / "package-lock.json"
     gitignore_path = EXTENSION_ROOT / ".gitignore"
     vscodeignore_path = EXTENSION_ROOT / ".vscodeignore"
+    icon_path = EXTENSION_ROOT / "media" / "icon.png"
     license_path = EXTENSION_ROOT / "LICENSE.md"
     changelog_path = EXTENSION_ROOT / "CHANGELOG.md"
     readme_path = EXTENSION_ROOT / "README.md"
@@ -38,6 +39,7 @@ def main() -> int:
         package_lock_path,
         gitignore_path,
         vscodeignore_path,
+        icon_path,
         license_path,
         changelog_path,
         readme_path,
@@ -72,6 +74,9 @@ def main() -> int:
             ),
             check(package.get("displayName") == "BIBER AI Assistant", "display_name_public"),
             check(package.get("pricing") == "Free", "pricing_free"),
+            check(package.get("icon") == "media/icon.png", "icon_declared_png"),
+            check(icon_path.is_file(), "icon_file_exists"),
+            check(icon_path.suffix.lower() == ".png", "icon_is_png"),
             check(package.get("license") == "SEE LICENSE IN LICENSE.md", "license_declared"),
             check("Machine Learning" in package.get("categories", []), "category_machine_learning"),
             check("repository" in package, "repository_declared"),
@@ -105,6 +110,11 @@ def main() -> int:
             check("dist/**" in vscodeignore_text, "vscodeignore:dist"),
             check("out/**/*.map" in vscodeignore_text, "vscodeignore:source_maps"),
             check(".gitignore" in vscodeignore_text, "vscodeignore:gitignore"),
+            check(
+                "media/**" not in vscodeignore_text
+                and "media/icon.png" not in vscodeignore_text,
+                "vscodeignore:icon_not_excluded",
+            ),
             check("context.secrets.store" in extension_text, "secret_storage_store"),
             check("context.secrets.get" in extension_text, "secret_storage_get"),
             check("Authorization" in extension_text, "bearer_auth_header"),

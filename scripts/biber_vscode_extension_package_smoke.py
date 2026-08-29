@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION_ROOT = ROOT / "examples" / "vscode_extension"
 EXPECTED_EXTENSION_ID = "flat-electronics-canada.biber-ai-assistant"
 EXPECTED_VSIX_NAME = "biber-ai-assistant-0.1.0.vsix"
+EXPECTED_ICON_SOURCE = "media/icon.png"
+EXPECTED_ICON_PACKAGE_PATH = "extension/media/icon.png"
 
 
 def run_command(
@@ -89,6 +92,12 @@ def main() -> int:
     npm = shutil.which("npm")
     code = shutil.which("code")
     package = read_package_json() if (EXTENSION_ROOT / "package.json").is_file() else {}
+    package_icon = package.get("icon")
+    icon_path = (
+        EXTENSION_ROOT / package_icon
+        if isinstance(package_icon, str)
+        else EXTENSION_ROOT / "__missing_icon__"
+    )
     dist_dir = EXTENSION_ROOT / "dist"
     vsix_path = dist_dir / EXPECTED_VSIX_NAME
     dist_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +112,9 @@ def main() -> int:
         check((EXTENSION_ROOT / "LICENSE.md").is_file(), "license_exists"),
         check(package.get("publisher") == "flat-electronics-canada", "publisher_matches_marketplace"),
         check(package.get("name") == "biber-ai-assistant", "name_matches_marketplace"),
+        check(package_icon == EXPECTED_ICON_SOURCE, "icon_declared_png"),
+        check(icon_path.is_file(), "icon_file_exists"),
+        check(icon_path.suffix.lower() == ".png", "icon_is_png"),
         check(bool(npm), "npm_available"),
     ]
     commands: list[dict[str, Any]] = []
@@ -129,10 +141,23 @@ def main() -> int:
                 )
             )
 
+    vsix_members: list[str] = []
+    if vsix_path.is_file():
+        try:
+            with zipfile.ZipFile(vsix_path) as archive:
+                vsix_members = archive.namelist()
+        except zipfile.BadZipFile:
+            vsix_members = []
+
     checks.extend(
         [
             check(vsix_path.is_file(), "vsix_created", str(vsix_path)),
             check(vsix_path.stat().st_size > 0 if vsix_path.is_file() else False, "vsix_nonempty"),
+            check(
+                EXPECTED_ICON_PACKAGE_PATH in vsix_members,
+                "vsix_contains_marketplace_icon",
+                EXPECTED_ICON_PACKAGE_PATH,
+            ),
         ]
     )
 
@@ -207,6 +232,7 @@ def main() -> int:
         "extension_root": str(EXTENSION_ROOT),
         "extension_id": EXPECTED_EXTENSION_ID,
         "vsix_path": str(vsix_path),
+        "vsix_members": vsix_members,
         "npm": npm,
         "code": code,
         "checks": checks,
