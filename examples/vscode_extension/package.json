@@ -2,7 +2,7 @@
   "name": "biber-ai-assistant",
   "displayName": "BIBER AI Assistant",
   "description": "Secure VS Code client for BIBER AI orchestration planning.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "flat-electronics-canada",
   "license": "SEE LICENSE IN LICENSE.md",
   "pricing": "Free",

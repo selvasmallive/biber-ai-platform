@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.1
+
+- Added the packaged Marketplace PNG icon for Visual Studio Marketplace listing display.
+
 ## 0.1.0
 
 - Initial BIBER AI Assistant release.

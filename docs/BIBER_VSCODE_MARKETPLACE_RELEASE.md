@@ -15,7 +15,7 @@ flat-electronics-canada.biber-ai-assistant
 
 ## Current Release Scope
 
-Version `0.1.0` is intentionally a planning-first extension:
+Version `0.1.1` is intentionally a planning-first extension:
 
 - Stores API keys in VS Code SecretStorage.
 - Ships the Marketplace icon from `media/icon.png`.
@@ -106,7 +106,7 @@ code --extensions-dir <temp-extensions-dir> \
 The installed extension should appear as:
 
 ```text
-flat-electronics-canada.biber-ai-assistant@0.1.0
+flat-electronics-canada.biber-ai-assistant@0.1.1
 ```
 
 ## Publish
@@ -134,7 +134,7 @@ with the secret injected by the CI provider.
 - `media/icon.png` exists and is included in the VSIX.
 - `npm ci` passes.
 - `npm run compile` passes.
-- `npm run package` creates `biber-ai-assistant-0.1.0.vsix`.
+- `npm run package` creates `biber-ai-assistant-0.1.1.vsix`.
 - Isolated VS Code install-test passes.
 - `scripts/biber_vscode_extension_contract_smoke.py` passes.
 - `scripts/biber_vscode_extension_compile_smoke.py` passes.

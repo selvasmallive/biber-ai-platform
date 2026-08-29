@@ -2,7 +2,7 @@
 
 BIBER AI Assistant is a secure VS Code client for testing BIBER as a
 Copilot-style local/remote coding assistant. The Marketplace icon is packaged
-from `media/icon.png`. Version `0.1.0` focuses on API
+from `media/icon.png`. Version `0.1.1` focuses on API
 readiness and orchestration planning before direct file mutation is enabled.
 
 The first command surface is intentionally small:

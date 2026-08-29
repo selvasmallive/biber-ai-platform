@@ -16,7 +16,6 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION_ROOT = ROOT / "examples" / "vscode_extension"
 EXPECTED_EXTENSION_ID = "flat-electronics-canada.biber-ai-assistant"
-EXPECTED_VSIX_NAME = "biber-ai-assistant-0.1.0.vsix"
 EXPECTED_ICON_SOURCE = "media/icon.png"
 EXPECTED_ICON_PACKAGE_PATH = "extension/media/icon.png"
 
@@ -98,8 +97,11 @@ def main() -> int:
         if isinstance(package_icon, str)
         else EXTENSION_ROOT / "__missing_icon__"
     )
+    package_name = str(package.get("name") or "biber-ai-assistant")
+    package_version = str(package.get("version") or "0.0.0")
+    expected_vsix_name = f"{package_name}-{package_version}.vsix"
     dist_dir = EXTENSION_ROOT / "dist"
-    vsix_path = dist_dir / EXPECTED_VSIX_NAME
+    vsix_path = dist_dir / expected_vsix_name
     dist_dir.mkdir(parents=True, exist_ok=True)
     if vsix_path.exists():
         vsix_path.unlink()
@@ -231,6 +233,8 @@ def main() -> int:
         "training_allowed": False,
         "extension_root": str(EXTENSION_ROOT),
         "extension_id": EXPECTED_EXTENSION_ID,
+        "package_version": package_version,
+        "expected_vsix_name": expected_vsix_name,
         "vsix_path": str(vsix_path),
         "vsix_members": vsix_members,
         "npm": npm,

@@ -9,12 +9,13 @@ Complete locally after the first Marketplace upload showed the default/blank
 extension icon while verifying. The VS Code package now declares
 `package.json.icon=media/icon.png`, includes a Marketplace-safe PNG at
 `examples/vscode_extension/media/icon.png`, and the icon-aware package smoke
-verifies the VSIX contains `extension/media/icon.png`. Rebuilt VSIX:
-`C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\vscode_extension\dist\biber-ai-assistant-0.1.0.vsix`.
+verifies the VSIX contains `extension/media/icon.png`. Because `0.1.0` was already
+uploaded before the icon fix, the corrected publish/update artifact is version
+`0.1.1`: `C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\vscode_extension\dist\biber-ai-assistant-0.1.1.vsix`.
 Validation passed `scripts/biber_vscode_extension_contract_smoke.py` with
 70/70 checks and `scripts/biber_vscode_extension_package_smoke.py
 --skip-npm-ci` with `ok=true`, including isolated VS Code install as
-`flat-electronics-canada.biber-ai-assistant@0.1.0`. Use this rebuilt VSIX for
+`flat-electronics-canada.biber-ai-assistant@0.1.1`. Use this rebuilt VSIX for
 manual Marketplace upload if the already-uploaded verifying item does not show
 the icon. No GPU/model call, OpenAI mentor, training, credential rotation,
 destructive Git, or XRIQ/XRIS work occurred.
