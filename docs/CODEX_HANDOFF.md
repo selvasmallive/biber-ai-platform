@@ -4,6 +4,16 @@ Last updated: 2026-08-29
 
 ## Current Goal
 
+2026-08-29 BIBER VS Code supplied-logo checkpoint:
+Complete locally after the user provided the intended BIBER AI logo artwork for
+the VS Code Marketplace listing. `examples/vscode_extension/media/icon.png` now
+uses that supplied logo as an optimized 256x256 PNG, and the extension version
+was bumped to `0.1.2` so Marketplace can accept it as a new update after the
+previous icon packages. Rebuilt VSIX:
+`C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\vscode_extension\dist\biber-ai-assistant-0.1.2.vsix`.
+Use this VSIX for the next manual Marketplace upload if the listing should show
+the supplied BIBER AI logo. No GPU/model call, OpenAI mentor, training,
+credential rotation, destructive Git, or XRIQ/XRIS work occurred.
 2026-08-29 BIBER VS Code Marketplace icon checkpoint:
 Complete locally after the first Marketplace upload showed the default/blank
 extension icon while verifying. The VS Code package now declares

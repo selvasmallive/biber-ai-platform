@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.1.2
+
+- Replaced the Marketplace icon with the supplied BIBER AI logo artwork.
+
 ## 0.1.1
 
 - Added the packaged Marketplace PNG icon for Visual Studio Marketplace listing display.
