@@ -134,14 +134,17 @@ enterprise governance.
 
 ## Live Demo Script
 
+Use `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as the operator checklist.
+
 1. Open an Azure DevOps pull request with a small intentional bug.
-2. Run the sample pipeline with `commentMode=dry-run`.
-3. Open the published Markdown artifact and point out the summary, risk level,
+2. Run `npm run validate` locally to show the extension/package readiness gate.
+3. Run the sample pipeline with `commentMode=dry-run`.
+4. Open the published Markdown artifact and point out the summary, risk level,
    tests, and merge recommendation.
-4. Show that secret-like values were redacted.
-5. Open the `BIBER AI Review` extension panel and run the same bounded diff
+5. Show that secret-like values were redacted.
+6. Open the `BIBER AI Review` extension panel and run the same bounded diff
    manually.
-6. Optionally rerun the test PR with `commentMode=post` to create one PR
+7. Optionally rerun the test PR with `commentMode=post` to create one PR
    thread.
 
 ## Speaker Notes For Hard Questions

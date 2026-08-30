@@ -4,6 +4,17 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps conference demo runbook checkpoint:
+Complete locally after the publisher-readiness checkpoint. Added
+`docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as a safe operator checklist for the
+conference demo: local preflight, private VSIX upload, secret pipeline variable
+setup, dry-run artifact review, optional PR comment flow, talking points, and
+do-not-claim-yet guardrails. Updated
+`docs/BIBER_AZURE_DEVOPS_CONFERENCE_TALK.md` to point the live demo script at
+the runbook and include the Node readiness gate. No code execution, GPU,
+training, OpenAI mentor, Azure DevOps token use, Marketplace upload, or
+external paid API call is required for this docs-only checkpoint.
+
 2026-08-30 BIBER Azure DevOps publisher-readiness checkpoint:
 Complete locally after the task-wrapper checkpoint. Added
 `scripts/biber_azure_devops_publisher_readiness_smoke.js` and changed
