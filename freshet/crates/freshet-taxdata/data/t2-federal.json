@@ -3,7 +3,7 @@
   "province": "on",
   "_comment": "The federal T2, structure-first. The Part I flow and the small business deduction, which is where proration for a short tax year first bites. Schedules and GIFI are not here yet.",
   "summary": [
-    "t2.sch1.accounting_income",
+    "gifi.9999",
     "t2.300",
     "t2.360",
     "t2.430",
@@ -110,28 +110,28 @@
     {
       "id": "t2.sch1.accounting_income",
       "label": "Net income per the financial statements",
-      "note": "Where the reconciliation starts. Comes from GIFI line 9999 once GIFI exists; entered directly until then.",
+      "note": "GIFI line 9999. The return starts from the accounts rather than from a figure entered separately, which is the point of filing the statements with it.",
       "expr": {
-        "op": "fact",
-        "key": "t2.accounting_income"
+        "op": "line",
+        "id": "gifi.9999"
       }
     },
     {
       "id": "t2.sch1.income_tax_provision",
       "label": "Provision for income taxes",
-      "note": "Income tax is not deductible in computing income for tax purposes, so the accounting provision comes straight back.",
+      "note": "GIFI line 9990. Income tax is not deductible in computing income for tax purposes, so the accounting provision comes straight back.",
       "expr": {
-        "op": "fact",
-        "key": "t2.income_tax_provision"
+        "op": "line",
+        "id": "gifi.9990"
       }
     },
     {
       "id": "t2.sch1.amortization",
       "label": "Amortization and depreciation",
-      "note": "Accounting depreciation is added back in full and replaced by capital cost allowance, deducted below. The two are unrelated figures and the difference is usually large.",
+      "note": "GIFI line 8670. Accounting amortization is added back in full and replaced by capital cost allowance, which is deducted below.",
       "expr": {
-        "op": "fact",
-        "key": "t2.amortization"
+        "op": "line",
+        "id": "gifi.8670"
       }
     },
     {
@@ -141,8 +141,8 @@
       "expr": {
         "op": "mul",
         "of": {
-          "op": "fact",
-          "key": "t2.meals_and_entertainment"
+          "op": "line",
+          "id": "gifi.8523"
         },
         "by": {
           "op": "sub",

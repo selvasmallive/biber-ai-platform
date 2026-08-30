@@ -53,7 +53,7 @@ fn fired(got: &Assessment) -> Vec<&str> {
 fn the_federal_provincial_contract_carries_over_from_t1() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")],
+        &[("gifi.8000", "300000"), ("t2.active_business_income", "300000")],
     );
 
     assert!(got.get("t2.700").is_some(), "no federal Part I tax line");
@@ -75,11 +75,11 @@ fn the_federal_provincial_contract_carries_over_from_t1() {
 fn a_short_first_year_prorates_the_business_limit() {
     let short = assess(
         period((2025, 9, 15), (2025, 12, 31)),
-        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("gifi.8000", "600000"), ("t2.active_business_income", "600000")],
     );
     let full = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("gifi.8000", "600000"), ("t2.active_business_income", "600000")],
     );
 
     let short_limit = short.get("t2.business_limit").unwrap();
@@ -97,11 +97,11 @@ fn a_short_first_year_prorates_the_business_limit() {
 fn a_short_year_reduces_the_small_business_deduction_too() {
     let short = assess(
         period((2025, 9, 15), (2025, 12, 31)),
-        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("gifi.8000", "600000"), ("t2.active_business_income", "600000")],
     );
     let full = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("gifi.8000", "600000"), ("t2.active_business_income", "600000")],
     );
 
     assert!(short.get("t2.430").unwrap() < full.get("t2.430").unwrap());
@@ -114,9 +114,9 @@ fn a_short_year_reduces_the_small_business_deduction_too() {
 fn a_short_year_says_that_it_prorated() {
     let short = assess(
         period((2025, 9, 15), (2025, 12, 31)),
-        &[("t2.accounting_income", "300000")],
+        &[("gifi.8000", "300000")],
     );
-    let full = assess(Period::calendar(2025), &[("t2.accounting_income", "300000")]);
+    let full = assess(Period::calendar(2025), &[("gifi.8000", "300000")]);
 
     assert!(fired(&short).contains(&"t2.short_year_prorated"));
     assert!(!fired(&full).contains(&"t2.short_year_prorated"));
@@ -145,7 +145,7 @@ fn a_straddling_year_refuses_a_single_years_parameters() {
 fn a_straddling_year_computes_from_both_years_and_says_so() {
     let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
-        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")],
+        &[("gifi.8000", "300000"), ("t2.active_business_income", "300000")],
     );
 
     assert!(got.get("t2.700").is_some());
@@ -158,7 +158,7 @@ fn a_straddling_year_computes_from_both_years_and_says_so() {
 /// answer.
 #[test]
 fn identical_rates_across_the_boundary_change_nothing() {
-    let facts = [("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")];
+    let facts = [("gifi.8000", "300000"), ("t2.active_business_income", "300000")];
 
     let straddling = assess_across(period((2025, 7, 1), (2026, 6, 30)), &facts);
     let inside = assess(Period::calendar(2025), &facts);
@@ -176,7 +176,7 @@ fn identical_rates_across_the_boundary_change_nothing() {
 fn a_straddling_return_reports_both_years_as_unverified() {
     let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
-        &[("t2.accounting_income", "300000")],
+        &[("gifi.8000", "300000")],
     );
 
     assert!(!got.is_filable());
@@ -201,11 +201,11 @@ fn a_straddling_return_reports_both_years_as_unverified() {
 fn income_within_the_limit_is_taxed_more_lightly_than_income_above_it() {
     let small = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "400000"), ("t2.active_business_income", "400000")],
+        &[("gifi.8000", "400000"), ("t2.active_business_income", "400000")],
     );
     let large = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "2000000"), ("t2.active_business_income", "2000000")],
+        &[("gifi.8000", "2000000"), ("t2.active_business_income", "2000000")],
     );
 
     let rate = |a: &Assessment, income: &str| {
@@ -225,11 +225,11 @@ fn income_within_the_limit_is_taxed_more_lightly_than_income_above_it() {
 fn investment_income_does_not_earn_the_small_business_deduction() {
     let active = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")],
+        &[("gifi.8000", "300000"), ("t2.active_business_income", "300000")],
     );
     let passive = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "0")],
+        &[("gifi.8000", "300000"), ("t2.active_business_income", "0")],
     );
 
     assert_eq!(active.get("t2.360"), passive.get("t2.360"), "same taxable income");
@@ -243,7 +243,7 @@ fn investment_income_does_not_earn_the_small_business_deduction() {
 fn the_general_reduction_and_the_small_business_deduction_do_not_stack() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "400000"), ("t2.active_business_income", "400000")],
+        &[("gifi.8000", "400000"), ("t2.active_business_income", "400000")],
     );
 
     // All of it is within the limit, so there is nothing left to reduce.
@@ -264,7 +264,7 @@ fn a_nil_return_owes_nothing() {
 fn tax_never_goes_negative() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "50000"), ("t2.deductions", "500000")],
+        &[("gifi.8000", "50000"), ("t2.deductions", "500000")],
     );
 
     assert_eq!(got.get("t2.360").unwrap(), d("0.00"));
@@ -276,7 +276,7 @@ fn tax_never_goes_negative() {
 
 #[test]
 fn no_t2_return_can_be_filed_on_placeholder_rates() {
-    let got = assess(Period::calendar(2025), &[("t2.accounting_income", "300000")]);
+    let got = assess(Period::calendar(2025), &[("gifi.8000", "300000")]);
 
     assert!(!got.is_filable(), "T2 claims to be filable on placeholder rates");
     assert!(got.warnings.iter().all(|w| w.contains("unverified")));
@@ -296,14 +296,14 @@ fn only_ontario_has_a_t2_supplement_so_far() {
 /// reported nil profit can still owe tax.
 #[test]
 fn a_corporation_reporting_no_profit_can_still_have_taxable_income() {
+    // Revenue 100,000, amortization 60,000, tax provision 40,000 — so the
+    // accounts report nil and the tax return does not.
     let got = assess(
         Period::calendar(2025),
-        &[
-            ("t2.accounting_income", "0"),
-            ("t2.income_tax_provision", "40000"),
-            ("t2.amortization", "60000"),
-        ],
+        &[("gifi.8000", "100000"), ("gifi.8670", "60000"), ("gifi.9990", "40000")],
     );
+
+    assert_eq!(got.get("gifi.9999").unwrap(), d("0.00"), "the accounts show nil");
 
     // Neither item is deductible, so both come back.
     assert_eq!(got.get("t2.300").unwrap(), d("100000.00"));
@@ -315,21 +315,23 @@ fn a_corporation_reporting_no_profit_can_still_have_taxable_income() {
 /// way to get net income for tax purposes wrong.
 #[test]
 fn amortization_is_replaced_by_capital_cost_allowance_not_netted_against_it() {
-    // Capital cost allowance is computed from the pools, not entered: a class 8
-    // balance of 400,000 at 20% gives 80,000.
+    // Amortization is an expense in the accounts now, so it reduces the
+    // accounting result and is then added back. Capital cost allowance is
+    // computed from the pools: 400,000 of class 8 at 20% gives 80,000.
     let got = assess(
         Period::calendar(2025),
         &[
-            ("t2.accounting_income", "200000"),
-            ("t2.amortization", "50000"),
+            ("gifi.8000", "200000"),
+            ("gifi.8670", "50000"),
             ("cca.class8.opening_ucc", "400000"),
         ],
     );
 
-    // 200,000 + 50,000 − 80,000. Netting the two to a difference of 30,000
-    // would give the same answer here only by coincidence of the arithmetic;
-    // the lines are separate so a reader can see both.
-    assert_eq!(got.get("t2.300").unwrap(), d("170000.00"));
+    assert_eq!(got.get("gifi.9999").unwrap(), d("150000.00"));
+
+    // 150,000 + 50,000 back − 80,000 of allowance. The two depreciation
+    // figures stay on separate lines so a reader can see what replaced what.
+    assert_eq!(got.get("t2.300").unwrap(), d("120000.00"));
     assert_eq!(got.get("t2.sch1.amortization").unwrap(), d("50000.00"));
     assert_eq!(got.get("t2.sch1.cca").unwrap(), d("80000.00"));
 }
@@ -340,11 +342,13 @@ fn amortization_is_replaced_by_capital_cost_allowance_not_netted_against_it() {
 fn half_of_meals_and_entertainment_is_added_back() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "100000"), ("t2.meals_and_entertainment", "20000")],
+        &[("gifi.8000", "100000"), ("gifi.8523", "20000")],
     );
 
+    // The accounts expensed all 20,000; half of it is disallowed.
+    assert_eq!(got.get("gifi.9999").unwrap(), d("80000.00"));
     assert_eq!(got.get("t2.sch1.meals_addback").unwrap(), d("10000.00"));
-    assert_eq!(got.get("t2.300").unwrap(), d("110000.00"));
+    assert_eq!(got.get("t2.300").unwrap(), d("90000.00"));
 }
 
 #[test]
@@ -352,7 +356,7 @@ fn fines_and_club_dues_are_added_back_in_full() {
     let got = assess(
         Period::calendar(2025),
         &[
-            ("t2.accounting_income", "100000"),
+            ("gifi.8000", "100000"),
             ("t2.fines_and_penalties", "5000"),
             ("t2.club_dues", "3000"),
         ],
@@ -369,10 +373,12 @@ fn fines_and_club_dues_are_added_back_in_full() {
 fn a_loss_year_reports_the_loss_rather_than_flooring_it() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "-150000"), ("t2.amortization", "20000")],
+        // Expenses exceeding revenue: a real loss year.
+        &[("gifi.8000", "50000"), ("gifi.9270", "200000"), ("gifi.8670", "20000")],
     );
 
-    assert_eq!(got.get("t2.300").unwrap(), d("-130000.00"));
+    assert_eq!(got.get("gifi.9999").unwrap(), d("-170000.00"));
+    assert_eq!(got.get("t2.300").unwrap(), d("-150000.00"));
 
     // Taxable income floors at nil, and no tax is payable.
     assert_eq!(got.get("t2.360").unwrap(), d("0.00"));
@@ -389,14 +395,14 @@ fn a_loss_year_reports_the_loss_rather_than_flooring_it() {
 fn donations_are_added_back_then_deducted_again() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "200000"), ("t2.charitable_donations", "10000")],
+        &[("gifi.8000", "200000"), ("t2.charitable_donations", "10000")],
     );
 
     assert_eq!(got.get("t2.sch1.donations_addback").unwrap(), d("10000.00"));
     assert_eq!(got.get("t2.311").unwrap(), d("10000.00"));
 
-    // Net income is higher by the addback; taxable income is back where the
-    // accounts had it.
+    // Net income is higher by the addback; taxable income is back where it
+    // would have been had the donation simply been deducted.
     assert_eq!(got.get("t2.300").unwrap(), d("210000.00"));
     assert_eq!(got.get("t2.360").unwrap(), d("200000.00"));
 }
@@ -414,7 +420,7 @@ fn donations_are_added_back_then_deducted_again() {
 fn donations_above_the_limit_are_capped_and_reported() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "20000"), ("t2.charitable_donations", "100000")],
+        &[("gifi.8000", "20000"), ("t2.charitable_donations", "100000")],
     );
 
     // 20,000 + 100,000 addback = 120,000 of net income, capped at 90,000.
@@ -427,7 +433,7 @@ fn donations_above_the_limit_are_capped_and_reported() {
 /// What is not modelled is declared, the same way BC479 is on the T1.
 #[test]
 fn the_missing_reconciling_items_are_declared() {
-    let got = assess(Period::calendar(2025), &[("t2.accounting_income", "100000")]);
+    let got = assess(Period::calendar(2025), &[("gifi.8000", "100000")]);
 
     let warned = got
         .diagnostics
@@ -449,8 +455,8 @@ fn the_corporation_computes_capital_cost_allowance_from_its_own_pools() {
     let got = assess(
         Period::calendar(2025),
         &[
-            ("t2.accounting_income", "300000"),
-            ("t2.amortization", "50000"),
+            ("gifi.8000", "300000"),
+            ("gifi.8670", "50000"),
             ("cca.class8.opening_ucc", "100000"),
             ("cca.class50.opening_ucc", "40000"),
         ],
@@ -461,8 +467,10 @@ fn the_corporation_computes_capital_cost_allowance_from_its_own_pools() {
     assert_eq!(got.get("fed.cca_class50").unwrap(), d("22000.00"));
     assert_eq!(got.get("t2.sch1.cca").unwrap(), d("42000.00"));
 
-    // 300,000 + 50,000 amortization back − 42,000 of CCA.
-    assert_eq!(got.get("t2.300").unwrap(), d("308000.00"));
+    // Revenue 300,000 less 50,000 of amortization gives 250,000 in the
+    // accounts; the amortization comes back and 42,000 of allowance replaces it.
+    assert_eq!(got.get("gifi.9999").unwrap(), d("250000.00"));
+    assert_eq!(got.get("t2.300").unwrap(), d("258000.00"));
 }
 
 /// The half-year rule applies to a corporation exactly as it does to a sole
@@ -471,7 +479,7 @@ fn the_corporation_computes_capital_cost_allowance_from_its_own_pools() {
 fn the_half_year_rule_applies_to_a_corporation_too() {
     let bought = assess(
         Period::calendar(2025),
-        &[("t2.accounting_income", "300000"), ("cca.class8.additions", "100000")],
+        &[("gifi.8000", "300000"), ("cca.class8.additions", "100000")],
     );
 
     // 20% of half of 100,000, not 20% of all of it.
@@ -483,11 +491,11 @@ fn the_half_year_rule_applies_to_a_corporation_too() {
 /// corporation that happens on Schedule 1.
 #[test]
 fn recapture_is_added_back_on_schedule_1() {
-    let plain = assess(Period::calendar(2025), &[("t2.accounting_income", "200000")]);
+    let plain = assess(Period::calendar(2025), &[("gifi.8000", "200000")]);
     let recaptured = assess(
         Period::calendar(2025),
         &[
-            ("t2.accounting_income", "200000"),
+            ("gifi.8000", "200000"),
             ("cca.class8.opening_ucc", "10000"),
             ("cca.class8.dispositions", "30000"),
         ],
@@ -504,11 +512,11 @@ fn recapture_is_added_back_on_schedule_1() {
 /// mirror image: past allowance was too stingy, and the shortfall is deducted.
 #[test]
 fn a_terminal_loss_is_deducted_on_schedule_1() {
-    let plain = assess(Period::calendar(2025), &[("t2.accounting_income", "200000")]);
+    let plain = assess(Period::calendar(2025), &[("gifi.8000", "200000")]);
     let terminal = assess(
         Period::calendar(2025),
         &[
-            ("t2.accounting_income", "200000"),
+            ("gifi.8000", "200000"),
             ("cca.class8.opening_ucc", "40000"),
             ("cca.class8.dispositions", "5000"),
             ("cca.class8.all_disposed", "1"),
@@ -537,4 +545,112 @@ fn the_cca_rates_are_the_verified_federal_ones_not_a_second_copy() {
             "{key} differs between the T1 and T2 packs"
         );
     }
+}
+
+// -- GIFI: the financial statements the return starts from ----------------
+
+/// The return starts from the accounts rather than from a figure somebody
+/// typed, which is the point of filing the statements with it.
+#[test]
+fn the_return_starts_from_the_income_statement() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("gifi.8300", "200000"),
+            ("gifi.9060", "120000"),
+            ("gifi.9990", "30000"),
+        ],
+    );
+
+    assert_eq!(got.get("gifi.8299").unwrap(), d("500000.00"));
+    assert_eq!(got.get("gifi.9368").unwrap(), d("320000.00"));
+    assert_eq!(got.get("gifi.9970").unwrap(), d("180000.00"));
+    assert_eq!(got.get("gifi.9999").unwrap(), d("150000.00"));
+
+    // And Schedule 1 picks that up, adding the tax provision back.
+    assert_eq!(got.get("t2.sch1.accounting_income").unwrap(), d("150000.00"));
+    assert_eq!(got.get("t2.300").unwrap(), d("180000.00"));
+}
+
+/// A balance sheet that does not balance is an error, not a warning. It means
+/// something is missing or mistyped, and no amount of tax arithmetic on top of
+/// it is worth anything.
+#[test]
+fn a_balance_sheet_that_does_not_balance_blocks_the_return() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "100000"),
+            ("gifi.1000", "250000"),
+            ("gifi.2600", "80000"),
+            ("gifi.3500", "100000"),
+            // Retained earnings short by 70,000.
+        ],
+    );
+
+    assert_eq!(got.get("gifi.balance_difference").unwrap(), d("70000.00"));
+
+    let problem = got
+        .diagnostics
+        .iter()
+        .find(|x| x.id == "gifi.does_not_balance")
+        .expect("an unbalanced balance sheet passed unnoticed");
+
+    assert_eq!(problem.severity, Severity::Error);
+    assert!(got.has_errors());
+}
+
+#[test]
+fn a_balanced_balance_sheet_raises_nothing() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "100000"),
+            ("gifi.1000", "250000"),
+            ("gifi.2600", "80000"),
+            ("gifi.3500", "100000"),
+            ("gifi.3600", "70000"),
+        ],
+    );
+
+    assert_eq!(got.get("gifi.balance_difference").unwrap(), d("0.00"));
+    assert!(!fired(&got).contains(&"gifi.does_not_balance"));
+    assert!(!got.has_errors());
+}
+
+/// Accumulated amortization is entered as a positive figure and subtracted,
+/// the way it appears on a balance sheet, rather than expecting a negative.
+#[test]
+fn accumulated_amortization_reduces_total_assets() {
+    let got = assess(
+        Period::calendar(2025),
+        &[("gifi.1600", "400000"), ("gifi.1740", "150000")],
+    );
+
+    assert_eq!(got.get("gifi.2599").unwrap(), d("250000.00"));
+}
+
+/// The code set is a subset, and says so rather than letting a corporation
+/// assume its accounts mapped cleanly.
+#[test]
+fn the_partial_code_set_is_declared() {
+    let got = assess(Period::calendar(2025), &[("gifi.8000", "100000")]);
+
+    let warned = got
+        .diagnostics
+        .iter()
+        .find(|x| x.id == "gifi.subset_only")
+        .expect("the return did not admit its code set is partial");
+
+    assert_eq!(warned.severity, Severity::Warning);
+}
+
+#[test]
+fn a_return_with_no_statements_at_all_says_so() {
+    let empty = assess(Period::calendar(2025), &[]);
+    let with_figures = assess(Period::calendar(2025), &[("gifi.8000", "100000")]);
+
+    assert!(fired(&empty).contains(&"gifi.no_statements"));
+    assert!(!fired(&with_figures).contains(&"gifi.no_statements"));
 }

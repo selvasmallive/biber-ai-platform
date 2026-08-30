@@ -227,6 +227,13 @@ pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
 // to find out whether the split held.
 
 pub const T2_FEDERAL: &str = include_str!("../data/t2-federal.json");
+
+/// GIFI: the financial statement schedules a T2 is filed with.
+///
+/// Separate from the return itself because it is a taxonomy of accounts rather
+/// than tax arithmetic, and because extending the code set should be a change
+/// to data and nothing else.
+pub const GIFI_FEDERAL: &str = include_str!("../data/gifi-federal.json");
 pub const T2_ON: &str = include_str!("../data/t2-on.json");
 
 const T2_PACKS: &[(u16, &str, &str)] = &[
@@ -253,6 +260,7 @@ pub fn t2_forms(province: &str) -> Result<FormSet, EngineError> {
         FormSet::from_json(T2_FEDERAL)?,
         FormSet::from_json(CCA_FEDERAL)?,
     )?;
+    let federal = FormSet::merge(federal, FormSet::from_json(GIFI_FEDERAL)?)?;
 
     FormSet::compose(federal, FormSet::from_json(T2_ON)?)
 }
