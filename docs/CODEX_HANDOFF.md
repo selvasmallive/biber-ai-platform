@@ -4,6 +4,30 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps commit-review pipeline checkpoint:
+Complete locally after the panel-behavior checkpoint. Added
+`examples/azure_devops_pipeline/biber-ai-commit-review.yml` as a separate
+push/commit review demo lane. It triggers on `main` and `master`, checks out the
+last two commits, calls `scripts/biber_azure_devops_pr_review.py` through the
+same BIBER OpenAI-compatible endpoint, keeps OpenAI mentor disabled, writes
+`biber-ai-commit-review.json` and `biber-ai-commit-review.md`, uses
+`commentMode=none`, and deliberately does not wire `$(System.AccessToken)` or
+post Azure DevOps PR comments. Updated the Azure DevOps MVP docs, demo runbook,
+extension README/overview, slide-ready talk source, BIBER-only workspace guide,
+and both Azure DevOps readiness smokes so future sessions validate PR and commit
+review paths together. Validation passed `node --check
+scripts/biber_azure_devops_pipeline_readiness_smoke.js`,
+`npm run validate:pipeline` with 64/64 checks, saved artifact
+`outputs/biber-azure-devops-pipeline-readiness-smoke-004.json`,
+`npm run validate` with 62/62 checks, `npm run validate:panel` with 28/28
+checks, `git diff --check`, and `npm run package`, which recreated
+`examples/azure_devops_extension/flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix`.
+No BIBER API, Azure DevOps, GitHub, OpenAI mentor, GPU, training, or external
+network request was sent. Next narrow step: if Python is available on Vast/CI,
+run `python scripts/biber_azure_devops_review_smoke.py` so the broader Python
+contract sees the new commit pipeline too; otherwise continue with Azure DevOps
+private installation/dry-run preparation.
+
 2026-08-30 BIBER Azure DevOps panel-behavior smoke checkpoint:
 Complete locally after the panel usability checkpoint. Added
 `scripts/biber_azure_devops_panel_behavior_smoke.js` and wired

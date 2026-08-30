@@ -40,6 +40,9 @@ Expected local safety posture:
 - The generated VSIX remains private-release configured.
 - The task default remains `commentMode=dry-run`.
 - The task reads `BIBER_API_KEY` only from the pipeline environment.
+- The PR pipeline starts as artifact-only dry-run evidence.
+- The commit pipeline publishes artifacts only and does not use
+  `$(System.AccessToken)`.
 - The browser panel redacts secret-like pasted values before calling BIBER.
 - No admin key, OpenAI key, or user key is embedded in package files.
 
@@ -67,6 +70,16 @@ Expected local safety posture:
    ```text
    examples/azure_devops_pipeline/biber-ai-pr-review.yml
    ```
+
+For a push/commit-only demo, import or copy:
+
+```text
+examples/azure_devops_pipeline/biber-ai-commit-review.yml
+```
+
+This path reviews the latest pushed commit, publishes
+`biber-ai-commit-review.md`, and intentionally does not request Azure PR
+comment permissions.
 
 ## Dry-Run Demo Flow
 
@@ -97,6 +110,14 @@ Expected local safety posture:
 
 7. Open the `BIBER AI Review` hub panel and explain that it is the UI direction
    for interactive review from inside Azure DevOps.
+
+## Commit Review Demo Flow
+
+1. Push one small test commit to `main` or `master` in a demo repository.
+2. Run the commit-review pipeline.
+3. Open the published `biber-ai-commit-review.md` artifact.
+4. Explain that this path is useful for post-commit inspection, audit trails,
+   and teams that do not want PR comment permissions in the first rollout.
 
 ## Optional PR Comment Flow
 

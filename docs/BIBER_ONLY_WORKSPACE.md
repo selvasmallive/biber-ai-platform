@@ -207,12 +207,15 @@ lock blocks `npm ci` after dependencies are already installed, rerun the compile
 or package smoke with `--skip-npm-ci`.
 Use `examples/azure_devops_pipeline/` and `examples/azure_devops_extension/`
 for the Azure DevOps conference-demo MVP. The fastest path is the sample
-pipeline `examples/azure_devops_pipeline/biber-ai-pr-review.yml`, which runs
+PR pipeline `examples/azure_devops_pipeline/biber-ai-pr-review.yml`, which runs
 `scripts/biber_azure_devops_pr_review.py`, reviews a bounded redacted git diff
 through the BIBER OpenAI-compatible endpoint, keeps OpenAI mentor disabled, and
-defaults to `commentMode=dry-run`. The extension scaffold packages the same
-task plus a thin `BIBER AI Review` hub panel for interactive testing. Validate
-that path locally with:
+defaults to `commentMode=dry-run`. A second sample,
+`examples/azure_devops_pipeline/biber-ai-commit-review.yml`, reviews the latest
+pushed commit as artifact-only evidence with `commentMode=none` and no
+`System.AccessToken` wiring. The extension scaffold packages the same task plus
+a thin `BIBER AI Review` hub panel for interactive testing. Validate that path
+locally with:
 
 ```bash
 python scripts/biber_azure_devops_review_smoke.py

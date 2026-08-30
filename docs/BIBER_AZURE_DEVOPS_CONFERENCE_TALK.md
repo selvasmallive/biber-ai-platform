@@ -7,9 +7,9 @@ until Codex has access to the presentation artifact runtime.
 ## Communication Job
 
 By the end, software teams should understand that BIBER can review Azure DevOps
-PR changes through a private, swappable model API, giving teams a lower-cost
-and more controllable AI review path before public-cloud mentor review is
-introduced.
+PR and commit changes through a private, swappable model API, giving teams a
+lower-cost and more controllable AI review path before public-cloud mentor
+review is introduced.
 
 ## Session Title
 
@@ -18,13 +18,13 @@ BIBER AI: Private Code Review for Azure DevOps with Swappable Local Models
 ## Abstract
 
 This session demonstrates a practical AI engineering workflow that reviews
-Azure DevOps pull requests using a private BIBER model endpoint. Instead of
-starting with a complex multi-agent system, the demo focuses on one valuable
-workflow: collect a bounded diff, redact secrets, call an OpenAI-compatible
-local-model API, publish a review artifact, and optionally post a pull request
-comment. The design keeps model providers swappable, keeps OpenAI mentor review
-optional, and gives teams a realistic path from local GPU inference to future
-enterprise governance.
+Azure DevOps pull request and commit changes using a private BIBER model
+endpoint. Instead of starting with a complex multi-agent system, the demo
+focuses on one valuable workflow: collect a bounded diff, redact secrets, call
+an OpenAI-compatible local-model API, publish a review artifact, and optionally
+post a pull request comment. The design keeps model providers swappable, keeps
+OpenAI mentor review optional, and gives teams a realistic path from local GPU
+inference to future enterprise governance.
 
 ## Slide Plan
 
@@ -37,7 +37,8 @@ enterprise governance.
 2. The conference demo is deliberately narrow
    - Azure Pipeline collects a bounded diff.
    - BIBER reviews it through `/v1/chat/completions`.
-   - The first run produces artifacts before posting comments.
+   - The first PR run produces artifacts before posting comments.
+   - The commit lane publishes artifacts only.
    - Speaker note: Emphasize that a narrow demo is easier to trust than a broad
      agent that can mutate code immediately.
 
@@ -88,6 +89,7 @@ enterprise governance.
 10. What the demo can show live
     - Run a PR build.
     - Review the `biber-ai-review.md` artifact.
+    - Run a commit-review build if PR permissions are unavailable.
     - Switch to a test PR comment only after dry-run acceptance.
     - Speaker note: Have a prepared diff with one correctness issue and one
       redacted secret-like value.
@@ -128,6 +130,7 @@ enterprise governance.
 16. The next release should stay practical
     - Package the extension privately.
     - Run a private Azure Pipeline dry-run.
+    - Add a push/commit artifact demo for audit-style review.
     - Add one controlled PR comment demo.
     - Speaker note: Close with the idea that a useful platform is built from
       small trusted workflows.
@@ -142,10 +145,12 @@ Use `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as the operator checklist.
 3. Run the sample pipeline with `commentMode=dry-run`.
 4. Open the published Markdown artifact and point out the summary, risk level,
    tests, and merge recommendation.
-5. Show that secret-like values were redacted.
-6. Open the `BIBER AI Review` extension panel and run the same bounded diff
+5. Optionally run the commit-review pipeline and open
+   `biber-ai-commit-review.md` as an audit-style artifact.
+6. Show that secret-like values were redacted.
+7. Open the `BIBER AI Review` extension panel and run the same bounded diff
    manually.
-7. Optionally rerun the test PR with `commentMode=post` to create one PR
+8. Optionally rerun the test PR with `commentMode=post` to create one PR
    thread.
 
 ## Speaker Notes For Hard Questions
