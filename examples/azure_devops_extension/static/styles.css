@@ -4,8 +4,10 @@
   --muted: #4b5563;
   --line: #d1d5db;
   --panel: #f6f8fb;
+  --panel-strong: #eef6f8;
   --accent: #087ea4;
   --accent-strong: #075985;
+  --warn: #b45309;
   font-family: "Segoe UI", Arial, sans-serif;
 }
 
@@ -29,10 +31,26 @@ body {
   margin-bottom: 24px;
 }
 
+.mast > div {
+  flex: 1;
+  min-width: 0;
+}
+
 .logo {
   width: 56px;
   height: 56px;
   object-fit: contain;
+}
+
+.status-pill {
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
 }
 
 h1 {
@@ -58,6 +76,32 @@ p {
   gap: 14px;
 }
 
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.section-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.section-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.section-head span.warn {
+  color: var(--warn);
+}
+
 .wide {
   grid-column: 1 / -1;
 }
@@ -68,7 +112,7 @@ label {
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 input,
@@ -110,6 +154,22 @@ button + button {
   color: var(--accent-strong);
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.status-line {
+  background: var(--panel-strong);
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #075985;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+}
+
 .output {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -132,5 +192,13 @@ pre {
 
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .mast {
+    align-items: flex-start;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
   }
 }

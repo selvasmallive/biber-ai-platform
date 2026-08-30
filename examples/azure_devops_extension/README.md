@@ -62,9 +62,10 @@ npm run package
 ```
 
 `npm run validate` is a Node-only publisher/demo readiness preflight. It checks
-the manifest, task metadata, icons, safe defaults, panel storage behavior, mock
-wrapper hooks, and obvious embedded-secret mistakes without calling BIBER,
-Azure DevOps, GitHub, OpenAI, GPU, or any external network service.
+the manifest, task metadata, icons, safe defaults, panel storage behavior,
+client-side redaction, diff budget UI, mock wrapper hooks, and obvious
+embedded-secret mistakes without calling BIBER, Azure DevOps, GitHub, OpenAI,
+GPU, or any external network service.
 
 `npm run validate:pipeline` checks the sample Azure Pipeline remains a safe
 dry-run artifact flow before you copy it into Azure DevOps.

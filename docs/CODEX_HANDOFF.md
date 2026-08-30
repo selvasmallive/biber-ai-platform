@@ -4,6 +4,25 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps panel usability checkpoint:
+Complete locally after the pipeline-readiness checkpoint. Improved the
+`BIBER AI Review` Azure DevOps hub panel with session-only status, clearer
+connection and diff surfaces, live diff byte budget, client-side redaction
+before browser-panel calls, cancel/sample/copy controls, disabled in-flight
+state, and status messages. Updated the Node publisher-readiness smoke to
+require panel redaction, diff budget, cancel, and copy controls. The panel still
+stores no API key in `localStorage`, `sessionStorage`, cookies, files, or
+settings; it keeps `use_mentor=false` and does not call admin/training/raw vLLM
+endpoints.
+Validation passed `node --check examples/azure_devops_extension/static/main.js`,
+`node --check scripts/biber_azure_devops_publisher_readiness_smoke.js`,
+`npm run validate` with 61/61 checks,
+`outputs/biber-azure-devops-publisher-readiness-smoke-003.json`,
+`npm run validate:pipeline` with 31/31 checks,
+`outputs/biber-azure-devops-pipeline-readiness-smoke-002.json`, and
+`npm run package`, which recreated
+`examples/azure_devops_extension/flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix`.
+
 2026-08-30 BIBER Azure DevOps pipeline-readiness checkpoint:
 Complete locally after the conference demo runbook checkpoint. Added
 `scripts/biber_azure_devops_pipeline_readiness_smoke.js` and wired

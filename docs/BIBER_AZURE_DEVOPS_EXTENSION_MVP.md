@@ -80,8 +80,9 @@ or training/eval artifacts.
 
 `npm run validate` is a Node-only Marketplace/demo readiness preflight. It
 checks the manifest, task metadata, icons, safe defaults, browser-panel storage
-rules, mock wrapper hooks, and obvious embedded-secret mistakes without calling
-BIBER, Azure DevOps, GitHub, OpenAI, GPU, or external network services.
+rules, client-side redaction, diff budget UI, mock wrapper hooks, and obvious
+embedded-secret mistakes without calling BIBER, Azure DevOps, GitHub, OpenAI,
+GPU, or external network services.
 
 `npm run validate:pipeline` is a Node-only dry-run readiness preflight for the
 sample Azure Pipeline. It checks the pipeline uses `commentMode=dry-run`,

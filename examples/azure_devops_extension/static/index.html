@@ -14,9 +14,10 @@
           <h1>BIBER AI Review</h1>
           <p>Private PR and commit review through your BIBER API gateway.</p>
         </div>
+        <span class="status-pill" id="statusPill">Session only</span>
       </section>
 
-      <section class="grid">
+      <section class="panel grid" aria-label="BIBER connection">
         <label>
           API base URL
           <input id="baseUrl" value="https://api.beaverapi.com/v1" autocomplete="off" />
@@ -31,7 +32,11 @@
         </label>
       </section>
 
-      <section>
+      <section class="panel">
+        <div class="section-head">
+          <h2>Diff Input</h2>
+          <span id="diffCounter">0 / 60000 bytes</span>
+        </div>
         <label>
           Diff or commit context
           <textarea id="diffText" spellcheck="false">diff --git a/src/example.ts b/src/example.ts
@@ -47,7 +52,14 @@
 
       <section class="toolbar" aria-label="BIBER review actions">
         <button id="reviewButton" type="button">Generate Review</button>
+        <button id="stopButton" type="button" disabled>Cancel</button>
+        <button id="sampleButton" type="button">Sample Diff</button>
         <button id="clearButton" type="button">Clear Output</button>
+        <button id="copyButton" type="button">Copy Review</button>
+      </section>
+
+      <section class="status-line" aria-live="polite">
+        <span id="statusText">Ready for a dry review.</span>
       </section>
 
       <section class="output" aria-live="polite">

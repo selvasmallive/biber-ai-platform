@@ -159,6 +159,10 @@ function main() {
 
   checks.push(check(panelText.includes("BIBER AI Review"), "panel:title"));
   checks.push(check(panelText.includes("apiKey"), "panel:api_key_field"));
+  checks.push(check(panelText.includes("redactSecrets"), "panel:client_redaction"));
+  checks.push(check(panelText.includes("TextEncoder"), "panel:diff_budget_counter"));
+  checks.push(check(panelText.includes("AbortController"), "panel:request_cancel"));
+  checks.push(check(panelText.includes("navigator.clipboard"), "panel:copy_output"));
   checks.push(check(!panelText.includes("localStorage"), "panel:no_local_storage"));
   checks.push(check(!panelText.includes("sessionStorage"), "panel:no_session_storage"));
   checks.push(check(!panelText.includes("document.cookie"), "panel:no_cookie_storage"));

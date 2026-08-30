@@ -36,6 +36,7 @@ Expected local safety posture:
 - The generated VSIX remains private-release configured.
 - The task default remains `commentMode=dry-run`.
 - The task reads `BIBER_API_KEY` only from the pipeline environment.
+- The browser panel redacts secret-like pasted values before calling BIBER.
 - No admin key, OpenAI key, or user key is embedded in package files.
 
 ## Azure DevOps Setup
