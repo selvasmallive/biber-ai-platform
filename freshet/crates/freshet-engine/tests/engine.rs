@@ -346,3 +346,185 @@ mod fiscal_period {
         assert!(e.to_string().contains("2026"), "{e}");
     }
 }
+
+// -- reporting periods reaching the form ----------------------------------
+
+mod period_facts {
+    use freshet_engine::{
+        compute, compute_for_period, Date, Decimal, FactSet, FormSet, PackSet, ParamPack, Period,
+    };
+
+    /// A one-line form that prorates a limit the way a T2 short year does:
+    /// the full amount times days in the period over 365.
+    fn prorating_form() -> FormSet {
+        FormSet::from_json(
+            r#"{
+              "tax_year": 2025,
+              "province": "on",
+              "summary": ["t2.limit"],
+              "lines": [{
+                "id": "t2.limit",
+                "label": "Business limit, prorated for a short year",
+                "expr": {"op":"div",
+                  "of": {"op":"mul",
+                    "of": {"op":"param","key":"fed:business_limit"},
+                    "by": {"op":"fact","key":"period.days"}},
+                  "by": {"op":"const","value":"365"}}
+              }]
+            }"#,
+        )
+        .unwrap()
+    }
+
+    fn packs() -> PackSet {
+        let pack = |j: &str| {
+            ParamPack::from_json(&format!(
+                r#"{{"jurisdiction":"{j}","tax_year":2025,
+                     "scalars":{{"business_limit":{{"value":"500000","source":"test","verified":true}}}},
+                     "brackets":{{}}}}"#
+            ))
+            .unwrap()
+        };
+        PackSet { federal: pack("fed"), provincial: pack("on") }
+    }
+
+    fn period(a: (i32, u32, u32), b: (i32, u32, u32)) -> Period {
+        Period::new(
+            Date::new(a.0, a.1, a.2).unwrap(),
+            Date::new(b.0, b.1, b.2).unwrap(),
+        )
+        .unwrap()
+    }
+
+    /// The whole point of the exercise: a corporation whose first tax year ran
+    /// from September gets a fraction of the business limit, and the fraction
+    /// is visible in the form rather than hidden in the engine.
+    #[test]
+    fn a_short_first_year_prorates_the_limit() {
+        let got = compute_for_period(
+            &prorating_form(),
+            &packs(),
+            &FactSet::new(),
+            period((2025, 9, 15), (2025, 12, 31)),
+        )
+        .unwrap();
+
+        // 108 days of 365: 500,000 x 108 / 365 = 147,945.2054...
+        //
+        // Asserted to the cent because that is what the engine produces — tax
+        // lines round, and a test carrying the full quotient would be asserting
+        // something no return ever shows.
+        assert_eq!(
+            got.get("t2.limit").unwrap(),
+            Decimal::from_str_exact("147945.21").unwrap()
+        );
+        assert!(got.get("t2.limit").unwrap() < Decimal::from(500_000));
+    }
+
+    #[test]
+    fn a_full_year_claims_the_whole_limit() {
+        let got = compute_for_period(
+            &prorating_form(),
+            &packs(),
+            &FactSet::new(),
+            Period::calendar(2025),
+        )
+        .unwrap();
+
+        assert_eq!(got.get("t2.limit").unwrap(), Decimal::from(500_000));
+    }
+
+    /// A T1 is a calendar-year period, so the plain entry point must agree with
+    /// the explicit one. If these ever diverge, every T1 golden vector is
+    /// suspect.
+    #[test]
+    fn the_t1_entry_point_is_the_calendar_year_case() {
+        let implied = compute(&prorating_form(), &packs(), &FactSet::new()).unwrap();
+        let explicit = compute_for_period(
+            &prorating_form(),
+            &packs(),
+            &FactSet::new(),
+            Period::calendar(2025),
+        )
+        .unwrap();
+
+        assert_eq!(implied.get("t2.limit"), explicit.get("t2.limit"));
+    }
+
+    #[test]
+    fn a_straddling_period_reports_both_years_and_their_days() {
+        let form = FormSet::from_json(
+            r#"{
+              "tax_year": 2025, "province": "on",
+              "summary": [],
+              "lines": [
+                {"id":"p.days","label":"d","expr":{"op":"fact","key":"period.days"}},
+                {"id":"p.first","label":"a","expr":{"op":"fact","key":"period.days_in_first_year"}},
+                {"id":"p.second","label":"b","expr":{"op":"fact","key":"period.days_in_second_year"}},
+                {"id":"p.straddles","label":"s","expr":{"op":"fact","key":"period.straddles"}}
+              ]
+            }"#,
+        )
+        .unwrap();
+
+        let got = compute_for_period(
+            &form,
+            &packs(),
+            &FactSet::new(),
+            period((2025, 7, 1), (2026, 6, 30)),
+        )
+        .unwrap();
+
+        assert_eq!(got.get("p.days").unwrap(), Decimal::from(365));
+        assert_eq!(got.get("p.first").unwrap(), Decimal::from(184));
+        assert_eq!(got.get("p.second").unwrap(), Decimal::from(181));
+        assert_eq!(got.get("p.straddles").unwrap(), Decimal::ONE);
+
+        // The two year counts account for the period exactly, so a blend
+        // written against them cannot lose or invent a day.
+        assert_eq!(
+            got.get("p.first").unwrap() + got.get("p.second").unwrap(),
+            got.get("p.days").unwrap()
+        );
+    }
+
+    /// A period inside one year reports nil for the second, so a blend needs no
+    /// special case: `(first × a + second × b) ÷ days` returns `a` untouched.
+    #[test]
+    fn a_single_year_period_reports_nothing_in_the_second_year() {
+        let form = FormSet::from_json(
+            r#"{
+              "tax_year": 2025, "province": "on", "summary": [],
+              "lines": [
+                {"id":"p.first","label":"a","expr":{"op":"fact","key":"period.days_in_first_year"}},
+                {"id":"p.second","label":"b","expr":{"op":"fact","key":"period.days_in_second_year"}}
+              ]
+            }"#,
+        )
+        .unwrap();
+
+        let got =
+            compute_for_period(&form, &packs(), &FactSet::new(), Period::calendar(2025)).unwrap();
+
+        assert_eq!(got.get("p.first").unwrap(), Decimal::from(365));
+        assert_eq!(got.get("p.second").unwrap(), Decimal::ZERO);
+    }
+
+    /// The period is derived, not entered. A caller supplying one of these
+    /// facts would override the real period with nothing on screen to say so.
+    #[test]
+    fn a_caller_cannot_forge_the_period() {
+        let mut facts = FactSet::new();
+        facts.set("period.days", Decimal::from(365));
+
+        let e = compute_for_period(
+            &prorating_form(),
+            &packs(),
+            &facts,
+            period((2025, 9, 15), (2025, 12, 31)),
+        )
+        .unwrap_err();
+
+        assert!(e.to_string().contains("derived from the reporting period"), "{e}");
+    }
+}

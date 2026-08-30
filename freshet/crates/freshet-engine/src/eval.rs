@@ -14,6 +14,7 @@ use crate::expr::{Cond, Expr};
 use crate::facts::FactSet;
 use crate::form::{FormSet, Rounding, Severity};
 use crate::params::PackSet;
+use crate::period::Period;
 use crate::EngineError;
 
 /// One resolved line, retained so the UI can show "how did we get this?" and so
@@ -293,10 +294,83 @@ impl<'a> Evaluator<'a> {
 }
 
 /// Compute a return.
+/// The fact namespace the engine fills in from the reporting period.
+///
+/// Reserved: a caller supplying one of these would silently override the real
+/// period, so it is refused rather than merged.
+pub const PERIOD_FACT_PREFIX: &str = "period.";
+
+/// Facts derived from the reporting period.
+///
+/// Supplied as facts rather than as new expression operators so that proration
+/// stays visible in the form definition. A T2 line that reduces the business
+/// limit for a short year reads as `limit × period.days ÷ 365` — arithmetic
+/// anyone can check against the Act, with the 365 written where the Act puts
+/// it rather than buried in the engine.
+///
+/// The two year counts are positional, not named by year. `second_year` is nil
+/// for a period inside one calendar year, so a blend written as
+/// `(first × rate_a + second × rate_b) ÷ days` gives `rate_a` unchanged when
+/// there is nothing to blend, and needs no special case in the form.
+fn period_facts(period: &Period) -> Vec<(&'static str, Decimal)> {
+    let split = period.days_by_year();
+
+    let (first_year, first_days) = split[0];
+    let (second_year, second_days) = split.get(1).copied().unwrap_or((first_year, 0));
+
+    vec![
+        ("period.days", Decimal::from(period.days())),
+        ("period.is_short", bit(period.is_short())),
+        ("period.straddles", bit(period.straddles())),
+        ("period.first_year", Decimal::from(first_year)),
+        ("period.second_year", Decimal::from(second_year)),
+        ("period.days_in_first_year", Decimal::from(first_days)),
+        ("period.days_in_second_year", Decimal::from(second_days)),
+    ]
+}
+
+fn bit(yes: bool) -> Decimal {
+    if yes {
+        Decimal::ONE
+    } else {
+        Decimal::ZERO
+    }
+}
+
+/// Compute a return for an explicit reporting period.
+///
+/// A T1 is filed for a calendar year and a T2 for a fiscal period, but a
+/// calendar year *is* a period, so both go through here. [`compute`] is the T1
+/// case with the period implied by the form's tax year.
+pub fn compute_for_period(
+    forms: &FormSet,
+    packs: &PackSet,
+    facts: &FactSet,
+    period: Period,
+) -> Result<Assessment, EngineError> {
+    if let Some(key) = facts
+        .iter()
+        .map(|(k, _)| k)
+        .find(|k| k.starts_with(PERIOD_FACT_PREFIX))
+    {
+        return Err(EngineError::BadPeriod(format!(
+            "`{key}` is derived from the reporting period, not entered. A caller              setting it would override the real period without anything saying so."
+        )));
+    }
+
+    let mut derived = facts.clone();
+    for (key, value) in period_facts(&period) {
+        derived.set(key, value);
+    }
+
+    Evaluator::new(forms, packs, &derived).run()
+}
+
+/// Compute a return for a calendar tax year.
 pub fn compute(
     forms: &FormSet,
     packs: &PackSet,
     facts: &FactSet,
 ) -> Result<Assessment, EngineError> {
-    Evaluator::new(forms, packs, facts).run()
+    compute_for_period(forms, packs, facts, Period::calendar(forms.tax_year as i32))
 }

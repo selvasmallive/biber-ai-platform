@@ -32,7 +32,7 @@ pub mod form;
 pub mod params;
 pub mod period;
 
-pub use eval::{compute, Assessment, AuditEntry, Diagnostic, Evaluator};
+pub use eval::{compute, compute_for_period, Assessment, AuditEntry, Diagnostic, Evaluator};
 pub use expr::{Cond, Expr};
 pub use facts::FactSet;
 pub use form::{CheckDef, FormSet, LineDef, Rounding, Severity};
