@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 
 const API_KEY_SECRET = "biber.apiKey";
 const CLIENT_NAME = "biber-vscode-extension-mvp";
-const CLIENT_USER_AGENT = "BIBER-VSCode-Extension-MVP/0.2";
+const CLIENT_USER_AGENT = "BIBER-VSCode-Extension-MVP/0.3";
 const OUTPUT_CHANNEL = "BIBER";
 const CAPABILITIES_PATH = "/agent/capabilities";
 const ORCHESTRATION_PATH = "/agent/orchestration/plan";
@@ -13,7 +13,7 @@ const DEFAULT_MODEL = "biber-dev-core-v1";
 let inFlightRequest: Promise<void> | undefined;
 const requestTimestamps: number[] = [];
 let statusBar: vscode.StatusBarItem | undefined;
-let treeProvider: BiberTreeProvider | undefined;
+let chatViewProvider: BiberChatViewProvider | undefined;
 
 interface BiberConfig {
   openaiBaseUrl: string;
@@ -32,28 +32,38 @@ interface SetupEndpointPick extends vscode.QuickPickItem {
   value: "default" | "local" | "current" | "custom";
 }
 
-type TreeAction = {
-  label: string;
-  description?: string;
-  tooltip?: string;
-  icon: string;
-  command?: vscode.Command;
-};
+interface WebviewNotice {
+  text: string;
+  tone: "info" | "success" | "warning" | "error";
+}
+
+interface WebviewMessage {
+  command?: string;
+  baseUrl?: unknown;
+  model?: unknown;
+  apiKey?: unknown;
+  instruction?: unknown;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL);
   context.subscriptions.push(output);
 
-  treeProvider = new BiberTreeProvider(context);
+  chatViewProvider = new BiberChatViewProvider(context, output);
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("biber.changeAgentView", treeProvider)
+    vscode.window.registerWebviewViewProvider(
+      "biber.changeAgentView",
+      chatViewProvider,
+      { webviewOptions: { retainContextWhenHidden: true } }
+    )
   );
 
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-  statusBar.command = "biber.openSetup";
+  statusBar.command = "biber.openChat";
   context.subscriptions.push(statusBar);
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("biber.openChat", () => openChatView()),
     vscode.commands.registerCommand("biber.openSetup", () => openSetup(context, output)),
     vscode.commands.registerCommand("biber.setApiKey", () => setApiKey(context, output)),
     vscode.commands.registerCommand("biber.clearApiKey", () => clearApiKey(context)),
@@ -69,6 +79,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (event.affectsConfiguration("biber")) {
         void refreshUi(context);
       }
+    }),
+    vscode.window.onDidChangeActiveTextEditor(() => {
+      void refreshUi(context);
     })
   );
 
@@ -78,6 +91,10 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   requestTimestamps.length = 0;
   statusBar?.dispose();
+}
+
+async function openChatView(): Promise<void> {
+  await vscode.commands.executeCommand("biber.changeAgentView.focus");
 }
 
 async function openSetup(
@@ -146,12 +163,7 @@ async function openSetup(
     return;
   }
 
-  await vscode.workspace
-    .getConfiguration("biber")
-    .update("openaiBaseUrl", normalizedBaseUrl, vscode.ConfigurationTarget.Global);
-  await vscode.workspace
-    .getConfiguration("biber")
-    .update("model", model.trim(), vscode.ConfigurationTarget.Global);
+  await saveEndpointConfig(normalizedBaseUrl, model.trim());
 
   const existingKey = Boolean(await context.secrets.get(API_KEY_SECRET));
   if (existingKey) {
@@ -182,6 +194,7 @@ async function openSetup(
     }
   }
 
+  chatViewProvider?.setNotice("BIBER setup saved.", "success");
   await refreshUi(context);
   if (options.offerNextAction === false) {
     return;
@@ -259,24 +272,35 @@ async function promptAndStoreApiKey(context: vscode.ExtensionContext): Promise<b
     return false;
   }
   await context.secrets.store(API_KEY_SECRET, apiKey.trim());
+  chatViewProvider?.setNotice("API key saved.", "success");
   return true;
 }
 
 async function clearApiKey(context: vscode.ExtensionContext): Promise<void> {
   await context.secrets.delete(API_KEY_SECRET);
+  chatViewProvider?.setNotice("API key removed.", "info");
   await refreshUi(context);
   vscode.window.showInformationMessage("BIBER API key removed from VS Code SecretStorage.");
+}
+
+async function saveEndpointConfig(openaiBaseUrl: string, model: string): Promise<void> {
+  await vscode.workspace
+    .getConfiguration("biber")
+    .update("openaiBaseUrl", openaiBaseUrl, vscode.ConfigurationTarget.Global);
+  await vscode.workspace
+    .getConfiguration("biber")
+    .update("model", model, vscode.ConfigurationTarget.Global);
 }
 
 async function refreshUi(context: vscode.ExtensionContext): Promise<void> {
   const config = readConfig();
   const hasApiKey = Boolean(await context.secrets.get(API_KEY_SECRET));
-  treeProvider?.refresh();
+  await chatViewProvider?.refresh();
   if (statusBar) {
-    statusBar.text = hasApiKey ? "$(sparkle) BIBER Ready" : "$(key) BIBER Setup";
+    statusBar.text = hasApiKey ? "$(sparkle) BIBER AI" : "$(key) BIBER Setup";
     statusBar.tooltip = hasApiKey
-      ? `BIBER is configured for ${config.model} at ${config.openaiBaseUrl}. Click to edit setup.`
-      : "Set up your BIBER API endpoint and API key.";
+      ? `Open BIBER AI Chat Agent for ${config.model} at ${config.openaiBaseUrl}.`
+      : "Open BIBER AI setup.";
     statusBar.show();
   }
 }
@@ -296,7 +320,6 @@ async function orchestrationPlan(
   context: vscode.ExtensionContext,
   output: vscode.OutputChannel
 ): Promise<void> {
-  const config = readConfig();
   let apiKey = await context.secrets.get(API_KEY_SECRET);
   if (!apiKey) {
     vscode.window.showWarningMessage("Set a BIBER API key before calling orchestration.");
@@ -307,6 +330,7 @@ async function orchestrationPlan(
     }
   }
 
+  const config = readConfig();
   const activePath = activeWorkspacePath();
   const instruction = await vscode.window.showInputBox({
     title: "BIBER Change Agent",
@@ -328,9 +352,38 @@ async function orchestrationPlan(
     return;
   }
 
+  await requestOrchestrationPlan(context, output, instruction);
+}
+
+async function requestOrchestrationPlan(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel,
+  instruction: string
+): Promise<void> {
+  const config = readConfig();
+  const apiKey = await context.secrets.get(API_KEY_SECRET);
+  if (!apiKey) {
+    chatViewProvider?.setNotice("Save a BIBER API key first.", "warning");
+    vscode.window.showWarningMessage("Set a BIBER API key before calling orchestration.");
+    await refreshUi(context);
+    return;
+  }
+
+  const trimmedInstruction = instruction.trim();
+  if (!trimmedInstruction) {
+    chatViewProvider?.setNotice("Enter a change request first.", "warning");
+    await refreshUi(context);
+    return;
+  }
+  if (trimmedInstruction.length > config.maxPromptChars) {
+    chatViewProvider?.setNotice(`Keep the request under ${config.maxPromptChars} characters.`, "warning");
+    await refreshUi(context);
+    return;
+  }
+
   const changedPaths = collectChangedPaths(config.maxChangedPaths);
   const payload = {
-    instruction: instruction.slice(0, config.maxPromptChars),
+    instruction: trimmedInstruction.slice(0, config.maxPromptChars),
     changed_paths: changedPaths,
     test_id: null,
     max_context_files: 8,
@@ -361,19 +414,28 @@ async function orchestrationPlan(
       config.requestTimeoutMs
     );
     output.appendLine(JSON.stringify(redactForOutput(response), null, 2));
+    chatViewProvider?.setNotice("Plan received. See BIBER output.", "success");
+    await refreshUi(context);
   } catch (error) {
     output.appendLine(`BIBER request failed: ${errorMessage(error)}`);
+    chatViewProvider?.setNotice("Plan request failed. See BIBER output.", "error");
+    await refreshUi(context);
     vscode.window.showErrorMessage("BIBER change plan request failed. See output.");
   }
 }
 
 async function testConnection(
   context: vscode.ExtensionContext,
-  output: vscode.OutputChannel
+  output: vscode.OutputChannel,
+  options: SetupOptions = {}
 ): Promise<void> {
-  const config = readConfig();
   let apiKey = await context.secrets.get(API_KEY_SECRET);
   if (!apiKey) {
+    if (options.offerNextAction === false) {
+      chatViewProvider?.setNotice("Save a BIBER API key first.", "warning");
+      await refreshUi(context);
+      return;
+    }
     vscode.window.showWarningMessage("Set a BIBER API key before testing the API.");
     await openSetup(context, output, { offerNextAction: false });
     apiKey = await context.secrets.get(API_KEY_SECRET);
@@ -382,6 +444,7 @@ async function testConnection(
     }
   }
 
+  const config = readConfig();
   output.appendLine("Testing BIBER API connection...");
   output.appendLine(`Endpoint: ${config.openaiBaseUrl}`);
   output.show(true);
@@ -397,10 +460,13 @@ async function testConnection(
     );
     const summary = summarizeCapabilities(response);
     output.appendLine(JSON.stringify(summary, null, 2));
+    chatViewProvider?.setNotice("Connection ready.", "success");
     await refreshUi(context);
     vscode.window.showInformationMessage("BIBER API connection is ready.");
   } catch (error) {
     output.appendLine(`BIBER connection test failed: ${errorMessage(error)}`);
+    chatViewProvider?.setNotice("Connection test failed. See BIBER output.", "error");
+    await refreshUi(context);
     vscode.window.showErrorMessage("BIBER API connection test failed. See output.");
   }
 }
@@ -577,93 +643,431 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-class BiberTreeProvider implements vscode.TreeDataProvider<BiberTreeItem> {
-  private readonly emitter = new vscode.EventEmitter<BiberTreeItem | undefined>();
-  readonly onDidChangeTreeData = this.emitter.event;
+function asTrimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+function getNonce(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let nonce = "";
+  for (let index = 0; index < 32; index += 1) {
+    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return nonce;
+}
 
-  refresh(): void {
-    this.emitter.fire(undefined);
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+class BiberChatViewProvider implements vscode.WebviewViewProvider {
+  private view: vscode.WebviewView | undefined;
+  private notice: WebviewNotice | undefined;
+
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly output: vscode.OutputChannel
+  ) {}
+
+  resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext<unknown>,
+    _token: vscode.CancellationToken
+  ): void {
+    this.view = webviewView;
+    webviewView.webview.options = { enableScripts: true };
+    webviewView.webview.onDidReceiveMessage(
+      (message: WebviewMessage) => {
+        void this.handleMessage(message);
+      },
+      undefined,
+      this.context.subscriptions
+    );
+    void this.refresh();
   }
 
-  getTreeItem(element: BiberTreeItem): vscode.TreeItem {
-    return element;
-  }
-
-  async getChildren(element?: BiberTreeItem): Promise<BiberTreeItem[]> {
-    if (element) {
-      return [];
+  async refresh(): Promise<void> {
+    if (!this.view) {
+      return;
     }
     const config = readConfig();
     const hasApiKey = Boolean(await this.context.secrets.get(API_KEY_SECRET));
     const activePath = activeWorkspacePath();
-    const actions: TreeAction[] = [
-      {
-        label: hasApiKey ? "API Key Configured" : "Setup API Connection",
-        description: hasApiKey ? "SecretStorage" : "required",
-        tooltip: hasApiKey
-          ? "A BIBER API key is stored securely in VS Code SecretStorage."
-          : "Open the guided setup flow to enter your API endpoint, model, and API key.",
-        icon: hasApiKey ? "shield" : "key",
-        command: {
-          command: "biber.openSetup",
-          title: "BIBER: Setup API Connection",
-        },
-      },
-      {
-        label: "Test API Connection",
-        description: config.model,
-        tooltip: config.openaiBaseUrl,
-        icon: "plug",
-        command: {
-          command: "biber.testConnection",
-          title: "BIBER: Test API Connection",
-        },
-      },
-      {
-        label: "Plan Change",
-        description: activePath ? "uses active file path hint" : "planning-only",
-        tooltip: "Ask BIBER for a safe repo-aware plan. This MVP sends path hints only.",
-        icon: "sparkle",
-        command: {
-          command: "biber.orchestrationPlan",
-          title: "BIBER: Plan Change",
-        },
-      },
-      {
-        label: "Show Output",
-        description: "redacted logs",
-        tooltip: "Open the BIBER output channel.",
-        icon: "output",
-        command: {
-          command: "biber.openOutput",
-          title: "BIBER: Show Output",
-        },
-      },
-      {
-        label: "Endpoint",
-        description: config.openaiBaseUrl,
-        tooltip: "Configured BIBER API base URL.",
-        icon: "globe",
-      },
-      {
-        label: "Workspace Context",
-        description: activePath || "no active file",
-        tooltip: "The MVP sends bounded path hints, not file contents.",
-        icon: "folder",
-      },
-    ];
-    return actions.map((action) => new BiberTreeItem(action));
+    const nonce = getNonce();
+    this.view.title = "Chat Agent";
+    this.view.description = hasApiKey ? "ready" : "setup";
+    this.view.webview.html = this.renderHtml(
+      this.view.webview,
+      config,
+      hasApiKey,
+      activePath,
+      nonce
+    );
   }
-}
 
-class BiberTreeItem extends vscode.TreeItem {
-  constructor(action: TreeAction) {
-    super(action.label, vscode.TreeItemCollapsibleState.None);
-    this.description = action.description;
-    this.tooltip = action.tooltip || action.description;
-    this.iconPath = new vscode.ThemeIcon(action.icon);
-    this.command = action.command;
+  setNotice(
+    text: string | undefined,
+    tone: WebviewNotice["tone"] = "info"
+  ): void {
+    this.notice = text ? { text, tone } : undefined;
+    void this.refresh();
+  }
+
+  private async handleMessage(message: WebviewMessage): Promise<void> {
+    switch (message.command) {
+      case "saveSetup":
+        await this.saveSetupFromView(message);
+        return;
+      case "clearApiKey":
+        await clearApiKey(this.context);
+        return;
+      case "testConnection":
+        if (!(await this.hasApiKeyForView())) {
+          return;
+        }
+        this.setNotice("Testing connection...", "info");
+        await runSingleFlight(() =>
+          testConnection(this.context, this.output, { offerNextAction: false })
+        );
+        return;
+      case "planChange":
+        if (!(await this.hasApiKeyForView())) {
+          return;
+        }
+        this.setNotice("Requesting plan...", "info");
+        await runSingleFlight(() =>
+          requestOrchestrationPlan(
+            this.context,
+            this.output,
+            asTrimmedString(message.instruction)
+          )
+        );
+        return;
+      case "openOutput":
+        this.output.show(true);
+        return;
+      case "openSetup":
+        await openSetup(this.context, this.output);
+        return;
+      default:
+        return;
+    }
+  }
+
+  private async saveSetupFromView(message: WebviewMessage): Promise<void> {
+    const baseUrl = asTrimmedString(message.baseUrl);
+    const model = asTrimmedString(message.model);
+    const apiKey = asTrimmedString(message.apiKey);
+    if (!baseUrl) {
+      this.setNotice("Endpoint is required.", "warning");
+      return;
+    }
+    if (!model) {
+      this.setNotice("Model id is required.", "warning");
+      return;
+    }
+    try {
+      assertAllowedBaseUrl(baseUrl);
+    } catch (error) {
+      this.setNotice(errorMessage(error), "error");
+      return;
+    }
+
+    await saveEndpointConfig(baseUrl, model);
+    if (apiKey) {
+      if (apiKey.length < 16) {
+        this.setNotice("API key looks too short.", "warning");
+        await refreshUi(this.context);
+        return;
+      }
+      await this.context.secrets.store(API_KEY_SECRET, apiKey);
+      this.setNotice("Setup saved. API key stored securely.", "success");
+    } else if (await this.context.secrets.get(API_KEY_SECRET)) {
+      this.setNotice("Setup saved. Existing API key kept.", "success");
+    } else {
+      this.setNotice("Endpoint and model saved. Add an API key to continue.", "warning");
+    }
+    await refreshUi(this.context);
+  }
+
+  private async hasApiKeyForView(): Promise<boolean> {
+    if (await this.context.secrets.get(API_KEY_SECRET)) {
+      return true;
+    }
+    this.setNotice("Paste your API key, then click Save Setup.", "warning");
+    await refreshUi(this.context);
+    return false;
+  }
+
+  private renderHtml(
+    webview: vscode.Webview,
+    config: BiberConfig,
+    hasApiKey: boolean,
+    activePath: string | undefined,
+    nonce: string
+  ): string {
+    const notice = this.notice
+      ? `<div class="notice ${escapeHtml(this.notice.tone)}">${escapeHtml(this.notice.text)}</div>`
+      : "";
+    const keyStatus = hasApiKey ? "Ready" : "Setup needed";
+    const keyDetail = hasApiKey ? "API key stored" : "API key required";
+    const contextPath = activePath || "No active file";
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style nonce="${nonce}">
+    :root {
+      color-scheme: light dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      color: var(--vscode-foreground);
+      background: var(--vscode-sideBar-background);
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+    }
+    .shell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+    }
+    .mark {
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--vscode-button-background);
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      font-weight: 700;
+      font-size: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .subtle {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      margin-top: 2px;
+      overflow-wrap: anywhere;
+    }
+    .status-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .pill {
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .panel {
+      border: 1px solid var(--vscode-editorWidget-border);
+      border-radius: 6px;
+      padding: 10px;
+      background: var(--vscode-editorWidget-background);
+    }
+    .panel-title {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--vscode-descriptionForeground);
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+    input,
+    textarea {
+      width: 100%;
+      min-width: 0;
+      margin-top: 4px;
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+      border-radius: 4px;
+      padding: 7px;
+      font: inherit;
+      outline: none;
+    }
+    textarea {
+      min-height: 108px;
+      resize: vertical;
+      line-height: 1.35;
+    }
+    input:focus,
+    textarea:focus {
+      border-color: var(--vscode-focusBorder);
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    button {
+      min-height: 30px;
+      border: 0;
+      border-radius: 4px;
+      padding: 6px 8px;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover {
+      background: var(--vscode-button-hoverBackground);
+    }
+    button.secondary {
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+    button.secondary:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+    .notice {
+      border-radius: 4px;
+      padding: 8px;
+      border: 1px solid var(--vscode-editorWidget-border);
+      overflow-wrap: anywhere;
+    }
+    .notice.success {
+      border-color: var(--vscode-testing-iconPassed);
+    }
+    .notice.warning {
+      border-color: var(--vscode-testing-iconQueued);
+    }
+    .notice.error {
+      border-color: var(--vscode-testing-iconFailed);
+    }
+    .kv {
+      display: grid;
+      gap: 6px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+    .kv div {
+      overflow-wrap: anywhere;
+    }
+  </style>
+  <title>BIBER AI</title>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="mark" aria-hidden="true">B</div>
+      <div>
+        <h1>BIBER AI</h1>
+        <div class="subtle">Chat Agent</div>
+      </div>
+    </section>
+
+    <div class="status-row">
+      <div>
+        <strong>${escapeHtml(keyStatus)}</strong>
+        <div class="subtle">${escapeHtml(keyDetail)}</div>
+      </div>
+      <div class="pill">${escapeHtml(config.model)}</div>
+    </div>
+
+    ${notice}
+
+    <section class="panel">
+      <p class="panel-title">Setup</p>
+      <label>
+        Endpoint
+        <input id="endpoint" type="url" value="${escapeHtml(config.openaiBaseUrl)}" autocomplete="off">
+      </label>
+      <label>
+        Model
+        <input id="model" type="text" value="${escapeHtml(config.model)}" autocomplete="off">
+      </label>
+      <label>
+        API Key
+        <input id="apiKey" type="password" placeholder="${hasApiKey ? "Leave blank to keep current key" : "Paste API key"}" autocomplete="off">
+      </label>
+      <div class="buttons">
+        <button id="saveSetup" type="button">Save Setup</button>
+        <button id="testConnection" class="secondary" type="button">Test API</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <p class="panel-title">Plan Change</p>
+      <textarea id="instruction" maxlength="${config.maxPromptChars}" placeholder="Ask BIBER to plan a safe repository change."></textarea>
+      <div class="buttons">
+        <button id="planChange" type="button">Ask BIBER</button>
+        <button id="openOutput" class="secondary" type="button">Output</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <p class="panel-title">Context</p>
+      <div class="kv">
+        <div>${escapeHtml(contextPath)}</div>
+        <div>${escapeHtml(config.openaiBaseUrl)}</div>
+      </div>
+    </section>
+  </main>
+
+  <script nonce="${nonce}">
+    const vscode = acquireVsCodeApi();
+    const byId = (id) => document.getElementById(id);
+    byId("saveSetup").addEventListener("click", () => {
+      const apiKey = byId("apiKey").value;
+      vscode.postMessage({
+        command: "saveSetup",
+        baseUrl: byId("endpoint").value,
+        model: byId("model").value,
+        apiKey
+      });
+      byId("apiKey").value = "";
+    });
+    byId("testConnection").addEventListener("click", () => {
+      vscode.postMessage({ command: "testConnection" });
+    });
+    byId("planChange").addEventListener("click", () => {
+      vscode.postMessage({
+        command: "planChange",
+        instruction: byId("instruction").value
+      });
+    });
+    byId("openOutput").addEventListener("click", () => {
+      vscode.postMessage({ command: "openOutput" });
+    });
+  </script>
+</body>
+</html>`;
   }
 }

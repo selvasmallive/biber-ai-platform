@@ -1,5 +1,12 @@
 # Change Log
 
+## 0.3.0
+
+- Replaced the plain sidebar launcher with a BIBER `Chat Agent` webview.
+- Added inline endpoint, model, and API key setup inside the Activity Bar panel.
+- Added one-click test and planning controls inside the same panel.
+- Kept orchestration planning-only with no file contents and no direct mutation.
+
 ## 0.2.0
 
 - Added a visible BIBER Activity Bar change-agent view.

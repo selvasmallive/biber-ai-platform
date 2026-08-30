@@ -183,9 +183,10 @@ only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 fake-server validation before live GPU testing.
 Use `examples/vscode_extension/` for the VS Code extension MVP scaffold. It is
 an orchestration-planning client first: API keys live in SecretStorage, the
-extension is discoverable through the BIBER Activity Bar view, dedicated
-sidebar SVG icon, and status bar entry, `BIBER: Setup API Connection` guides
-endpoint/model/key setup,
+extension is discoverable through the BIBER Activity Bar `Chat Agent` webview,
+dedicated sidebar SVG icon, and status bar entry. The panel includes endpoint,
+model, API key, test, and first prompt controls; `BIBER: Setup API Connection`
+still provides command-palette setup,
 `BIBER: Test API Connection` checks `/v1/agent/capabilities` without sending
 repository data, `BIBER: Plan Change` sends bounded path hints rather than file
 contents, and local single-flight/rate-limit/timeout/HTTPS guards are present.

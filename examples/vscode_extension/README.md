@@ -4,18 +4,18 @@ BIBER AI Assistant is a secure VS Code client for testing BIBER as a
 Copilot-style local/remote coding assistant. The Marketplace icon is packaged
 from `media/icon.png`, using the supplied BIBER AI logo artwork, and the
 Activity Bar uses `media/activity-icon.svg` for a crisp VS Code sidebar entry.
-Version `0.2.0` adds a visible Activity Bar change-agent view and guided API
-setup before direct file mutation is enabled.
+Version `0.3.0` adds a visible Activity Bar chat-agent view with inline setup,
+connection testing, and a first prompt box before direct file mutation is
+enabled.
 
-After installing, open the BIBER icon in the Activity Bar or click the BIBER
-status bar item, then run `Setup API Connection`. The setup flow lets users pick
-the public Beaver API, a local Vast tunnel, or a custom protected BIBER gateway,
-then stores the user API key in VS Code SecretStorage. If users start from
-`Test API Connection` or `Plan Change` without a key, BIBER opens setup first
-and then continues the selected flow after a key is saved.
+After installing, click the BIBER icon in the Activity Bar or click the BIBER
+status bar item. The `Chat Agent` panel opens with endpoint, model, API key,
+test, and prompt controls in one place. The API key is stored in VS Code
+SecretStorage and is not written to settings or output.
 
 The first command surface is intentionally small:
 
+- `BIBER: Open Chat Agent` focuses the Activity Bar chat-agent panel.
 - `BIBER: Setup API Connection` guides endpoint, model, and key setup.
 - `BIBER: Set API Key` stores the user API key in VS Code SecretStorage.
 - `BIBER: Clear API Key` removes the stored key.
@@ -64,13 +64,12 @@ rate limits, payload size limits, logging redaction, and abuse monitoring.
 
 ## Current Limitation
 
-The Activity Bar view is intentionally an interactive launch point, not a fully
-autonomous coding agent yet. The current orchestration call is a planning
-contract test. It is useful for
-editor integration because it verifies API keys, URL configuration, path hints,
-repo planning output, and user-facing workflow. It does not yet implement a
-full autonomous editor agent, streaming chat, background indexing, or direct
-multi-file apply in VS Code.
+The Activity Bar `Chat Agent` view is the first interactive BIBER editor
+surface, not a fully autonomous coding agent yet. The current orchestration call
+is a planning contract test. It is useful for editor integration because it
+verifies API keys, URL configuration, path hints, repo planning output, and
+user-facing workflow. It does not yet implement streaming chat, background
+indexing, or direct multi-file apply in VS Code.
 
 Use `BIBER: Test API Connection` first after installing or changing the API
 URL/key. It should show the BIBER service/version/model plus server-side guard

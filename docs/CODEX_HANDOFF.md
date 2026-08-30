@@ -4,6 +4,31 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER VS Code Chat Agent UI checkpoint:
+Complete locally for the user request to make BIBER as easy to find and start
+as visible VS Code chat-agent extensions. The extension is now version `0.3.0`
+with a BIBER Activity Bar container, dedicated sidebar SVG icon, `Chat Agent`
+webview, and status bar entry that opens the panel. The panel now has inline
+endpoint, model id, API key, test, and first prompt controls, so users can
+click the BIBER icon, paste a key, save setup, test the API, and ask BIBER for
+a planning-only change plan from one UI surface. API keys still live only in VS
+Code SecretStorage and are not written to settings, files, or output. The
+planning flow still calls only `/v1/agent/orchestration/plan`, sends bounded
+path hints only, sends no file contents, performs no direct file mutation,
+keeps OpenAI mentor off, and does not call admin/training/raw vLLM endpoints.
+Rebuilt VSIX:
+`C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\vscode_extension\dist\biber-ai-assistant-0.3.0.vsix`.
+Validation passed `scripts/biber_vscode_extension_contract_smoke.py` with
+99/99 checks, `scripts/biber_vscode_extension_compile_smoke.py --skip-npm-ci`
+with 18/18 checks, and `scripts/biber_vscode_extension_package_smoke.py
+--skip-npm-ci` with 17/17 checks, including isolated VS Code install as
+`flat-electronics-canada.biber-ai-assistant@0.3.0`. Standard local confidence
+also passed in `outputs/biber-local-confidence-smoke-vscode-chat-agent-030.json`
+with 13/13 checks, including `vscode_extension_contract` and
+`vscode_extension_orchestration_mock`. No GPU/model call, OpenAI mentor,
+training, paid API, credential rotation, destructive Git, or XRIQ/XRIS work
+occurred.
+
 2026-08-30 BIBER VS Code extension UX checkpoint:
 Complete locally for the user request to make the VS Code extension more
 intuitive and easier to configure after install. The extension is now version

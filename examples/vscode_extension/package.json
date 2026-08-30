@@ -2,7 +2,7 @@
   "name": "biber-ai-assistant",
   "displayName": "BIBER AI Assistant",
   "description": "Secure VS Code client for BIBER AI orchestration planning.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "flat-electronics-canada",
   "license": "SEE LICENSE IN LICENSE.md",
   "pricing": "Free",
@@ -43,6 +43,7 @@
   "activationEvents": [
     "onStartupFinished",
     "onView:biber.changeAgentView",
+    "onCommand:biber.openChat",
     "onCommand:biber.openSetup",
     "onCommand:biber.setApiKey",
     "onCommand:biber.clearApiKey",
@@ -55,9 +56,16 @@
   "contributes": {
     "commands": [
       {
+        "command": "biber.openChat",
+        "title": "BIBER: Open Chat Agent",
+        "category": "BIBER",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "biber.openSetup",
         "title": "BIBER: Setup API Connection",
-        "category": "BIBER"
+        "category": "BIBER",
+        "icon": "$(key)"
       },
       {
         "command": "biber.setApiKey",
@@ -72,17 +80,20 @@
       {
         "command": "biber.testConnection",
         "title": "BIBER: Test API Connection",
-        "category": "BIBER"
+        "category": "BIBER",
+        "icon": "$(plug)"
       },
       {
         "command": "biber.orchestrationPlan",
         "title": "BIBER: Plan Change",
-        "category": "BIBER"
+        "category": "BIBER",
+        "icon": "$(sparkle)"
       },
       {
         "command": "biber.openOutput",
         "title": "BIBER: Show Output",
-        "category": "BIBER"
+        "category": "BIBER",
+        "icon": "$(output)"
       },
       {
         "command": "biber.refreshSidebar",
@@ -104,14 +115,15 @@
       "biber": [
         {
           "id": "biber.changeAgentView",
-          "name": "Change Agent"
+          "name": "Chat Agent",
+          "type": "webview"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "biber.changeAgentView",
-        "contents": "Connect to BIBER, test your API key, then ask the planning agent for a safe change plan.\n[Setup API Connection](command:biber.openSetup)\n[Test API Connection](command:biber.testConnection)\n[Plan Change](command:biber.orchestrationPlan)"
+        "contents": "Open the BIBER AI Chat Agent, save setup, test the API, then ask BIBER for a change plan.\n[Open Chat Agent](command:biber.openChat)\n[Setup API Connection](command:biber.openSetup)\n[Test API Connection](command:biber.testConnection)"
       }
     ],
     "menus": {
