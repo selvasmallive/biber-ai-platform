@@ -4,6 +4,18 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Vast SSH validation note:
+After the Azure DevOps installed-task pipeline checkpoint was pushed, Codex
+attempted a safe direct SSH probe to the current Vast host
+`85.30.169.224:16276` with `BatchMode=yes` and no command beyond `pwd`. The
+first sandboxed attempt was locally blocked; the escalated retry reached Vast
+and printed the Vast banner, but authentication failed with
+`Permission denied (publickey)`. This means the host/port is reachable from this
+workstation, but the public key available to this Codex environment is not
+authorized on the Vast instance. No GPU/model work was run. Until the key is
+attached, run Vast Python contract smokes manually in the Jupyter terminal or
+attach the correct workstation public key to the instance.
+
 2026-08-30 BIBER Azure DevOps installed-task pipeline checkpoint:
 Complete locally after the offline demo bundle checkpoint. Added
 `examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml` so the
