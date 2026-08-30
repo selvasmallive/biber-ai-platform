@@ -16,6 +16,7 @@ Run these from the BIBER-only checkout:
 ```bash
 cd examples/azure_devops_extension
 npm run validate
+npm run validate:pipeline
 npm run package
 ```
 
@@ -29,6 +30,9 @@ npm run validate:wrapper
 Expected local safety posture:
 
 - `npm run validate` passes all publisher-readiness checks.
+- `npm run validate:pipeline` confirms the sample pipeline starts in dry-run
+  mode, publishes artifacts, and reads the BIBER user key from a secret
+  pipeline variable.
 - The generated VSIX remains private-release configured.
 - The task default remains `commentMode=dry-run`.
 - The task reads `BIBER_API_KEY` only from the pipeline environment.

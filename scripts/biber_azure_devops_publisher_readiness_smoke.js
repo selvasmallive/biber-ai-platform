@@ -119,6 +119,7 @@ function main() {
   checks.push(check(packageJson.name === "biber-ai-azure-devops", "package:name"));
   checks.push(check(packageJson.private === true, "package:private"));
   checks.push(check(packageJson.scripts && packageJson.scripts.validate && packageJson.scripts.validate.startsWith("node "), "package:node_validate"));
+  checks.push(check(packageJson.scripts && packageJson.scripts["validate:pipeline"], "package:pipeline_smoke_available"));
   checks.push(check(packageJson.scripts && packageJson.scripts["validate:contract"], "package:contract_smoke_available"));
   checks.push(check(packageJson.scripts && packageJson.scripts["validate:wrapper"], "package:wrapper_smoke_available"));
   checks.push(check(/^0\.1\.0$/.test(packageJson.version || ""), "package:demo_version"));

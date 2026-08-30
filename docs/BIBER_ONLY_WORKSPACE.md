@@ -236,6 +236,7 @@ For a Node-only Marketplace/demo preflight from the extension folder:
 ```bash
 cd examples/azure_devops_extension
 npm run validate
+npm run validate:pipeline
 ```
 
 Use `npm run validate:contract` and `npm run validate:wrapper` when Python is

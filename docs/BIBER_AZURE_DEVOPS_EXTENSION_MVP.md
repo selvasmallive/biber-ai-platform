@@ -71,6 +71,7 @@ release private:
 cd examples/azure_devops_extension
 npm install
 npm run validate
+npm run validate:pipeline
 npm run package
 ```
 
@@ -81,6 +82,11 @@ or training/eval artifacts.
 checks the manifest, task metadata, icons, safe defaults, browser-panel storage
 rules, mock wrapper hooks, and obvious embedded-secret mistakes without calling
 BIBER, Azure DevOps, GitHub, OpenAI, GPU, or external network services.
+
+`npm run validate:pipeline` is a Node-only dry-run readiness preflight for the
+sample Azure Pipeline. It checks the pipeline uses `commentMode=dry-run`,
+publishes review artifacts, reads `BIBER_API_KEY` from the pipeline
+environment, and does not request mentor review or training.
 
 The repo-level packaging smoke is:
 

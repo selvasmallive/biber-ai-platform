@@ -4,6 +4,28 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps pipeline-readiness checkpoint:
+Complete locally after the conference demo runbook checkpoint. Added
+`scripts/biber_azure_devops_pipeline_readiness_smoke.js` and wired
+`npm run validate:pipeline` in the Azure DevOps extension package. This
+Node-only smoke checks the sample Azure Pipeline remains a safe dry-run flow:
+PR trigger present, full checkout, Python 3.11, BIBER endpoint/model variables,
+`commentMode=dry-run`, artifact output paths, `BIBER_API_KEY` from the pipeline
+environment, `SYSTEM_ACCESSTOKEN` wiring, no `commentMode=post`, no embedded
+keys, no OpenAI mentor request, and no training enablement. Updated the demo
+runbook, extension docs, and BIBER-only workspace instructions to run
+`npm run validate:pipeline` before the first Azure DevOps dry-run. No Azure
+DevOps request, BIBER API call, GPU, training, OpenAI mentor, GitHub request,
+Marketplace upload, or external network request is required. Validation passed
+`node --check scripts/biber_azure_devops_pipeline_readiness_smoke.js`,
+`node --check scripts/biber_azure_devops_publisher_readiness_smoke.js`,
+`npm run validate:pipeline` with 31/31 checks,
+`outputs/biber-azure-devops-pipeline-readiness-smoke-001.json`,
+`npm run validate` with 57/57 checks,
+`outputs/biber-azure-devops-publisher-readiness-smoke-002.json`, and
+`npm run package`, which recreated the private VSIX at
+`examples/azure_devops_extension/flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix`.
+
 2026-08-30 BIBER Azure DevOps conference demo runbook checkpoint:
 Complete locally after the publisher-readiness checkpoint. Added
 `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as a safe operator checklist for the

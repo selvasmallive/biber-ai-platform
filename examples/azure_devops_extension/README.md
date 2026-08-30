@@ -57,6 +57,7 @@ tooling locally and run:
 ```bash
 npm ci
 npm run validate
+npm run validate:pipeline
 npm run package
 ```
 
@@ -64,6 +65,9 @@ npm run package
 the manifest, task metadata, icons, safe defaults, panel storage behavior, mock
 wrapper hooks, and obvious embedded-secret mistakes without calling BIBER,
 Azure DevOps, GitHub, OpenAI, GPU, or any external network service.
+
+`npm run validate:pipeline` checks the sample Azure Pipeline remains a safe
+dry-run artifact flow before you copy it into Azure DevOps.
 
 Or use the repo-level smoke, which validates the manifest/task contract, runs
 the local extension validation, packages the VSIX, and checks the archive
