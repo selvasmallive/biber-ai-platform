@@ -4,6 +4,24 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps panel connection-test checkpoint:
+Complete locally after the live dry-run checklist checkpoint. Added a
+session-only `Test Connection` control to the Azure DevOps browser panel so demo
+users can verify the configured BIBER API gateway and selected model through
+`/models` before sending a bounded diff for review. Updated the panel behavior
+smoke to mock and verify the `/models` GET request, bearer-key header, no
+request body, model visibility check, normal review flow, unsafe HTTP blocking,
+and session-only key posture. Updated the Azure DevOps README, Marketplace
+overview, MVP docs, demo runbook, live dry-run checklist, conference talk
+source, and BIBER-only workspace guide. Validation passed `node --check` for
+the panel and smoke scripts, `npm run validate:panel` with 37/37 checks,
+`npm run validate` with the new panel readiness checks, `npm run
+validate:pipeline` with 93/93 checks, `git diff --check`, and `npm run package`,
+which recreated the private VSIX. No live BIBER API, Azure DevOps, Marketplace,
+GitHub, OpenAI mentor, GPU, training, admin endpoint, or raw vLLM request was
+sent. Next narrow step: commit/push this checkpoint, then run a private Azure
+DevOps dry-run or continue local demo polish.
+
 2026-08-30 BIBER Azure DevOps live dry-run checklist checkpoint:
 Complete locally after the Vast SSH note. Added
 `docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md`, a first real Azure DevOps pipeline

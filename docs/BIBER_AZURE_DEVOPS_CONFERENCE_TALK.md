@@ -78,6 +78,7 @@ inference to future enterprise governance.
 
 8. The extension panel proves the UI direction
    - A `BIBER AI Review` hub can call the same API from the browser.
+   - Reviewers can test `/models` first before sending a diff for review.
    - CORS stays disabled until the public panel path is intentionally enabled.
    - API keys are not stored in the extension scaffold.
    - Speaker note: Position the panel as an MVP, not a complete product.

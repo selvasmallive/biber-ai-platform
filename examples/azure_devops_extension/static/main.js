@@ -9,6 +9,8 @@
   const outputText = document.getElementById("outputText");
   const statusText = document.getElementById("statusText");
   const statusPill = document.getElementById("statusPill");
+  const connectionResult = document.getElementById("connectionResult");
+  const testConnectionButton = document.getElementById("testConnectionButton");
   const reviewButton = document.getElementById("reviewButton");
   const stopButton = document.getElementById("stopButton");
   const sampleButton = document.getElementById("sampleButton");
@@ -16,6 +18,7 @@
   const copyButton = document.getElementById("copyButton");
 
   let inFlight = false;
+  let connectionInFlight = false;
   let activeController = null;
   const requestTimes = [];
   const maxDiffBytes = 60000;
@@ -104,6 +107,55 @@
     outputText.textContent = value;
   }
 
+  function setConnectionBusy(value) {
+    connectionInFlight = value;
+    testConnectionButton.disabled = value;
+    if (value) {
+      connectionResult.textContent = "Testing...";
+    }
+  }
+
+  async function testConnection() {
+    if (connectionInFlight) {
+      return;
+    }
+    try {
+      setConnectionBusy(true);
+      checkRateLimit();
+      const baseUrl = assertAllowedBaseUrl(baseUrlInput.value.trim());
+      const apiKey = apiKeyInput.value.trim();
+      if (!apiKey) {
+        throw new Error("Paste a BIBER user API key before testing the connection.");
+      }
+      const response = await fetch(`${baseUrl}/models`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "X-BIBER-Client": "biber-azure-devops-extension-panel-mvp",
+        },
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`BIBER models check returned HTTP ${response.status}: ${text.slice(0, 300)}`);
+      }
+      const payload = await response.json();
+      const modelIds = Array.isArray(payload.data)
+        ? payload.data.map((item) => item && item.id).filter(Boolean)
+        : [];
+      const requestedModel = modelInput.value.trim();
+      if (requestedModel && modelIds.length && !modelIds.includes(requestedModel)) {
+        throw new Error(`Connected, but ${requestedModel} was not listed by /models.`);
+      }
+      connectionResult.textContent = `Connected. ${modelIds.length || "Unknown"} model(s) available.`;
+      setStatus("BIBER API connection looks ready.");
+    } catch (error) {
+      connectionResult.textContent = "Connection failed.";
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setConnectionBusy(false);
+    }
+  }
+
   async function generateReview() {
     if (inFlight) {
       setOutput("A BIBER review is already running.");
@@ -171,6 +223,7 @@
     }
   }
 
+  testConnectionButton.addEventListener("click", testConnection);
   reviewButton.addEventListener("click", generateReview);
   stopButton.addEventListener("click", () => {
     if (activeController) {

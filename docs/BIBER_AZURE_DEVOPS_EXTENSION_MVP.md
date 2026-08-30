@@ -16,7 +16,8 @@ assistant inside Azure DevOps.
   does not require Azure DevOps PR comment credentials.
 - Provides an installed extension-task PR pipeline example using
   `BiberAiPrReview@1`.
-- Provides a first `BIBER AI Review` extension panel scaffold.
+- Provides a first `BIBER AI Review` extension panel scaffold with a
+  session-only `/models` connection test.
 
 ## Demo Order
 
@@ -26,7 +27,8 @@ assistant inside Azure DevOps.
    any Azure PR comment permission.
 4. After private extension install, run the task-based PR pipeline that invokes
    `BiberAiPrReview@1`.
-5. Show the Azure DevOps extension panel and paste a small diff manually.
+5. Show the Azure DevOps extension panel, test `/models`, and paste a small
+   diff manually.
 6. Explain that the same BIBER API can run behind `api.beaverapi.com`, a
    private tunnel, or a future enterprise gateway.
 7. Only after a dry-run artifact is accepted, switch `commentMode=post` in a
@@ -113,9 +115,9 @@ GPU, or external network services.
 
 `npm run validate:panel` is a Node-only browser-panel behavior smoke. It
 simulates the panel without Azure DevOps or BIBER, verifies client-side
-redaction happens before `fetch`, checks `use_mentor=false`, confirms unsafe
-public HTTP URLs do not send requests, and exercises cancel/sample/copy/clear
-controls.
+redaction happens before `fetch`, checks the `/models` connection test, checks
+`use_mentor=false`, confirms unsafe public HTTP URLs do not send requests, and
+exercises cancel/sample/copy/clear controls.
 
 `npm run validate:pipeline` is a Node-only readiness preflight for all sample
 Azure Pipelines. It checks the script-based PR pipeline uses

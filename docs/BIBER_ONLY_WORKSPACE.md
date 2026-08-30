@@ -217,6 +217,8 @@ pushed commit as artifact-only evidence with `commentMode=none` and no
 `examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml` invokes
 the packaged `BiberAiPrReview@1` task directly. The extension scaffold packages
 the same task plus a thin `BIBER AI Review` hub panel for interactive testing.
+The panel includes a session-only `Test Connection` control that calls
+`/models` before sending a bounded diff review request.
 Validate that path locally with:
 
 ```bash

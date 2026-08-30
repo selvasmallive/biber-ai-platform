@@ -163,6 +163,8 @@ function main() {
 
   checks.push(check(panelText.includes("BIBER AI Review"), "panel:title"));
   checks.push(check(panelText.includes("apiKey"), "panel:api_key_field"));
+  checks.push(check(panelText.includes("testConnectionButton"), "panel:test_connection_button"));
+  checks.push(check(panelText.includes("/models"), "panel:models_readiness_call"));
   checks.push(check(panelText.includes("redactSecrets"), "panel:client_redaction"));
   checks.push(check(panelText.includes("TextEncoder"), "panel:diff_budget_counter"));
   checks.push(check(panelText.includes("AbortController"), "panel:request_cancel"));

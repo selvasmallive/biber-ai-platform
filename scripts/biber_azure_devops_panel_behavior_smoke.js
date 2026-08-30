@@ -71,7 +71,7 @@ class MockElement {
 }
 
 function makeElements() {
-  return {
+  const elements = {
     baseUrl: new MockElement("baseUrl", "https://api.beaverapi.com/v1"),
     model: new MockElement("model", "biber-dev-core-v1"),
     apiKey: new MockElement("apiKey", "test-panel-user-key"),
@@ -93,12 +93,16 @@ function makeElements() {
     outputText: new MockElement("outputText"),
     statusText: new MockElement("statusText"),
     statusPill: new MockElement("statusPill"),
+    connectionResult: new MockElement("connectionResult"),
+    testConnectionButton: new MockElement("testConnectionButton"),
     reviewButton: new MockElement("reviewButton"),
     stopButton: new MockElement("stopButton"),
     sampleButton: new MockElement("sampleButton"),
     clearButton: new MockElement("clearButton"),
     copyButton: new MockElement("copyButton"),
   };
+  elements.connectionResult.textContent = "Not tested";
+  return elements;
 }
 
 async function runPanel() {
@@ -131,6 +135,23 @@ async function runPanel() {
       headers: options && options.headers,
       body: options && options.body ? JSON.parse(options.body) : null,
     });
+    if (String(url).endsWith("/models")) {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            data: [
+              { id: "biber-dev-core-v1", object: "model" },
+              { id: "biber-dev-core-v2-candidate", object: "model" },
+            ],
+          };
+        },
+        async text() {
+          return "";
+        },
+      };
+    }
     return {
       ok: true,
       status: 200,
@@ -172,6 +193,7 @@ async function runPanel() {
   const checks = [];
   checks.push(check(elements.diffCounter.textContent.includes("60000"), "initial_diff_counter"));
   checks.push(check(elements.stopButton.disabled === true, "stop_initially_disabled"));
+  checks.push(check(elements.connectionResult.textContent === "Not tested", "connection_initial_status"));
 
   elements.diffText.value = "x".repeat(60001);
   await elements.diffText.dispatch("input");
@@ -180,10 +202,21 @@ async function runPanel() {
 
   elements.diffText.value = makeElements().diffText.value;
   await elements.diffText.dispatch("input");
+  await elements.testConnectionButton.click();
+
+  checks.push(check(requests.length === 1, "models_fetch_called_once"));
+  checks.push(check(requests[0].url === "https://api.beaverapi.com/v1/models", "models_fetch_url"));
+  checks.push(check(requests[0].method === "GET", "models_fetch_method_get"));
+  checks.push(check(requests[0].headers && requests[0].headers.Authorization === "Bearer test-panel-user-key", "models_fetch_uses_bearer_key"));
+  checks.push(check(!requests[0].body, "models_fetch_no_body"));
+  checks.push(check(elements.connectionResult.textContent.includes("Connected"), "connection_success_status"));
+  checks.push(check(elements.statusText.textContent.includes("connection looks ready"), "connection_ready_status"));
+  checks.push(check(elements.testConnectionButton.disabled === false, "connection_button_reenabled"));
+
   await elements.reviewButton.click();
 
-  checks.push(check(requests.length === 1, "fetch_called_once"));
-  const request = requests[0] || {};
+  checks.push(check(requests.length === 2, "review_fetch_called_after_models"));
+  const request = requests[1] || {};
   const body = request.body || {};
   const prompt = body.messages && body.messages[0] ? body.messages[0].content : "";
   checks.push(check(request.url === "https://api.beaverapi.com/v1/chat/completions", "fetch_url"));
@@ -216,7 +249,7 @@ async function runPanel() {
 
   elements.baseUrl.value = "http://example.com/v1";
   await elements.reviewButton.click();
-  checks.push(check(requests.length === 1, "insecure_url_no_fetch"));
+  checks.push(check(requests.length === 2, "insecure_url_no_fetch"));
   checks.push(check(elements.outputText.textContent.includes("Use HTTPS"), "insecure_url_error"));
 
   return { checks, requests };

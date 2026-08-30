@@ -25,6 +25,8 @@ This folder contains the first Azure DevOps MVP for the conference demo:
    on pull requests.
 5. Open the extension panel to show how the same BIBER review contract can be
    surfaced inside Azure DevOps.
+6. In the panel, paste the user-scoped API key, click `Test Connection`, then
+   generate the review after `/models` confirms the selected model is visible.
 
 ## BIBER API Configuration
 
@@ -78,8 +80,9 @@ embedded-secret mistakes without calling BIBER, Azure DevOps, GitHub, OpenAI,
 GPU, or any external network service.
 
 `npm run validate:panel` runs the browser-panel behavior smoke with a tiny mock
-DOM and mock `fetch`; it verifies redaction, mentor-disabled requests, unsafe
-URL blocking, and copy/clear/sample controls without calling the live API.
+DOM and mock `fetch`; it verifies the `/models` connection test, redaction,
+mentor-disabled requests, unsafe URL blocking, and copy/clear/sample controls
+without calling the live API.
 
 `npm run validate:pipeline` checks the script-based PR, commit, and installed
 extension-task Azure Pipelines remain safe artifact flows before you copy any

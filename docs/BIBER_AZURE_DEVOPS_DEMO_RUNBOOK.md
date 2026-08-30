@@ -131,7 +131,9 @@ This path invokes the packaged `BiberAiPrReview@1` task, keeps
 
 7. Open the `BIBER AI Review` hub panel and explain that it is the UI direction
    for interactive review from inside Azure DevOps.
-8. If the extension is installed, rerun the same scenario with
+8. Paste the user-scoped API key in the panel and click `Test Connection` to
+   verify `/models` before generating the browser-panel review.
+9. If the extension is installed, rerun the same scenario with
    `biber-ai-extension-task-pr-review.yml` to show the packaged task form.
 
 ## Commit Review Demo Flow

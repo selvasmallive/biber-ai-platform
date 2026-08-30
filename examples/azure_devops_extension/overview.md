@@ -12,7 +12,9 @@ review artifacts only, so teams can demo post-commit inspection without PR
 comment permissions.
 
 The extension panel is the UI path. It gives reviewers a BIBER AI Review
-surface for trying the same private review contract from inside Azure DevOps.
+surface for trying the same private review contract from inside Azure DevOps,
+including a session-only `/models` connection test before sending review
+requests.
 
 Security defaults:
 

@@ -72,6 +72,10 @@ Default behavior:
 5. Use a test repository or small test branch with a deliberately simple change.
 6. Include only fake secret-like values if you want to demonstrate redaction.
 
+For the browser-panel path, paste only a user-scoped key, click
+`Test Connection`, and confirm `/models` lists the selected model before
+running `Generate Review`.
+
 ## First Run
 
 1. Import or copy exactly one sample YAML into the Azure DevOps test repo.
