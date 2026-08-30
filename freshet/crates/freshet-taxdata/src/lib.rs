@@ -243,6 +243,23 @@ pub fn t2_forms(province: &str) -> Result<FormSet, EngineError> {
     )
 }
 
+/// T2 parameters for a fiscal period, which may draw on two calendar years.
+///
+/// A corporation with an off-calendar year-end needs both, so a rate that moved
+/// between them can be apportioned by days.
+pub fn t2_period_packs(
+    period: freshet_engine::Period,
+    province: &str,
+) -> Result<freshet_engine::PeriodPacks, EngineError> {
+    let years = period
+        .days_by_year()
+        .into_iter()
+        .map(|(year, _)| Ok((year, t2_packs(year as u16, province)?)))
+        .collect::<Result<Vec<_>, EngineError>>()?;
+
+    freshet_engine::PeriodPacks::new(period, years)
+}
+
 pub fn t2_packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
     if !T2_PROVINCES.contains(&province) {
         return Err(EngineError::Unsupported(format!(

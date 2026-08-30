@@ -32,12 +32,14 @@ pub mod form;
 pub mod params;
 pub mod period;
 
-pub use eval::{compute, compute_for_period, Assessment, AuditEntry, Diagnostic, Evaluator};
+pub use eval::{
+    compute, compute_across, compute_for_period, Assessment, AuditEntry, Diagnostic, Evaluator,
+};
 pub use expr::{Cond, Expr};
 pub use facts::FactSet;
 pub use form::{CheckDef, FormSet, LineDef, Rounding, Severity};
 pub use period::{Date, Period};
-pub use params::{Band, BracketTable, PackSet, Param, ParamPack};
+pub use params::{Band, BracketTable, PackSet, Param, ParamPack, PeriodPacks};
 
 pub use rust_decimal::Decimal;
 

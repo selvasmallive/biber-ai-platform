@@ -5,7 +5,9 @@
 //! exception: the *ratio* is checkable without knowing whether the underlying
 //! limit is right.
 
-use freshet_engine::{compute_for_period, Assessment, Date, Decimal, FactSet, Period, Severity};
+use freshet_engine::{
+    compute_across, compute_for_period, Assessment, Date, Decimal, FactSet, Period, Severity,
+};
 
 fn d(s: &str) -> Decimal {
     Decimal::from_str_exact(s).unwrap()
@@ -26,6 +28,15 @@ fn assess(p: Period, facts: &[(&str, &str)]) -> Assessment {
     let facts: FactSet = facts.iter().map(|(k, v)| (*k, d(v))).collect();
 
     compute_for_period(&forms, &packs, &facts, p).unwrap()
+}
+
+/// A period crossing a calendar boundary, computed from both years.
+fn assess_across(p: Period, facts: &[(&str, &str)]) -> Assessment {
+    let forms = freshet_taxdata::t2_forms("on").unwrap();
+    let packs = freshet_taxdata::t2_period_packs(p, "on").unwrap();
+    let facts: FactSet = facts.iter().map(|(k, v)| (*k, d(v))).collect();
+
+    compute_across(&forms, &packs, &facts).unwrap()
 }
 
 fn fired(got: &Assessment) -> Vec<&str> {
@@ -111,24 +122,74 @@ fn a_short_year_says_that_it_prorated() {
     assert!(!fired(&full).contains(&"t2.short_year_prorated"));
 }
 
-/// Rate blending across a straddling period is not implemented. A year that
-/// crosses a rate change may be wrong, and saying so is the only honest thing
-/// to do until `PeriodPacks::blended` is wired in.
+/// A single year of parameters cannot express a rate change inside the period,
+/// so asking for one is refused rather than answered with the closing year's
+/// rate applied to the whole year.
 #[test]
-fn a_straddling_year_warns_that_rates_are_not_blended() {
-    let got = assess(
+fn a_straddling_year_refuses_a_single_years_parameters() {
+    let forms = freshet_taxdata::t2_forms("on").unwrap();
+    let packs = freshet_taxdata::t2_packs(2026, "on").unwrap();
+
+    let e = compute_for_period(
+        &forms,
+        &packs,
+        &FactSet::new(),
+        period((2025, 7, 1), (2026, 6, 30)),
+    )
+    .unwrap_err();
+
+    assert!(e.to_string().contains("compute_across"), "{e}");
+}
+
+#[test]
+fn a_straddling_year_computes_from_both_years_and_says_so() {
+    let got = assess_across(
+        period((2025, 7, 1), (2026, 6, 30)),
+        &[("t2.net_income", "300000"), ("t2.active_business_income", "300000")],
+    );
+
+    assert!(got.get("t2.700").is_some());
+    assert!(fired(&got).contains(&"t2.rates_apportioned"));
+}
+
+/// The property blending exists for: with the two years' rates identical, a
+/// straddling period must produce exactly what a full year inside one of them
+/// produces. If apportioning moved the answer here, it would be moving every
+/// answer.
+#[test]
+fn identical_rates_across_the_boundary_change_nothing() {
+    let facts = [("t2.net_income", "300000"), ("t2.active_business_income", "300000")];
+
+    let straddling = assess_across(period((2025, 7, 1), (2026, 6, 30)), &facts);
+    let inside = assess(Period::calendar(2025), &facts);
+
+    // Both periods are 365 days and the packs carry the same placeholder
+    // rates, so every apportioned line must agree exactly.
+    assert_eq!(straddling.get("t2.550"), inside.get("t2.550"));
+    assert_eq!(straddling.get("t2.430"), inside.get("t2.430"));
+    assert_eq!(straddling.get("t2.700"), inside.get("t2.700"));
+}
+
+/// A straddling return is only as trustworthy as the worse of its two years, so
+/// the unverified set is the union rather than one year's.
+#[test]
+fn a_straddling_return_reports_both_years_as_unverified() {
+    let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
         &[("t2.net_income", "300000")],
     );
 
-    let warned = got
-        .diagnostics
-        .iter()
-        .find(|x| x.id == "t2.straddles_a_rate_change")
-        .expect("a straddling period said nothing");
-
-    assert_eq!(warned.severity, Severity::Warning);
-    assert!(warned.help.as_deref().unwrap().contains("does not yet blend"));
+    assert!(!got.is_filable());
+    assert!(
+        got.warnings.iter().any(|w| w.contains("2025")),
+        "the opening year was not reported: {:?}",
+        got.warnings
+    );
+    assert!(
+        got.warnings.iter().any(|w| w.contains("2026")),
+        "the closing year was not reported: {:?}",
+        got.warnings
+    );
 }
 
 // -- the shape of corporate tax -------------------------------------------

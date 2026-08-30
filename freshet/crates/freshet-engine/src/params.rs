@@ -252,6 +252,29 @@ impl PeriodPacks {
         &self.years.last().expect("a period touches at least one year").2
     }
 
+    /// Every unverified parameter across every year the period touches.
+    ///
+    /// The union, not one year's. A fiscal period drawing on two years is only
+    /// as trustworthy as the worse of them, so a return that straddles an
+    /// unverified year must not be filable merely because the other year is
+    /// clean.
+    pub fn unverified(&self) -> Vec<String> {
+        let mut all: Vec<String> = self
+            .years
+            .iter()
+            .flat_map(|(year, _, packs)| {
+                packs
+                    .unverified()
+                    .into_iter()
+                    .map(move |k| format!("{year} {k}"))
+            })
+            .collect();
+
+        all.sort();
+        all.dedup();
+        all
+    }
+
     /// A parameter apportioned across the period by days.
     ///
     /// Computed as `Σ(days × value) / total_days` — every multiplication

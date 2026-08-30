@@ -351,7 +351,8 @@ mod fiscal_period {
 
 mod period_facts {
     use freshet_engine::{
-        compute, compute_for_period, Date, Decimal, FactSet, FormSet, PackSet, ParamPack, Period,
+        compute, compute_across, compute_for_period, Date, Decimal, FactSet, FormSet, PackSet,
+        ParamPack, Period, PeriodPacks,
     };
 
     /// A one-line form that prorates a limit the way a T2 short year does:
@@ -467,13 +468,13 @@ mod period_facts {
         )
         .unwrap();
 
-        let got = compute_for_period(
-            &form,
-            &packs(),
-            &FactSet::new(),
-            period((2025, 7, 1), (2026, 6, 30)),
-        )
-        .unwrap();
+        // A straddling period needs both years, so it goes through the
+        // period-aware entry point rather than the single-year one.
+        let p = period((2025, 7, 1), (2026, 6, 30));
+        let packs =
+            PeriodPacks::new(p, vec![(2025, packs()), (2026, packs())]).unwrap();
+
+        let got = compute_across(&form, &packs, &FactSet::new()).unwrap();
 
         assert_eq!(got.get("p.days").unwrap(), Decimal::from(365));
         assert_eq!(got.get("p.first").unwrap(), Decimal::from(184));
@@ -485,6 +486,64 @@ mod period_facts {
         assert_eq!(
             got.get("p.first").unwrap() + got.get("p.second").unwrap(),
             got.get("p.days").unwrap()
+        );
+    }
+
+    /// The test that proves blending does something, as opposed to being a
+    /// no-op that happens not to break anything.
+    ///
+    /// A form asking for a blended rate against two genuinely different years
+    /// must land between them, weighted by days — not on either one.
+    #[test]
+    fn a_rate_that_moved_between_the_years_is_apportioned_by_days() {
+        let form = FormSet::from_json(
+            r#"{
+              "tax_year": 2026, "province": "on", "summary": [],
+              "lines": [
+                {"id":"t.blended","label":"b",
+                 "expr":{"op":"blended_param","key":"fed:corp_rate"}},
+                {"id":"t.year_end","label":"y",
+                 "expr":{"op":"param","key":"fed:corp_rate"}}
+              ]
+            }"#,
+        )
+        .unwrap();
+
+        // Packs built here rather than reusing this module's helper, which
+        // carries one fixed rate: the whole point is two different ones.
+        let at = |rate: &str| {
+            let one = |j: &str| {
+                ParamPack::from_json(&format!(
+                    r#"{{"jurisdiction":"{j}","tax_year":2025,
+                         "scalars":{{"corp_rate":{{"value":"{rate}","source":"test","verified":true}}}},
+                         "brackets":{{}}}}"#
+                ))
+                .unwrap()
+            };
+            PackSet { federal: one("fed"), provincial: one("on") }
+        };
+
+        // 184 days at 10%, then 181 at 8%.
+        let p = period((2025, 7, 1), (2026, 6, 30));
+        let pp = PeriodPacks::new(p, vec![(2025, at("0.10")), (2026, at("0.08"))]).unwrap();
+
+        let got = compute_across(&form, &pp, &FactSet::new()).unwrap();
+        let blended = got.get("t.blended").unwrap();
+
+        let expected = (Decimal::from(184) * Decimal::from_str_exact("0.10").unwrap()
+            + Decimal::from(181) * Decimal::from_str_exact("0.08").unwrap())
+            / Decimal::from(365);
+        assert_eq!(blended, expected.round_dp(2));
+
+        // It sits between the two rates, nearer the year holding more days.
+        assert!(blended > Decimal::from_str_exact("0.08").unwrap());
+        assert!(blended < Decimal::from_str_exact("0.10").unwrap());
+
+        // A plain parameter still resolves from the closing year, which is what
+        // the Act wants for amounts it fixes at year-end rather than by day.
+        assert_eq!(
+            got.get("t.year_end").unwrap(),
+            Decimal::from_str_exact("0.08").unwrap()
         );
     }
 

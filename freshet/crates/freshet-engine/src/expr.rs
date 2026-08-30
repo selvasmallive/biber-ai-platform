@@ -28,6 +28,19 @@ pub enum Expr {
     /// A namespaced parameter, e.g. `fed:bpa_max`.
     Param { key: String },
 
+    /// A parameter apportioned across the reporting period by days.
+    ///
+    /// For a corporation whose fiscal year straddles a rate change, the tax is
+    /// split by the days falling either side. Marked in the form rather than
+    /// applied to every parameter, because the Act fixes some amounts at
+    /// year-end and blending those would be wrong — which of the two a given
+    /// parameter is, is a tax question, so it belongs in the form where it can
+    /// be read against the legislation.
+    ///
+    /// Identical to [`Expr::Param`] when the period sits inside one calendar
+    /// year, which is every T1.
+    BlendedParam { key: String },
+
     Sum { of: Vec<Expr> },
     Sub { from: Box<Expr>, minus: Box<Expr> },
     Mul { of: Box<Expr>, by: Box<Expr> },

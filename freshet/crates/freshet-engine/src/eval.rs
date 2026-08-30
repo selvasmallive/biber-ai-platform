@@ -14,6 +14,7 @@ use crate::expr::{Cond, Expr};
 use crate::facts::FactSet;
 use crate::form::{FormSet, Rounding, Severity};
 use crate::params::PackSet;
+use crate::params::PeriodPacks;
 use crate::period::Period;
 use crate::EngineError;
 
@@ -75,9 +76,44 @@ impl Assessment {
     }
 }
 
+/// Where parameters come from.
+///
+/// A T1 draws on one year. A corporation whose fiscal period straddles a
+/// calendar boundary draws on two, and a rate that moved between them is
+/// apportioned by days.
+pub enum Parameters<'a> {
+    Single(&'a PackSet),
+    OverPeriod(&'a PeriodPacks),
+}
+
+impl Parameters<'_> {
+    fn packs(&self) -> &PackSet {
+        match self {
+            // Amounts the Act fixes at year-end resolve from the closing year,
+            // which is also the only year a single-pack return has.
+            Parameters::Single(p) => p,
+            Parameters::OverPeriod(p) => p.at_year_end(),
+        }
+    }
+
+    fn unverified(&self) -> Vec<String> {
+        match self {
+            Parameters::Single(p) => p.unverified(),
+            Parameters::OverPeriod(p) => p.unverified(),
+        }
+    }
+
+    fn blended(&self, key: &str) -> Result<Decimal, EngineError> {
+        match self {
+            Parameters::Single(p) => p.scalar(key),
+            Parameters::OverPeriod(p) => p.blended(key),
+        }
+    }
+}
+
 pub struct Evaluator<'a> {
     forms: &'a FormSet,
-    packs: &'a PackSet,
+    packs: Parameters<'a>,
     facts: &'a FactSet,
     memo: HashMap<String, Decimal>,
     stack: Vec<String>,
@@ -86,6 +122,10 @@ pub struct Evaluator<'a> {
 
 impl<'a> Evaluator<'a> {
     pub fn new(forms: &'a FormSet, packs: &'a PackSet, facts: &'a FactSet) -> Self {
+        Self::over(forms, Parameters::Single(packs), facts)
+    }
+
+    pub fn over(forms: &'a FormSet, packs: Parameters<'a>, facts: &'a FactSet) -> Self {
         Self {
             forms,
             packs,
@@ -186,7 +226,8 @@ impl<'a> Evaluator<'a> {
             Expr::Const { value } => *value,
             Expr::Fact { key } => self.facts.get(key),
             Expr::Line { id } => self.line(id)?,
-            Expr::Param { key } => self.packs.scalar(key)?,
+            Expr::Param { key } => self.packs.packs().scalar(key)?,
+            Expr::BlendedParam { key } => self.packs.blended(key)?,
 
             Expr::Sum { of } => {
                 let mut acc = Decimal::ZERO;
@@ -234,7 +275,7 @@ impl<'a> Evaluator<'a> {
 
             Expr::Bracket { table, base } => {
                 let base = self.eval(base)?;
-                self.packs.bracket(table)?.apply(base)
+                self.packs.packs().bracket(table)?.apply(base)
             }
 
             Expr::If {
@@ -348,6 +389,38 @@ pub fn compute_for_period(
     facts: &FactSet,
     period: Period,
 ) -> Result<Assessment, EngineError> {
+    // A period crossing a calendar boundary may sit either side of a rate
+    // change, and one year's parameters cannot express that. Refusing is the
+    // point: the alternative is silently applying the closing year's rate to
+    // the whole period, which is wrong by however much the rate moved.
+    if period.straddles() {
+        return Err(EngineError::BadPeriod(format!(
+            "{period} crosses a calendar year, so one year of parameters              cannot express a rate change inside it. Use compute_across with              both years."
+        )));
+    }
+
+    compute_over_period(forms, Parameters::Single(packs), facts, period)
+}
+
+/// Compute a return whose parameters may span two calendar years.
+///
+/// The entry point for a corporation with an off-calendar year-end. A rate that
+/// moved between the years is apportioned by days wherever the form asks for a
+/// blended parameter.
+pub fn compute_across(
+    forms: &FormSet,
+    packs: &PeriodPacks,
+    facts: &FactSet,
+) -> Result<Assessment, EngineError> {
+    compute_over_period(forms, Parameters::OverPeriod(packs), facts, packs.period)
+}
+
+fn compute_over_period(
+    forms: &FormSet,
+    packs: Parameters<'_>,
+    facts: &FactSet,
+    period: Period,
+) -> Result<Assessment, EngineError> {
     if let Some(key) = facts
         .iter()
         .map(|(k, _)| k)
@@ -363,7 +436,7 @@ pub fn compute_for_period(
         derived.set(key, value);
     }
 
-    Evaluator::new(forms, packs, &derived).run()
+    Evaluator::over(forms, packs, &derived).run()
 }
 
 /// Compute a return for a calendar tax year.

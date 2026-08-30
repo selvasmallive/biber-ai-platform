@@ -30,23 +30,6 @@
       }
     },
     {
-      "id": "t2.straddles_a_rate_change",
-      "severity": "warning",
-      "message": "This tax year falls in two calendar years.",
-      "help": "If a rate changed between them, the tax must be apportioned by the days on each side. Freshet does not yet blend corporate rates across a straddling period, so a year that crosses a rate change may be wrong.",
-      "when": {
-        "cmp": "gt",
-        "left": {
-          "op": "fact",
-          "key": "period.straddles"
-        },
-        "right": {
-          "op": "const",
-          "value": "0"
-        }
-      }
-    },
-    {
       "id": "t2.no_income_entered",
       "severity": "info",
       "message": "No net income has been entered.",
@@ -56,6 +39,23 @@
         "left": {
           "op": "line",
           "id": "t2.300"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "t2.rates_apportioned",
+      "severity": "info",
+      "message": "This tax year falls in two calendar years, so the rates have been apportioned by days.",
+      "help": "A fiscal period crossing a calendar boundary is taxed at each year's rates in proportion to the days falling in it, rather than at whichever year the period mostly occupies.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "fact",
+          "key": "period.straddles"
         },
         "right": {
           "op": "const",
@@ -158,7 +158,7 @@
           ]
         },
         "by": {
-          "op": "param",
+          "op": "blended_param",
           "key": "fed:t2_sbd_rate"
         }
       }
@@ -166,7 +166,7 @@
     {
       "id": "t2.550",
       "label": "Base amount of Part I tax",
-      "note": "ITA 123(1): 38% of taxable income.",
+      "note": "ITA 123(1): 38% of taxable income. Apportioned by days if the fiscal period straddles a rate change — which is why it is a blended parameter and the business limit, an amount the Act fixes for the year rather than a rate in force on a day, is not.",
       "expr": {
         "op": "mul",
         "of": {
@@ -174,7 +174,7 @@
           "id": "t2.360"
         },
         "by": {
-          "op": "param",
+          "op": "blended_param",
           "key": "fed:t2_base_rate"
         }
       }
@@ -190,7 +190,7 @@
           "id": "t2.360"
         },
         "by": {
-          "op": "param",
+          "op": "blended_param",
           "key": "fed:t2_abatement_rate"
         }
       }
@@ -229,7 +229,7 @@
           }
         },
         "by": {
-          "op": "param",
+          "op": "blended_param",
           "key": "fed:t2_general_reduction_rate"
         }
       }
