@@ -3,6 +3,9 @@
 Use this runbook for the conference-demo path only. It keeps BIBER private-first
 and avoids broad automation until the dry-run artifacts are reviewed.
 
+For paste-ready CFP text, use
+`docs/BIBER_AZURE_DEVOPS_CONFERENCE_SUBMISSION.md`.
+
 ## Demo Goal
 
 Show that BIBER can review Azure DevOps pull request or commit changes through a

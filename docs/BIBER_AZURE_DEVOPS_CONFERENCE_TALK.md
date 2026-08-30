@@ -4,6 +4,12 @@ This is the slide-ready source for a roughly 45-minute technical session about
 the BIBER Azure DevOps review demo. It exists because `.pptx` export is blocked
 until Codex has access to the presentation artifact runtime.
 
+For CFP/session submission fields, use:
+
+```text
+docs/BIBER_AZURE_DEVOPS_CONFERENCE_SUBMISSION.md
+```
+
 ## Communication Job
 
 By the end, software teams should understand that BIBER can review Azure DevOps

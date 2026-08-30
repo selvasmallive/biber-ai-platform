@@ -4,6 +4,20 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps conference submission checkpoint:
+Complete locally after the package connection-test guard checkpoint. Added
+`docs/BIBER_AZURE_DEVOPS_CONFERENCE_SUBMISSION.md` with paste-ready Sessionize
+fields for the BIBER Azure DevOps review talk: title, short/long abstracts,
+speaker bio, audience, attendee takeaways, demo outline, safety notes, and
+supporting repo files. Keep it aligned with the current MVP and do not claim
+production readiness, full repository RAG, autonomous merge approval, or mentor
+review by default. Linked it from the conference talk source and demo runbook.
+Validation passed `rg` checks for the expected sections/links and `git diff
+--check`. No BIBER API, Azure DevOps, Marketplace, GitHub, OpenAI mentor, GPU,
+training, admin endpoint, or raw vLLM request was sent. Next narrow step:
+commit/push this docs-only checkpoint or continue with local Azure DevOps demo
+polish.
+
 2026-08-30 BIBER Azure DevOps panel connection-test checkpoint:
 Complete locally after the live dry-run checklist checkpoint. Added a
 session-only `Test Connection` control to the Azure DevOps browser panel so demo
