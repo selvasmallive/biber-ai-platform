@@ -4,6 +4,21 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps live dry-run checklist checkpoint:
+Complete locally after the Vast SSH note. Added
+`docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md`, a first real Azure DevOps pipeline
+checklist that keeps the initial run artifact-only. It explains when to use the
+script-based PR YAML, installed-task PR YAML, or commit-review YAML; requires a
+user-scoped `BIBER_API_KEY` as a secret pipeline variable; forbids admin keys,
+OpenAI keys, Vast SSH keys, and training variables in the pipeline; requires
+fake-only secret redaction demos; and keeps `commentMode=post` delayed until a
+test PR dry-run artifact is accepted and Azure OAuth token permissions are
+confirmed. Linked it from the Azure DevOps demo runbook, private publish guide,
+and BIBER-only workspace guide. No BIBER API, Azure DevOps, Marketplace,
+GitHub, OpenAI mentor, GPU, training, or external network request was sent.
+Next narrow step: validate docs-only diff, commit/push, then either run the
+checklist manually in Azure DevOps or continue improving local demo polish.
+
 2026-08-30 BIBER Vast SSH validation note:
 After the Azure DevOps installed-task pipeline checkpoint was pushed, Codex
 attempted a safe direct SSH probe to the current Vast host

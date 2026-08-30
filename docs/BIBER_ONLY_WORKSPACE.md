@@ -254,6 +254,8 @@ the live BIBER API is unavailable during a talk.
 Use `docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md` before uploading the private
 Azure DevOps VSIX; Azure DevOps extensions use `tfx-cli`, while the VS Code
 extension uses `vsce`.
+Use `docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md` for the first real Azure DevOps
+pipeline run and keep that run artifact-only.
 
 ```text
 BIBER_CORS_ALLOWED_ORIGINS=https://dev.azure.com

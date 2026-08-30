@@ -76,6 +76,8 @@ current docs call for a PAT with Marketplace publish scope.
 
 ## Pipeline Test After Install
 
+Use `docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md` as the first-run checklist.
+
 For a PR artifact demo, copy:
 
 ```text
