@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BIBER AI Review</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="mast">
+        <img src="../images/icon.png" alt="" class="logo" />
+        <div>
+          <h1>BIBER AI Review</h1>
+          <p>Private PR and commit review through your BIBER API gateway.</p>
+        </div>
+      </section>
+
+      <section class="grid">
+        <label>
+          API base URL
+          <input id="baseUrl" value="https://api.beaverapi.com/v1" autocomplete="off" />
+        </label>
+        <label>
+          Model
+          <input id="model" value="biber-dev-core-v1" autocomplete="off" />
+        </label>
+        <label class="wide">
+          API key
+          <input id="apiKey" type="password" placeholder="Paste user API key for this session" autocomplete="off" />
+        </label>
+      </section>
+
+      <section>
+        <label>
+          Diff or commit context
+          <textarea id="diffText" spellcheck="false">diff --git a/src/example.ts b/src/example.ts
+--- a/src/example.ts
++++ b/src/example.ts
+@@ -1,3 +1,4 @@
+ export function total(values: number[]) {
++  // TODO: handle empty arrays
+   return values.reduce((sum, value) => sum + value, 0);
+ }</textarea>
+        </label>
+      </section>
+
+      <section class="toolbar" aria-label="BIBER review actions">
+        <button id="reviewButton" type="button">Generate Review</button>
+        <button id="clearButton" type="button">Clear Output</button>
+      </section>
+
+      <section class="output" aria-live="polite">
+        <h2>Review Output</h2>
+        <pre id="outputText">No review generated yet.</pre>
+      </section>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

@@ -70,6 +70,8 @@ class BiberSettings:
     api_guard_enabled: bool = True
     api_max_request_bytes: int = 1048576
     api_rate_limit_requests_per_minute: int = 120
+    cors_allowed_origins: tuple[str, ...] = ()
+    cors_allowed_origin_regex: str | None = None
     default_model: str = "biber-dev-core-v1"
     runtime_profiles_enabled: bool = False
     repo_context_root: str = "."
@@ -107,6 +109,8 @@ def get_settings() -> BiberSettings:
         api_rate_limit_requests_per_minute=int(
             os.getenv("BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
         ),
+        cors_allowed_origins=_csv(os.getenv("BIBER_CORS_ALLOWED_ORIGINS")),
+        cors_allowed_origin_regex=os.getenv("BIBER_CORS_ALLOWED_ORIGIN_REGEX") or None,
         priority_passcodes=_priority_passcodes(os.getenv("BIBER_PRIORITY_PASSCODES")),
         local_model_base_url=os.getenv("BIBER_LOCAL_MODEL_BASE_URL", "http://localhost:8000/v1"),
         local_model_name=os.getenv("BIBER_LOCAL_MODEL_NAME", "biber-dev-core"),

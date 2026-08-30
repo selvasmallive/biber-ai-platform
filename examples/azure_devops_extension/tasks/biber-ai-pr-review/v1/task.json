@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+  "id": "e6c0cf77-7d7a-4a88-a502-a9d36cd2c146",
+  "name": "BiberAiPrReview",
+  "friendlyName": "BIBER AI PR Review",
+  "description": "Review pull request or commit changes through a private BIBER AI API.",
+  "helpMarkDown": "Runs a bounded, redacted BIBER review and can post one Azure DevOps PR comment.",
+  "category": "Utility",
+  "author": "Flat Electronics Canada Limited",
+  "version": {
+    "Major": 0,
+    "Minor": 1,
+    "Patch": 0
+  },
+  "instanceNameFormat": "BIBER AI review $(biberModel)",
+  "inputs": [
+    {
+      "name": "biberApiBaseUrl",
+      "type": "string",
+      "label": "BIBER API base URL",
+      "defaultValue": "https://api.beaverapi.com/v1",
+      "required": true
+    },
+    {
+      "name": "biberModel",
+      "type": "string",
+      "label": "BIBER model",
+      "defaultValue": "biber-dev-core-v1",
+      "required": true
+    },
+    {
+      "name": "commentMode",
+      "type": "pickList",
+      "label": "PR comment mode",
+      "defaultValue": "dry-run",
+      "required": true,
+      "options": {
+        "none": "Do not create a comment",
+        "dry-run": "Prepare comment artifact only",
+        "post": "Post one pull request comment"
+      }
+    },
+    {
+      "name": "maxDiffBytes",
+      "type": "string",
+      "label": "Maximum diff bytes",
+      "defaultValue": "60000",
+      "required": true
+    }
+  ],
+  "execution": {
+    "Node20_1": {
+      "target": "biber-ai-pr-review.js"
+    }
+  }
+}

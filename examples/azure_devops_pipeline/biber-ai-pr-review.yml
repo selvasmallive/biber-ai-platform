@@ -1,0 +1,43 @@
+# BIBER AI PR review pipeline MVP.
+# Add BIBER_API_KEY as a secret pipeline variable before enabling comment posting.
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  BIBER_OPENAI_BASE_URL: https://api.beaverapi.com/v1
+  BIBER_MODEL: biber-dev-core-v1
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+    persistCredentials: true
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.11"
+
+  - bash: |
+      python scripts/biber_azure_devops_pr_review.py \
+        --repo-root "$(Build.SourcesDirectory)" \
+        --base-url "$(BIBER_OPENAI_BASE_URL)" \
+        --model "$(BIBER_MODEL)" \
+        --comment-mode dry-run \
+        --output-json "$(Build.ArtifactStagingDirectory)/biber-ai-review.json" \
+        --output-md "$(Build.ArtifactStagingDirectory)/biber-ai-review.md"
+    displayName: "BIBER AI review PR diff"
+    env:
+      BIBER_API_KEY: $(BIBER_API_KEY)
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - publish: "$(Build.ArtifactStagingDirectory)"
+    artifact: biber-ai-review
+    displayName: "Publish BIBER AI review artifacts"

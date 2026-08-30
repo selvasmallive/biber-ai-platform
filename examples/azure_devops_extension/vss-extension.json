@@ -1,0 +1,66 @@
+{
+  "manifestVersion": 1,
+  "id": "biber-ai-azure-devops",
+  "name": "BIBER AI Review for Azure DevOps",
+  "version": "0.1.0",
+  "publisher": "flat-electronics-canada",
+  "description": "Private BIBER AI review for Azure DevOps PR and commit changes.",
+  "public": false,
+  "categories": [
+    "Azure Pipelines",
+    "Code"
+  ],
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "icons": {
+    "default": "images/icon.png"
+  },
+  "content": {
+    "details": {
+      "path": "overview.md"
+    }
+  },
+  "scopes": [
+    "vso.code"
+  ],
+  "files": [
+    {
+      "path": "images",
+      "addressable": true
+    },
+    {
+      "path": "static",
+      "addressable": true
+    },
+    {
+      "path": "tasks"
+    }
+  ],
+  "contributions": [
+    {
+      "id": "biber-ai-review-hub",
+      "type": "ms.vss-web.hub",
+      "description": "BIBER AI Review panel.",
+      "targets": [
+        "ms.vss-code-web.code-hub-group"
+      ],
+      "properties": {
+        "name": "BIBER AI Review",
+        "uri": "static/index.html"
+      }
+    },
+    {
+      "id": "biber-ai-pr-review-task",
+      "type": "ms.vss-distributed-task.task",
+      "targets": [
+        "ms.vss-distributed-task.tasks"
+      ],
+      "properties": {
+        "name": "tasks/biber-ai-pr-review/v1"
+      }
+    }
+  ]
+}

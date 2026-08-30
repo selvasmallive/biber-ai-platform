@@ -315,6 +315,16 @@ off.
 Use `--client-base-url` when the URL an IDE should configure differs from the
 private URL used by the smoke command, such as an SSH tunnel or HTTPS gateway.
 
+Azure DevOps browser panels need the public BIBER API to allow the Azure DevOps
+origin through CORS. Keep this opt-in and scoped:
+
+```text
+BIBER_CORS_ALLOWED_ORIGINS=https://dev.azure.com
+BIBER_CORS_ALLOWED_ORIGIN_REGEX=https://.*\.visualstudio\.com
+```
+
+Pipeline tasks do not need CORS because they call BIBER from the build agent.
+
 Minimal dependency-free client examples live in `examples/external_agent/`.
 They demonstrate the same contract with only `BIBER_OPENAI_BASE_URL`,
 `BIBER_MODEL`, and `BIBER_API_KEY`. Run

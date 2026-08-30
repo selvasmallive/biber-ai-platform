@@ -15,6 +15,7 @@ from fastapi import (
     Request,
     UploadFile,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -94,6 +95,22 @@ app = FastAPI(
     version="0.1.0",
     description="Private GPU-backed BIBER AI platform"
 )
+
+
+def _configure_cors() -> None:
+    if not settings.cors_allowed_origins and not settings.cors_allowed_origin_regex:
+        return
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_origin_regex=settings.cors_allowed_origin_regex,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "x-api-key", "X-BIBER-Client"],
+    )
+
+
+_configure_cors()
 
 
 @app.middleware("http")
@@ -667,6 +684,17 @@ def _agent_capabilities() -> dict[str, object]:
                     ),
                     "rate_limit_state": "in_memory_per_process_mvp",
                     "client_side_guards_are_not_trusted": True,
+                },
+                "cors": {
+                    "enabled": bool(
+                        settings.cors_allowed_origins
+                        or settings.cors_allowed_origin_regex
+                    ),
+                    "allowed_origins": list(settings.cors_allowed_origins),
+                    "allowed_origin_regex_configured": bool(
+                        settings.cors_allowed_origin_regex
+                    ),
+                    "intended_browser_clients": ["azure_devops_extension_panel"],
                 },
                 "endpoints": {
                     "models": "GET /v1/models",

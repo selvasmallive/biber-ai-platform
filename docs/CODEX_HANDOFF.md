@@ -4,6 +4,32 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps review demo checkpoint:
+Complete locally for the conference demo path showing BIBER as a private code
+review assistant for Azure DevOps. Added a pipeline-first PR/commit review
+script, sample Azure Pipeline YAML, Azure DevOps extension scaffold with a
+`BIBER AI Review` hub panel, custom task metadata, Marketplace overview,
+security-focused docs, and API CORS configuration for optional browser-panel
+use. The default review path collects only a bounded git diff, redacts
+secret-like values, calls BIBER through the OpenAI-compatible
+`/v1/chat/completions` model-source endpoint, keeps `use_mentor=false`, writes
+JSON/Markdown artifacts, and posts an Azure DevOps PR thread only when
+`commentMode=post` is deliberately enabled. Validation passed Python
+`py_compile`, `git diff --check`, focused
+`scripts/biber_azure_devops_review_smoke.py --output
+outputs/biber-azure-devops-review-smoke-006.json` with 61/61 checks, and full
+`scripts/biber_local_confidence_smoke.py --timeout-seconds 240 --output
+outputs/biber-local-confidence-smoke-azure-devops-002.json` with 14/14 checks
+including `azure_devops_review_contract`. The smoke used mock diff/model data
+and sent no BIBER, Azure DevOps, GitHub, OpenAI mentor, training, or external
+paid API request. Created the slide-ready conference source outline at
+`docs/BIBER_AZURE_DEVOPS_CONFERENCE_TALK.md`; actual `.pptx` generation is
+blocked in this Codex session because `load_workspace_dependencies` did not
+return the required presentation artifact runtime paths. Next narrow steps:
+package the Azure DevOps extension with `tfx` only after dependency/download
+approval, run a private Azure Pipeline dry-run against a test PR, then enable
+`commentMode=post` only after the dry-run artifact is reviewed.
+
 2026-08-30 BIBER VS Code Chat Agent UI checkpoint:
 Complete locally for the user request to make BIBER as easy to find and start
 as visible VS Code chat-agent extensions. The extension is now version `0.3.0`

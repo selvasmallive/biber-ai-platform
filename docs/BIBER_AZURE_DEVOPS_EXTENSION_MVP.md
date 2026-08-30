@@ -1,0 +1,113 @@
+# BIBER Azure DevOps Extension MVP
+
+This is the conference-demo path for showing BIBER as a private AI code review
+assistant inside Azure DevOps.
+
+## What It Does Now
+
+- Collects a bounded local git diff in an Azure Pipeline.
+- Redacts secret-like values before sending context to BIBER.
+- Calls the BIBER OpenAI-compatible `/v1/chat/completions` endpoint.
+- Keeps OpenAI mentor disabled by default with `use_mentor=false`.
+- Produces a Markdown PR review artifact.
+- Can post one Azure DevOps PR thread only when `commentMode=post` and the
+  pipeline has `$(System.AccessToken)` access.
+- Provides a first `BIBER AI Review` extension panel scaffold.
+
+## Demo Order
+
+1. Run the sample pipeline with `commentMode=dry-run`.
+2. Inspect the published `biber-ai-review.md` artifact.
+3. Show the Azure DevOps extension panel and paste a small diff manually.
+4. Explain that the same BIBER API can run behind `api.beaverapi.com`, a
+   private tunnel, or a future enterprise gateway.
+5. Only after a dry-run artifact is accepted, switch `commentMode=post` in a
+   test PR so the script posts one top-level PR thread.
+
+## Files
+
+```text
+scripts/biber_azure_devops_pr_review.py
+scripts/biber_azure_devops_review_smoke.py
+examples/azure_devops_pipeline/biber-ai-pr-review.yml
+examples/azure_devops_extension/vss-extension.json
+examples/azure_devops_extension/static/index.html
+examples/azure_devops_extension/tasks/biber-ai-pr-review/v1/task.json
+```
+
+## Pipeline Setup
+
+1. Add the sample YAML from
+   `examples/azure_devops_pipeline/biber-ai-pr-review.yml`.
+2. Add `BIBER_API_KEY` as a secret pipeline variable.
+3. Keep `commentMode` as `dry-run` for the first demo.
+4. After the artifact looks good, enable pull request comment posting by
+   setting `commentMode` to `post` and allowing scripts to access
+   `$(System.AccessToken)`.
+
+## Extension Setup
+
+The Azure DevOps extension scaffold is intentionally thin. It should package
+the pipeline task plus a `BIBER AI Review` hub panel.
+
+For live browser-panel calls to `https://api.beaverapi.com/v1`, configure CORS
+on the public BIBER API edge for Azure DevOps origins. The pipeline task does
+not need CORS because it calls BIBER from the build agent.
+
+Recommended public-panel CORS environment:
+
+```text
+BIBER_CORS_ALLOWED_ORIGINS=https://dev.azure.com
+BIBER_CORS_ALLOWED_ORIGIN_REGEX=https://.*\.visualstudio\.com
+```
+
+Leave these unset for private pipeline-only demos.
+
+Packaging and Marketplace publish are intentionally a later dependency step.
+When ready, install/package with `tfx-cli` from this folder and keep the first
+release private:
+
+```bash
+cd examples/azure_devops_extension
+npm install
+npm run package
+```
+
+Do not enter Marketplace tokens into source files, docs, terminal transcripts,
+or training/eval artifacts.
+
+## Security Contract
+
+- Do not store BIBER user API keys in source control.
+- Do not send the raw repository unless a future explicit repo-RAG upload flow
+  is reviewed and approved.
+- Keep the raw vLLM endpoint private.
+- Keep BIBER server-side guards enabled.
+- Treat BIBER output as assistant review, not automatic approval.
+- Keep comment posting opt-in.
+
+## Local Validation
+
+```bash
+python scripts/biber_azure_devops_review_smoke.py
+```
+
+This smoke uses mock diff/model data. It sends no BIBER request, no Azure
+comment request, no GitHub request, no OpenAI mentor request, and no training
+request.
+
+## Source Notes
+
+- Azure DevOps extensions are described by a root `vss-extension.json`
+  manifest with required fields such as `manifestVersion`, `id`, `version`,
+  `publisher`, `targets`, and contributions:
+  https://learn.microsoft.com/en-us/azure/devops/extend/develop/manifest
+- Custom build tasks are included through `task.json` files that describe
+  configuration inputs and the scripts Azure Pipelines executes:
+  https://learn.microsoft.com/en-us/azure/devops/extend/develop/integrate-build-task
+- PR comments are posted by creating a pull request thread through the Azure
+  DevOps Git REST API:
+  https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-request-threads/create
+- The current Azure Pipelines task schema includes `Node20_1` execution
+  entries:
+  https://github.com/microsoft/azure-pipelines-task-lib/blob/master/tasks.schema.json

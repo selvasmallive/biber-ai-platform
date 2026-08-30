@@ -206,6 +206,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             timeout_seconds=timeout_seconds,
             script_args=["--mock"],
         )
+        azure_devops_review = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_azure_devops_review_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
 
     checks = [
         compact_check("local_openai_provider_http", provider),
@@ -227,6 +233,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
         compact_check("local_repair_loop", repair_loop),
         compact_check("vscode_extension_contract", vscode_extension),
         compact_check("vscode_extension_orchestration_mock", vscode_orchestration),
+        compact_check("azure_devops_review_contract", azure_devops_review),
     ]
     summary = {
         "source": "biber_local_confidence_smoke",
@@ -404,6 +411,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
                 vscode_orchestration.get("summary")
             ).get("safe_to_apply"),
         },
+        "azure_devops_review": {
+            "extension_root": azure_devops_review.get("extension_root"),
+            "pipeline_example": azure_devops_review.get("pipeline_example"),
+            "checks": len(azure_devops_review.get("checks", [])),
+            "failed": len(azure_devops_review.get("failed", [])),
+        },
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))
@@ -416,8 +429,8 @@ def parse_args() -> argparse.Namespace:
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
             "real-repo probe, full local MVP repair, GitHub dry-run handoff, "
             "GitHub dry-run artifact, live verified-repair GitHub bridge, "
-            "local repair-loop, VS Code extension contract, and VS Code "
-            "orchestration mock smokes as one "
+            "local repair-loop, VS Code extension contract, VS Code "
+            "orchestration mock, and Azure DevOps review contract smokes as one "
             "no-GPU confidence gate."
         )
     )

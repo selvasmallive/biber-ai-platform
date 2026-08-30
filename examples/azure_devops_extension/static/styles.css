@@ -1,0 +1,136 @@
+:root {
+  color-scheme: light;
+  --ink: #111827;
+  --muted: #4b5563;
+  --line: #d1d5db;
+  --panel: #f6f8fb;
+  --accent: #087ea4;
+  --accent-strong: #075985;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.shell {
+  max-width: 1040px;
+  padding: 28px 32px 40px;
+}
+
+.mast {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+  margin-bottom: 24px;
+}
+
+.logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+input,
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font: 14px/1.4 "Segoe UI", Arial, sans-serif;
+}
+
+textarea {
+  min-height: 220px;
+  resize: vertical;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 20px;
+}
+
+button {
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  min-height: 36px;
+  padding: 0 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button + button {
+  background: #ffffff;
+  color: var(--accent-strong);
+}
+
+.output {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink);
+  font: 13px/1.5 Consolas, "Courier New", monospace;
+}
+
+@media (max-width: 700px) {
+  .shell {
+    padding: 20px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -61,6 +61,8 @@ class Settings:
     api_rate_limit_requests_per_minute: int = int(
         os.getenv("BIBER_API_RATE_LIMIT_REQUESTS_PER_MINUTE", "120")
     )
+    cors_allowed_origins: tuple[str, ...] = _csv(os.getenv("BIBER_CORS_ALLOWED_ORIGINS"))
+    cors_allowed_origin_regex: str | None = os.getenv("BIBER_CORS_ALLOWED_ORIGIN_REGEX") or None
 
     passcode_full_gpu: str = os.getenv("BIBER_PASSCODE_FULL_GPU", "BIBER_FULL_GPU_DEMO")
     passcode_20_gpu: str = os.getenv("BIBER_PASSCODE_20_GPU", "BIBER_20_GPU_DEMO")

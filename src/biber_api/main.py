@@ -7,6 +7,7 @@ from uuid import uuid4
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi import Path as ApiPath
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .agent_sessions import (
@@ -123,6 +124,22 @@ app = FastAPI(
     version="0.1.0",
     description="Phase 1 API for biber-dev-core local GPU inference.",
 )
+
+
+def _configure_cors(target_app: FastAPI, settings: BiberSettings) -> None:
+    if not settings.cors_allowed_origins and not settings.cors_allowed_origin_regex:
+        return
+    target_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_origin_regex=settings.cors_allowed_origin_regex,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "x-api-key", "X-BIBER-Client"],
+    )
+
+
+_configure_cors(app, get_settings())
 
 
 def _request_settings(request: Request) -> BiberSettings:
@@ -336,6 +353,17 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                     ),
                     "rate_limit_state": "in_memory_per_process_mvp",
                     "client_side_guards_are_not_trusted": True,
+                },
+                "cors": {
+                    "enabled": bool(
+                        settings.cors_allowed_origins
+                        or settings.cors_allowed_origin_regex
+                    ),
+                    "allowed_origins": list(settings.cors_allowed_origins),
+                    "allowed_origin_regex_configured": bool(
+                        settings.cors_allowed_origin_regex
+                    ),
+                    "intended_browser_clients": ["azure_devops_extension_panel"],
                 },
                 "endpoints": {
                     "models": "GET /v1/models",

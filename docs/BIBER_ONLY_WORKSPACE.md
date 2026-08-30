@@ -205,6 +205,32 @@ and install-tests
 the VSIX in an isolated temporary VS Code profile. If a Windows/OneDrive file
 lock blocks `npm ci` after dependencies are already installed, rerun the compile
 or package smoke with `--skip-npm-ci`.
+Use `examples/azure_devops_pipeline/` and `examples/azure_devops_extension/`
+for the Azure DevOps conference-demo MVP. The fastest path is the sample
+pipeline `examples/azure_devops_pipeline/biber-ai-pr-review.yml`, which runs
+`scripts/biber_azure_devops_pr_review.py`, reviews a bounded redacted git diff
+through the BIBER OpenAI-compatible endpoint, keeps OpenAI mentor disabled, and
+defaults to `commentMode=dry-run`. The extension scaffold packages the same
+task plus a thin `BIBER AI Review` hub panel for interactive testing. Validate
+that path locally with:
+
+```bash
+python scripts/biber_azure_devops_review_smoke.py
+```
+
+The Azure DevOps smoke uses mock diff/model data and must report no BIBER API,
+Azure DevOps comment, GitHub, OpenAI mentor, training, or external paid API
+request. For live browser-panel calls to `https://api.beaverapi.com/v1`,
+configure public-edge CORS only when needed:
+
+```text
+BIBER_CORS_ALLOWED_ORIGINS=https://dev.azure.com
+BIBER_CORS_ALLOWED_ORIGIN_REGEX=https://.*\.visualstudio\.com
+```
+
+Leave those unset for pipeline-only or private-tunnel demos. Do not package or
+publish the Azure DevOps extension until `tfx` dependency installation and
+Marketplace credentials are intentionally handled.
 Use the connection smoke to exercise the same API readiness flow as
 `BIBER: Test API Connection` without launching VS Code:
 
