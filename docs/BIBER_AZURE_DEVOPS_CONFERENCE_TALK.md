@@ -137,7 +137,8 @@ enterprise governance.
 Use `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as the operator checklist.
 
 1. Open an Azure DevOps pull request with a small intentional bug.
-2. Run `npm run validate` locally to show the extension/package readiness gate.
+2. Run `npm run validate` and `npm run validate:panel` locally to show the
+   extension/package and browser-panel behavior gates.
 3. Run the sample pipeline with `commentMode=dry-run`.
 4. Open the published Markdown artifact and point out the summary, risk level,
    tests, and merge recommendation.

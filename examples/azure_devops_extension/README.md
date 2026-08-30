@@ -57,6 +57,7 @@ tooling locally and run:
 ```bash
 npm ci
 npm run validate
+npm run validate:panel
 npm run validate:pipeline
 npm run package
 ```
@@ -66,6 +67,10 @@ the manifest, task metadata, icons, safe defaults, panel storage behavior,
 client-side redaction, diff budget UI, mock wrapper hooks, and obvious
 embedded-secret mistakes without calling BIBER, Azure DevOps, GitHub, OpenAI,
 GPU, or any external network service.
+
+`npm run validate:panel` runs the browser-panel behavior smoke with a tiny mock
+DOM and mock `fetch`; it verifies redaction, mentor-disabled requests, unsafe
+URL blocking, and copy/clear/sample controls without calling the live API.
 
 `npm run validate:pipeline` checks the sample Azure Pipeline remains a safe
 dry-run artifact flow before you copy it into Azure DevOps.

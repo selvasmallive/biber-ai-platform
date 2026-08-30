@@ -16,6 +16,7 @@ Run these from the BIBER-only checkout:
 ```bash
 cd examples/azure_devops_extension
 npm run validate
+npm run validate:panel
 npm run validate:pipeline
 npm run package
 ```
@@ -30,6 +31,9 @@ npm run validate:wrapper
 Expected local safety posture:
 
 - `npm run validate` passes all publisher-readiness checks.
+- `npm run validate:panel` confirms the browser-panel flow redacts secrets
+  before fetch, keeps mentor disabled, handles unsafe URLs, and leaves API keys
+  session-only.
 - `npm run validate:pipeline` confirms the sample pipeline starts in dry-run
   mode, publishes artifacts, and reads the BIBER user key from a secret
   pipeline variable.

@@ -71,6 +71,7 @@ release private:
 cd examples/azure_devops_extension
 npm install
 npm run validate
+npm run validate:panel
 npm run validate:pipeline
 npm run package
 ```
@@ -83,6 +84,12 @@ checks the manifest, task metadata, icons, safe defaults, browser-panel storage
 rules, client-side redaction, diff budget UI, mock wrapper hooks, and obvious
 embedded-secret mistakes without calling BIBER, Azure DevOps, GitHub, OpenAI,
 GPU, or external network services.
+
+`npm run validate:panel` is a Node-only browser-panel behavior smoke. It
+simulates the panel without Azure DevOps or BIBER, verifies client-side
+redaction happens before `fetch`, checks `use_mentor=false`, confirms unsafe
+public HTTP URLs do not send requests, and exercises cancel/sample/copy/clear
+controls.
 
 `npm run validate:pipeline` is a Node-only dry-run readiness preflight for the
 sample Azure Pipeline. It checks the pipeline uses `commentMode=dry-run`,

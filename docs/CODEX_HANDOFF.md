@@ -4,6 +4,31 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps panel-behavior smoke checkpoint:
+Complete locally after the panel usability checkpoint. Added
+`scripts/biber_azure_devops_panel_behavior_smoke.js` and wired
+`npm run validate:panel` in the Azure DevOps extension package. The smoke uses a
+tiny mock DOM plus mock `fetch` to execute the real browser-panel script without
+Azure DevOps, BIBER API, GPU, OpenAI mentor, training, GitHub, or external
+network access. It verifies diff byte-budget warnings, session-only key use,
+redaction before request body construction, `use_mentor=false`,
+`task_type=azure_devops_panel_review`, output rendering, copy/sample/clear
+controls, clean cancel state, and unsafe public HTTP URL blocking. The smoke
+caught and fixed an initialization gap by calling `setBusy(false)` during panel
+startup so the Cancel button state is explicit.
+Validation passed `node --check examples/azure_devops_extension/static/main.js`,
+`node --check scripts/biber_azure_devops_panel_behavior_smoke.js`,
+`node --check scripts/biber_azure_devops_publisher_readiness_smoke.js`,
+`node --check scripts/biber_azure_devops_pipeline_readiness_smoke.js`,
+`npm run validate:panel` with 28/28 checks,
+`outputs/biber-azure-devops-panel-behavior-smoke-001.json`,
+`npm run validate` with 62/62 checks,
+`outputs/biber-azure-devops-publisher-readiness-smoke-004.json`,
+`npm run validate:pipeline` with 31/31 checks,
+`outputs/biber-azure-devops-pipeline-readiness-smoke-003.json`, and
+`npm run package`, which recreated
+`examples/azure_devops_extension/flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix`.
+
 2026-08-30 BIBER Azure DevOps panel usability checkpoint:
 Complete locally after the pipeline-readiness checkpoint. Improved the
 `BIBER AI Review` Azure DevOps hub panel with session-only status, clearer

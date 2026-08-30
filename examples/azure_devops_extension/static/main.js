@@ -197,5 +197,6 @@
     setStatus("Review copied.");
   });
   diffTextInput.addEventListener("input", updateDiffCounter);
+  setBusy(false);
   updateDiffCounter();
 })();
