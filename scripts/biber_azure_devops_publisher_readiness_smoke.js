@@ -6,6 +6,7 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const EXTENSION_ROOT = path.join(ROOT, "examples", "azure_devops_extension");
+const OFFLINE_DEMO_SCRIPT = path.join(ROOT, "scripts", "biber_azure_devops_offline_demo_bundle_smoke.js");
 const REQUIRED_FILES = [
   "vss-extension.json",
   "overview.md",
@@ -123,6 +124,8 @@ function main() {
   checks.push(check(packageJson.scripts && packageJson.scripts["validate:pipeline"], "package:pipeline_smoke_available"));
   checks.push(check(packageJson.scripts && packageJson.scripts["validate:contract"], "package:contract_smoke_available"));
   checks.push(check(packageJson.scripts && packageJson.scripts["validate:wrapper"], "package:wrapper_smoke_available"));
+  checks.push(check(packageJson.scripts && packageJson.scripts["demo:offline"], "package:offline_demo_available"));
+  checks.push(check(fs.existsSync(OFFLINE_DEMO_SCRIPT), "demo:offline_script_exists"));
   checks.push(check(/^0\.1\.0$/.test(packageJson.version || ""), "package:demo_version"));
 
   checks.push(check(manifest.manifestVersion === 1, "manifest:version"));

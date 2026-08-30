@@ -63,6 +63,7 @@ npm ci
 npm run validate
 npm run validate:panel
 npm run validate:pipeline
+npm run demo:offline
 npm run package
 ```
 
@@ -80,6 +81,11 @@ URL blocking, and copy/clear/sample controls without calling the live API.
 remain safe artifact flows before you copy either into Azure DevOps. The PR
 sample stays dry-run by default; the commit sample stays artifact-only with no
 `System.AccessToken` wiring.
+
+`npm run demo:offline` creates a non-secret local presentation bundle with a
+fake redacted diff, mock BIBER response, PR dry-run Markdown artifact, commit
+review Markdown artifact, and summary JSON. It sends no BIBER, Azure DevOps,
+GitHub, OpenAI, GPU, training, or external network request.
 
 Or use the repo-level smoke, which validates the manifest/task contract, runs
 the local extension validation, packages the VSIX, and checks the archive

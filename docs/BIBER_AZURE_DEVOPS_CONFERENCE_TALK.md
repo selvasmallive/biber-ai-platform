@@ -90,6 +90,8 @@ inference to future enterprise governance.
     - Run a PR build.
     - Review the `biber-ai-review.md` artifact.
     - Run a commit-review build if PR permissions are unavailable.
+    - Use the offline demo bundle if the venue network or Azure DevOps is
+      unavailable.
     - Switch to a test PR comment only after dry-run acceptance.
     - Speaker note: Have a prepared diff with one correctness issue and one
       redacted secret-like value.
@@ -153,6 +155,9 @@ Use `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as the operator checklist.
    manually.
 8. Optionally rerun the test PR with `commentMode=post` to create one PR
    thread.
+9. If the live path is unavailable, open the latest
+   `outputs/biber-azure-devops-offline-demo-*` bundle and show the same artifact
+   shape with no live API request.
 
 ## Speaker Notes For Hard Questions
 

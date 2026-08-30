@@ -241,10 +241,14 @@ cd examples/azure_devops_extension
 npm run validate
 npm run validate:panel
 npm run validate:pipeline
+npm run demo:offline
 ```
 
 Use `npm run validate:contract` and `npm run validate:wrapper` when Python is
 available locally, on CI, or on Vast.
+Use `npm run demo:offline` to create a non-secret local presentation backup
+bundle under `outputs/biber-azure-devops-offline-demo-*` when Azure DevOps or
+the live BIBER API is unavailable during a talk.
 Use `docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md` before uploading the private
 Azure DevOps VSIX; Azure DevOps extensions use `tfx-cli`, while the VS Code
 extension uses `vsce`.

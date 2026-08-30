@@ -4,6 +4,27 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps offline demo bundle checkpoint:
+Complete locally after the private-publish guide checkpoint. Added
+`scripts/biber_azure_devops_offline_demo_bundle_smoke.js` and wired
+`npm run demo:offline` in `examples/azure_devops_extension/package.json`.
+The command writes a non-secret presentation backup bundle containing
+`README.md`, `sample-redacted.diff`, `mock-biber-response.json`,
+`biber-ai-review.md`, `biber-ai-commit-review.md`, and `summary.json`. Latest
+local bundle:
+`outputs/biber-azure-devops-offline-demo-001`. It uses a fake demo diff,
+redacts a fake secret-like value, keeps `use_mentor`/OpenAI mentor disabled in
+the artifact story, and is explicitly for presentation fallback only. Updated
+the Azure DevOps MVP docs, demo runbook, extension README, BIBER-only workspace
+guide, slide-ready talk source, and publisher-readiness smoke. Validation
+passed `node --check scripts/biber_azure_devops_offline_demo_bundle_smoke.js`,
+`node --check scripts/biber_azure_devops_publisher_readiness_smoke.js`,
+`npm run validate` with 64/64 checks, and `npm run demo:offline -- --output-dir
+..\..\outputs\biber-azure-devops-offline-demo-001` with 10/10 checks. No BIBER
+API, Azure DevOps, Marketplace, GitHub, OpenAI mentor, GPU, training, or
+external network request was sent. Next narrow step: run `npm run package`
+after the docs/package script update, then commit/push this checkpoint.
+
 2026-08-30 BIBER Azure DevOps private-publish guide checkpoint:
 Complete locally after the commit-review pipeline checkpoint. Added
 `docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md` with the safe private

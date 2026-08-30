@@ -84,6 +84,7 @@ npm install
 npm run validate
 npm run validate:panel
 npm run validate:pipeline
+npm run demo:offline
 npm run package
 ```
 
@@ -111,6 +112,11 @@ Azure Pipelines. It checks the PR pipeline uses `commentMode=dry-run`, checks
 the commit pipeline uses `commentMode=none`, verifies both publish review
 artifacts, confirms `BIBER_API_KEY` is read from the pipeline environment, and
 confirms neither path requests mentor review or training.
+
+`npm run demo:offline` writes a local presentation backup bundle with a fake
+redacted diff, a mock OpenAI-compatible BIBER response, a PR dry-run artifact,
+a commit-review artifact, and a summary JSON. It sends no live requests and is
+only for offline conference fallback.
 
 The repo-level packaging smoke is:
 
