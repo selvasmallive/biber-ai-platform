@@ -1,0 +1,319 @@
+{
+  "tax_year": 2025,
+  "province": "on",
+  "_comment": "The federal T2, structure-first. The Part I flow and the small business deduction, which is where proration for a short tax year first bites. Schedules and GIFI are not here yet.",
+  "summary": [
+    "t2.300",
+    "t2.360",
+    "t2.430",
+    "t2.700",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "t2.short_year_prorated",
+      "severity": "info",
+      "message": "The business limit has been reduced for a short tax year.",
+      "help": "ITA 125(5) prorates the limit by the days in the tax year over 365. A first or final year is usually short.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "fact",
+          "key": "period.is_short"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "t2.straddles_a_rate_change",
+      "severity": "warning",
+      "message": "This tax year falls in two calendar years.",
+      "help": "If a rate changed between them, the tax must be apportioned by the days on each side. Freshet does not yet blend corporate rates across a straddling period, so a year that crosses a rate change may be wrong.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "fact",
+          "key": "period.straddles"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "t2.no_income_entered",
+      "severity": "info",
+      "message": "No net income has been entered.",
+      "help": "A nil return is valid, but check this is what you meant.",
+      "when": {
+        "cmp": "lte",
+        "left": {
+          "op": "line",
+          "id": "t2.300"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "t2.300",
+      "label": "Net income for income tax purposes",
+      "note": "Schedule 1 reconciles accounting profit to this. Taken as a single figure for now; the reconciliation is its own schedule.",
+      "expr": {
+        "op": "fact",
+        "key": "t2.net_income"
+      }
+    },
+    {
+      "id": "t2.360",
+      "label": "Taxable income",
+      "note": "Net income less loss carryforwards and other deductions.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "t2.300"
+          },
+          "minus": {
+            "op": "fact",
+            "key": "t2.deductions"
+          }
+        }
+      }
+    },
+    {
+      "id": "t2.active_business_income",
+      "label": "Active business income",
+      "note": "Income from an active business carried on in Canada. Investment income does not qualify for the small business deduction, which is the whole reason this is separate from taxable income.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "t2.active_business_income"
+          },
+          {
+            "op": "line",
+            "id": "t2.360"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.business_limit",
+      "label": "Business limit, prorated for a short tax year",
+      "note": "ITA 125(5): the limit is reduced by the number of days in the tax year over 365. A corporation with a short first year gets a fraction of it. The 365 is written here rather than derived from the calendar because the Act says 365 even in a leap year — reading 366 off the calendar would over-claim.",
+      "expr": {
+        "op": "div",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "param",
+            "key": "fed:t2_business_limit"
+          },
+          "by": {
+            "op": "fact",
+            "key": "period.days"
+          }
+        },
+        "by": {
+          "op": "const",
+          "value": "365"
+        }
+      }
+    },
+    {
+      "id": "t2.430",
+      "label": "Small business deduction",
+      "note": "ITA 125(1): the rate applied to the least of active business income, taxable income and the business limit.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "min",
+          "of": [
+            {
+              "op": "line",
+              "id": "t2.active_business_income"
+            },
+            {
+              "op": "line",
+              "id": "t2.360"
+            },
+            {
+              "op": "line",
+              "id": "t2.business_limit"
+            }
+          ]
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:t2_sbd_rate"
+        }
+      }
+    },
+    {
+      "id": "t2.550",
+      "label": "Base amount of Part I tax",
+      "note": "ITA 123(1): 38% of taxable income.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "t2.360"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:t2_base_rate"
+        }
+      }
+    },
+    {
+      "id": "t2.608",
+      "label": "Federal tax abatement",
+      "note": "ITA 124(1): 10% of taxable income earned in a province, which is what leaves room for provincial corporate tax.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "t2.360"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:t2_abatement_rate"
+        }
+      }
+    },
+    {
+      "id": "t2.638",
+      "label": "General tax reduction",
+      "note": "ITA 123.4: available on income that did not already get the small business deduction, so the two do not stack.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "line",
+              "id": "t2.360"
+            },
+            "minus": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "line",
+                  "id": "t2.active_business_income"
+                },
+                {
+                  "op": "line",
+                  "id": "t2.360"
+                },
+                {
+                  "op": "line",
+                  "id": "t2.business_limit"
+                }
+              ]
+            }
+          }
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:t2_general_reduction_rate"
+        }
+      }
+    },
+    {
+      "id": "t2.700",
+      "label": "Part I tax payable",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "t2.550"
+              },
+              "minus": {
+                "op": "line",
+                "id": "t2.608"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "t2.430"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "t2.638"
+          }
+        }
+      }
+    },
+    {
+      "id": "summary.total_tax",
+      "label": "Total tax payable",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "t2.700"
+          },
+          {
+            "op": "line",
+            "id": "prov.tax"
+          }
+        ]
+      }
+    },
+    {
+      "id": "summary.total_credits",
+      "label": "Credits and instalments",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "fact",
+            "key": "t2.instalments"
+          },
+          {
+            "op": "line",
+            "id": "prov.refundable_credits"
+          }
+        ]
+      }
+    },
+    {
+      "id": "summary.balance",
+      "label": "Balance owing (negative means refund)",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "line",
+          "id": "summary.total_tax"
+        },
+        "minus": {
+          "op": "line",
+          "id": "summary.total_credits"
+        }
+      }
+    }
+  ]
+}

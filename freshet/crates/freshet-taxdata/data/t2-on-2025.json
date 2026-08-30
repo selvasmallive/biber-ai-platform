@@ -1,0 +1,18 @@
+{
+  "jurisdiction": "on",
+  "tax_year": 2025,
+  "_comment": "Ontario corporate rates. Every value unverified.",
+  "scalars": {
+    "t2_general_rate": {
+      "value": "0.115",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for Ontario general corporate rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    },
+    "t2_small_business_rate": {
+      "value": "0.032",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for Ontario small business rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    }
+  },
+  "brackets": {}
+}

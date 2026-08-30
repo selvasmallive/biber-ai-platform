@@ -744,3 +744,85 @@ fn report_verification_progress() {
         freshet_taxdata::packs(2026, "on").unwrap().federal.unverified().len());
     println!("TOTAL provincial residual: {total}");
 }
+
+/// T2 is structure-first: the return computes, every corporate rate is a
+/// placeholder. Pinned here so verifying one becomes a deliberate deletion.
+#[test]
+fn t2_fed_2025_residual_is_exactly_this() {
+    let packs = freshet_taxdata::t2_packs(2025, "on").unwrap();
+    let pack = if "fed" == "fed" { &packs.federal } else { &packs.provincial };
+
+    let mut actual = pack.unverified();
+    actual.sort();
+
+    let expected: Vec<&str> = vec![
+        "scalars.t2_abatement_rate",
+        "scalars.t2_base_rate",
+        "scalars.t2_business_limit",
+        "scalars.t2_general_reduction_rate",
+        "scalars.t2_sbd_rate",
+    ];
+    let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+
+    assert_eq!(actual, want, "the T2 residual moved without being recorded");
+}
+
+/// T2 is structure-first: the return computes, every corporate rate is a
+/// placeholder. Pinned here so verifying one becomes a deliberate deletion.
+#[test]
+fn t2_fed_2026_residual_is_exactly_this() {
+    let packs = freshet_taxdata::t2_packs(2026, "on").unwrap();
+    let pack = if "fed" == "fed" { &packs.federal } else { &packs.provincial };
+
+    let mut actual = pack.unverified();
+    actual.sort();
+
+    let expected: Vec<&str> = vec![
+        "scalars.t2_abatement_rate",
+        "scalars.t2_base_rate",
+        "scalars.t2_business_limit",
+        "scalars.t2_general_reduction_rate",
+        "scalars.t2_sbd_rate",
+    ];
+    let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+
+    assert_eq!(actual, want, "the T2 residual moved without being recorded");
+}
+
+/// T2 is structure-first: the return computes, every corporate rate is a
+/// placeholder. Pinned here so verifying one becomes a deliberate deletion.
+#[test]
+fn t2_on_2025_residual_is_exactly_this() {
+    let packs = freshet_taxdata::t2_packs(2025, "on").unwrap();
+    let pack = if "on" == "fed" { &packs.federal } else { &packs.provincial };
+
+    let mut actual = pack.unverified();
+    actual.sort();
+
+    let expected: Vec<&str> = vec![
+        "scalars.t2_general_rate",
+        "scalars.t2_small_business_rate",
+    ];
+    let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+
+    assert_eq!(actual, want, "the T2 residual moved without being recorded");
+}
+
+/// T2 is structure-first: the return computes, every corporate rate is a
+/// placeholder. Pinned here so verifying one becomes a deliberate deletion.
+#[test]
+fn t2_on_2026_residual_is_exactly_this() {
+    let packs = freshet_taxdata::t2_packs(2026, "on").unwrap();
+    let pack = if "on" == "fed" { &packs.federal } else { &packs.provincial };
+
+    let mut actual = pack.unverified();
+    actual.sort();
+
+    let expected: Vec<&str> = vec![
+        "scalars.t2_general_rate",
+        "scalars.t2_small_business_rate",
+    ];
+    let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+
+    assert_eq!(actual, want, "the T2 residual moved without being recorded");
+}

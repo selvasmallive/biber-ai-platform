@@ -1,0 +1,33 @@
+{
+  "jurisdiction": "fed",
+  "tax_year": 2025,
+  "_comment": "Federal corporate rates. Every value unverified.",
+  "scalars": {
+    "t2_base_rate": {
+      "value": "0.38",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 123(1) base rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    },
+    "t2_abatement_rate": {
+      "value": "0.10",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 124(1) provincial abatement. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    },
+    "t2_sbd_rate": {
+      "value": "0.19",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 125(1) small business deduction rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    },
+    "t2_general_reduction_rate": {
+      "value": "0.13",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 123.4 general rate reduction. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    },
+    "t2_business_limit": {
+      "value": "500000",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 125(2) business limit. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    }
+  },
+  "brackets": {}
+}

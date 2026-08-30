@@ -206,6 +206,63 @@ pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
     Ok(forms)
 }
 
+// -- T2 --------------------------------------------------------------------
+//
+// Structure-first and not filable. Kept beside T1 rather than in its own crate
+// because it composes through exactly the same machinery: a shared federal form
+// plus one provincial supplement, joined by the `prov.tax` contract. Splitting
+// them would have meant duplicating that, and the point of building T2 next was
+// to find out whether the split held.
+
+pub const T2_FEDERAL: &str = include_str!("../data/t2-federal.json");
+pub const T2_ON: &str = include_str!("../data/t2-on.json");
+
+const T2_PACKS: &[(u16, &str, &str)] = &[
+    (2025, include_str!("../data/t2-fed-2025.json"), include_str!("../data/t2-on-2025.json")),
+    (2026, include_str!("../data/t2-fed-2026.json"), include_str!("../data/t2-on-2026.json")),
+];
+
+/// Provinces with a T2 supplement. Ontario only, so far.
+pub const T2_PROVINCES: &[&str] = &["on"];
+
+/// The T2 return: the federal form with one province composed in.
+///
+/// `tax_year` selects the parameter pack, and for a corporation that is the
+/// year its fiscal period **ends** — the period itself is passed separately to
+/// [`freshet_engine::compute_for_period`].
+pub fn t2_forms(province: &str) -> Result<FormSet, EngineError> {
+    if !T2_PROVINCES.contains(&province) {
+        return Err(EngineError::Unsupported(format!(
+            "no T2 data for {province}; this build supports {T2_PROVINCES:?}"
+        )));
+    }
+
+    FormSet::compose(
+        FormSet::from_json(T2_FEDERAL)?,
+        FormSet::from_json(T2_ON)?,
+    )
+}
+
+pub fn t2_packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
+    if !T2_PROVINCES.contains(&province) {
+        return Err(EngineError::Unsupported(format!(
+            "no T2 data for {province}; this build supports {T2_PROVINCES:?}"
+        )));
+    }
+
+    let (_, fed, prov) = T2_PACKS
+        .iter()
+        .find(|(y, _, _)| *y == year)
+        .ok_or_else(|| {
+            EngineError::Unsupported(format!("no T2 parameters for {year}"))
+        })?;
+
+    Ok(PackSet {
+        federal: ParamPack::from_json(fed)?,
+        provincial: ParamPack::from_json(prov)?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

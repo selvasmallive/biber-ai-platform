@@ -1,0 +1,124 @@
+{
+  "tax_year": 2025,
+  "province": "on",
+  "_comment": "Ontario corporate income tax. Federal lines are composed in from t2-federal.json.",
+  "summary": [
+    "t2.300",
+    "t2.360",
+    "t2.430",
+    "t2.700",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "on_t2.credits_not_modelled",
+      "severity": "warning",
+      "message": "Ontario's refundable corporate tax credits are not included.",
+      "help": "The innovation tax credit, the co-operative education credit and others are not computed, so a refund shown here may be understated.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "on_t2.small_business_income",
+      "label": "Ontario income eligible for the small business rate",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "line",
+            "id": "t2.active_business_income"
+          },
+          {
+            "op": "line",
+            "id": "t2.360"
+          },
+          {
+            "op": "line",
+            "id": "t2.business_limit"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on_t2.general_income",
+      "label": "Ontario income taxed at the general rate",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "t2.360"
+          },
+          "minus": {
+            "op": "line",
+            "id": "on_t2.small_business_income"
+          }
+        }
+      }
+    },
+    {
+      "id": "on_t2.tax",
+      "label": "Ontario corporate income tax",
+      "note": "Two rates rather than a bracket table: corporate tax turns on the kind of income, not the amount of it. A bracket table would be the wrong shape entirely.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "line",
+              "id": "on_t2.small_business_income"
+            },
+            "by": {
+              "op": "param",
+              "key": "on:t2_small_business_rate"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "line",
+              "id": "on_t2.general_income"
+            },
+            "by": {
+              "op": "param",
+              "key": "on:t2_general_rate"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Ontario corporate income tax",
+      "note": "The same contract the T1 uses. It carrying over unchanged is the evidence the federal/provincial split was not shaped around personal tax.",
+      "expr": {
+        "op": "line",
+        "id": "on_t2.tax"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Ontario refundable credits",
+      "note": "Nil. Ontario's refundable corporate credits — the innovation and co-operative education credits among them — are not modelled, and the check says so.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}
