@@ -59,6 +59,24 @@ npm ci
 npm run package
 ```
 
+Or use the repo-level smoke, which validates the manifest/task contract, runs
+the local extension validation, packages the VSIX, and checks the archive
+contents:
+
+```bash
+python scripts/biber_azure_devops_extension_package_smoke.py
+```
+
+The generated package is ignored by Git and currently lands at:
+
+```text
+flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix
+```
+
+`tfx-cli` is a dev-only packaging dependency. If `npm ci` reports audit
+findings, do not treat them as BIBER runtime dependencies; still revisit the
+packaging toolchain before a broad public Marketplace release.
+
 For now, validate the contract without Azure credentials or network calls:
 
 ```bash

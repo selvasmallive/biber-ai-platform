@@ -132,6 +132,13 @@ def main() -> int:
     overview_path = AZURE_EXTENSION_ROOT / "overview.md"
     readme_path = AZURE_EXTENSION_ROOT / "README.md"
     icon_path = AZURE_EXTENSION_ROOT / "images" / "icon.png"
+    task_icon_path = (
+        AZURE_EXTENSION_ROOT
+        / "tasks"
+        / "biber-ai-pr-review"
+        / "v1"
+        / "icon.png"
+    )
     script_path = ROOT / "scripts" / "biber_azure_devops_pr_review.py"
     src_config_path = ROOT / "src" / "biber_api" / "config.py"
     src_main_path = ROOT / "src" / "biber_api" / "main.py"
@@ -148,6 +155,7 @@ def main() -> int:
         overview_path,
         readme_path,
         icon_path,
+        task_icon_path,
         PIPELINE_EXAMPLE,
         script_path,
         task_script_path,
@@ -192,6 +200,7 @@ def main() -> int:
             check("biber-ai-review-hub" in contribution_ids, "manifest:hub_contribution"),
             check("biber-ai-pr-review-task" in contribution_ids, "manifest:pipeline_task"),
             check("vso.code" in manifest.get("scopes", []), "manifest:code_scope"),
+            check(task_icon_path.is_file(), "task:icon_png_exists"),
             check(
                 bool(task.get("execution", {}).get("Node20_1", {}).get("target")),
                 "task:node20_1_target",

@@ -4,6 +4,30 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps package checkpoint:
+Complete locally after the Azure DevOps review demo checkpoint. Added the task
+`icon.png`, a sparse-safe generated-file ignore rule, and
+`scripts/biber_azure_devops_extension_package_smoke.py`. The package smoke
+installs/uses `tfx-cli`, runs the no-network Azure DevOps contract smoke,
+creates the private VSIX
+`C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\azure_devops_extension\flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix`,
+and inspects the package archive for `extension.vsomanifest`,
+`extension.vsixmanifest`, the review panel files, marketplace icon, task
+metadata, task wrapper, and task icon. Validation passed Python `py_compile`,
+`git diff --check`, focused
+`scripts/biber_azure_devops_review_smoke.py --output
+outputs/biber-azure-devops-review-smoke-008.json` with 65/65 checks, and
+`scripts/biber_azure_devops_extension_package_smoke.py --output
+outputs/biber-azure-devops-extension-package-smoke-002.json` with all package
+checks passing. Standard local confidence also passed in
+`outputs/biber-local-confidence-smoke-azure-devops-package-001.json` with
+14/14 checks, including `azure_devops_review_contract` at 65/65. The package
+smoke sent no BIBER, Azure DevOps, GitHub, OpenAI mentor, GPU, or training
+request. `npm ci` reported six dev-toolchain audit findings from the `tfx-cli`
+dependency tree; `node_modules` is ignored and not inside the VSIX, but public
+Marketplace release should still package in an isolated environment and
+revisit the Azure DevOps packaging toolchain.
+
 2026-08-30 BIBER Azure DevOps review demo checkpoint:
 Complete locally for the conference demo path showing BIBER as a private code
 review assistant for Azure DevOps. Added a pipeline-first PR/commit review

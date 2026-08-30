@@ -76,6 +76,26 @@ npm run package
 Do not enter Marketplace tokens into source files, docs, terminal transcripts,
 or training/eval artifacts.
 
+The repo-level packaging smoke is:
+
+```bash
+python scripts/biber_azure_devops_extension_package_smoke.py
+```
+
+It may download npm packages the first time. It still sends no BIBER, Azure
+DevOps, GitHub, OpenAI mentor, GPU, or training request.
+
+The validated local package path is:
+
+```text
+examples/azure_devops_extension/flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix
+```
+
+`npm ci` currently reports audit findings in the dev-only `tfx-cli` dependency
+tree. The generated VSIX excludes `node_modules`, but package public releases
+from a clean environment and reassess the packaging toolchain before a broad
+Marketplace launch.
+
 ## Security Contract
 
 - Do not store BIBER user API keys in source control.
