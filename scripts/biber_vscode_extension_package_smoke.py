@@ -18,6 +18,7 @@ EXTENSION_ROOT = ROOT / "examples" / "vscode_extension"
 EXPECTED_EXTENSION_ID = "flat-electronics-canada.biber-ai-assistant"
 EXPECTED_ICON_SOURCE = "media/icon.png"
 EXPECTED_ICON_PACKAGE_PATH = "extension/media/icon.png"
+EXPECTED_ACTIVITY_ICON_PACKAGE_PATH = "extension/media/activity-icon.svg"
 
 
 def run_command(
@@ -159,6 +160,11 @@ def main() -> int:
                 EXPECTED_ICON_PACKAGE_PATH in vsix_members,
                 "vsix_contains_marketplace_icon",
                 EXPECTED_ICON_PACKAGE_PATH,
+            ),
+            check(
+                EXPECTED_ACTIVITY_ICON_PACKAGE_PATH in vsix_members,
+                "vsix_contains_activity_icon",
+                EXPECTED_ACTIVITY_ICON_PACKAGE_PATH,
             ),
         ]
     )

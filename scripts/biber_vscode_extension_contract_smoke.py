@@ -27,6 +27,7 @@ def main() -> int:
     gitignore_path = EXTENSION_ROOT / ".gitignore"
     vscodeignore_path = EXTENSION_ROOT / ".vscodeignore"
     icon_path = EXTENSION_ROOT / "media" / "icon.png"
+    activity_icon_path = EXTENSION_ROOT / "media" / "activity-icon.svg"
     license_path = EXTENSION_ROOT / "LICENSE.md"
     changelog_path = EXTENSION_ROOT / "CHANGELOG.md"
     readme_path = EXTENSION_ROOT / "README.md"
@@ -40,6 +41,7 @@ def main() -> int:
         gitignore_path,
         vscodeignore_path,
         icon_path,
+        activity_icon_path,
         license_path,
         changelog_path,
         readme_path,
@@ -57,6 +59,15 @@ def main() -> int:
         for item in package.get("contributes", {}).get("commands", [])
         if isinstance(item, dict)
     }
+    activation_events = set(package.get("activationEvents", []))
+    contributes = package.get("contributes", {})
+    activitybar = (
+        contributes.get("viewsContainers", {})
+        .get("activitybar", [])
+    )
+    views = contributes.get("views", {})
+    views_welcome = contributes.get("viewsWelcome", [])
+    view_title_menus = contributes.get("menus", {}).get("view/title", [])
     config_props = package.get("contributes", {}).get("configuration", {}).get(
         "properties", {}
     )
@@ -77,6 +88,8 @@ def main() -> int:
             check(package.get("icon") == "media/icon.png", "icon_declared_png"),
             check(icon_path.is_file(), "icon_file_exists"),
             check(icon_path.suffix.lower() == ".png", "icon_is_png"),
+            check(activity_icon_path.is_file(), "activity_icon_file_exists"),
+            check(activity_icon_path.suffix.lower() == ".svg", "activity_icon_is_svg"),
             check(package.get("license") == "SEE LICENSE IN LICENSE.md", "license_declared"),
             check("Machine Learning" in package.get("categories", []), "category_machine_learning"),
             check("repository" in package, "repository_declared"),
@@ -84,10 +97,50 @@ def main() -> int:
             check("capabilities" in package, "capabilities_declared"),
             check("vsce package" in scripts.get("package", ""), "script_package_vsce"),
             check("vsce publish" in scripts.get("publish", ""), "script_publish_vsce"),
+            check("onStartupFinished" in activation_events, "activation:on_startup_finished"),
+            check("onView:biber.changeAgentView" in activation_events, "activation:on_biber_view"),
+            check("biber.openSetup" in commands, "command:open_setup"),
             check("biber.setApiKey" in commands, "command:set_api_key"),
             check("biber.clearApiKey" in commands, "command:clear_api_key"),
             check("biber.testConnection" in commands, "command:test_connection"),
             check("biber.orchestrationPlan" in commands, "command:orchestration_plan"),
+            check("biber.openOutput" in commands, "command:open_output"),
+            check("biber.refreshSidebar" in commands, "command:refresh_sidebar"),
+            check(
+                any(
+                    isinstance(item, dict)
+                    and item.get("id") == "biber"
+                    and item.get("title") == "BIBER"
+                    and item.get("icon") == "media/activity-icon.svg"
+                    for item in activitybar
+                ),
+                "view_container:biber_activitybar",
+            ),
+            check(
+                any(
+                    isinstance(item, dict)
+                    and item.get("id") == "biber.changeAgentView"
+                    for item in views.get("biber", [])
+                ),
+                "view:biber_change_agent",
+            ),
+            check(
+                any(
+                    isinstance(item, dict)
+                    and item.get("view") == "biber.changeAgentView"
+                    and "Setup API Connection" in item.get("contents", "")
+                    for item in views_welcome
+                ),
+                "view_welcome:setup_link",
+            ),
+            check(
+                any(
+                    isinstance(item, dict)
+                    and item.get("command") == "biber.refreshSidebar"
+                    for item in view_title_menus
+                ),
+                "view_title_menu:refresh",
+            ),
             check("biber.openaiBaseUrl" in config_props, "config:base_url"),
             check("biber.maxRequestsPerMinute" in config_props, "config:rate_limit"),
             check("biber.requestTimeoutMs" in config_props, "config:timeout"),
@@ -124,6 +177,12 @@ def main() -> int:
             check("inFlightRequest" in extension_text, "single_flight_guard"),
             check("AbortController" in extension_text, "request_timeout_abort"),
             check("assertAllowedBaseUrl" in extension_text, "https_or_localhost_guard"),
+            check("createStatusBarItem" in extension_text, "status_bar_visible_entry"),
+            check("registerTreeDataProvider" in extension_text, "activity_view_tree_provider"),
+            check("showQuickPick<SetupEndpointPick>" in extension_text, "guided_setup_endpoint_pick"),
+            check("promptAndStoreApiKey" in extension_text, "guided_setup_secret_storage"),
+            check("offerNextAction" in extension_text, "guided_setup_continues_without_single_flight"),
+            check("BIBER Change Agent" in extension_text, "change_agent_prompt_title"),
             check("sends_file_contents: false" in extension_text, "no_file_contents_mvp"),
             check("testConnection" in extension_text, "connection_test_command_handler"),
             check("/agent/capabilities" in extension_text, "capabilities_endpoint"),
@@ -134,6 +193,8 @@ def main() -> int:
             check("single-flight" in readme_text.lower(), "readme_single_flight"),
             check("HTTPS" in readme_text, "readme_https"),
             check("Test API Connection" in readme_text, "readme_connection_test"),
+            check("Activity Bar" in readme_text, "readme_activity_bar"),
+            check("Setup API Connection" in readme_text, "readme_setup_flow"),
             check(
                 "Do not point the extension at the raw vLLM" in readme_text,
                 "readme_no_raw_vllm",

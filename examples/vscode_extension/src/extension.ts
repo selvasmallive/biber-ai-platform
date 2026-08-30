@@ -2,13 +2,18 @@ import * as vscode from "vscode";
 
 const API_KEY_SECRET = "biber.apiKey";
 const CLIENT_NAME = "biber-vscode-extension-mvp";
-const CLIENT_USER_AGENT = "BIBER-VSCode-Extension-MVP/0.1";
+const CLIENT_USER_AGENT = "BIBER-VSCode-Extension-MVP/0.2";
 const OUTPUT_CHANNEL = "BIBER";
 const CAPABILITIES_PATH = "/agent/capabilities";
 const ORCHESTRATION_PATH = "/agent/orchestration/plan";
+const DEFAULT_BASE_URL = "https://api.beaverapi.com/v1";
+const LOCAL_BASE_URL = "http://127.0.0.1:8000/v1";
+const DEFAULT_MODEL = "biber-dev-core-v1";
 
 let inFlightRequest: Promise<void> | undefined;
 const requestTimestamps: number[] = [];
+let statusBar: vscode.StatusBarItem | undefined;
+let treeProvider: BiberTreeProvider | undefined;
 
 interface BiberConfig {
   openaiBaseUrl: string;
@@ -19,45 +24,261 @@ interface BiberConfig {
   maxChangedPaths: number;
 }
 
+interface SetupOptions {
+  offerNextAction?: boolean;
+}
+
+interface SetupEndpointPick extends vscode.QuickPickItem {
+  value: "default" | "local" | "current" | "custom";
+}
+
+type TreeAction = {
+  label: string;
+  description?: string;
+  tooltip?: string;
+  icon: string;
+  command?: vscode.Command;
+};
+
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel(OUTPUT_CHANNEL);
   context.subscriptions.push(output);
 
+  treeProvider = new BiberTreeProvider(context);
   context.subscriptions.push(
-    vscode.commands.registerCommand("biber.setApiKey", () => setApiKey(context)),
+    vscode.window.registerTreeDataProvider("biber.changeAgentView", treeProvider)
+  );
+
+  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBar.command = "biber.openSetup";
+  context.subscriptions.push(statusBar);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("biber.openSetup", () => openSetup(context, output)),
+    vscode.commands.registerCommand("biber.setApiKey", () => setApiKey(context, output)),
     vscode.commands.registerCommand("biber.clearApiKey", () => clearApiKey(context)),
     vscode.commands.registerCommand("biber.testConnection", () =>
       runSingleFlight(() => testConnection(context, output))
     ),
     vscode.commands.registerCommand("biber.orchestrationPlan", () =>
       runSingleFlight(() => orchestrationPlan(context, output))
-    )
+    ),
+    vscode.commands.registerCommand("biber.openOutput", () => output.show(true)),
+    vscode.commands.registerCommand("biber.refreshSidebar", () => refreshUi(context)),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("biber")) {
+        void refreshUi(context);
+      }
+    })
   );
+
+  void refreshUi(context);
 }
 
 export function deactivate(): void {
   requestTimestamps.length = 0;
+  statusBar?.dispose();
 }
 
-async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
+async function openSetup(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel,
+  options: SetupOptions = {}
+): Promise<void> {
+  const config = readConfig();
+  const endpoint = await vscode.window.showQuickPick<SetupEndpointPick>(
+    [
+      {
+        label: "Use Beaver API",
+        description: DEFAULT_BASE_URL,
+        detail: "Recommended for the public BIBER API gateway.",
+        value: "default",
+      },
+      {
+        label: "Use Local Vast Tunnel",
+        description: LOCAL_BASE_URL,
+        detail: "Use this when SSH forwards the BIBER API to localhost.",
+        value: "local",
+      },
+      {
+        label: "Keep Current Endpoint",
+        description: config.openaiBaseUrl,
+        detail: "Keep the currently configured BIBER API base URL.",
+        value: "current",
+      },
+      {
+        label: "Enter Custom Endpoint",
+        description: "HTTPS remote URL or localhost HTTP URL",
+        detail: "Use only the protected BIBER API gateway, not raw vLLM.",
+        value: "custom",
+      },
+    ],
+    {
+      title: "BIBER API Setup",
+      placeHolder: "Choose the BIBER API endpoint.",
+      ignoreFocusOut: true,
+    }
+  );
+  if (!endpoint) {
+    return;
+  }
+
+  const selectedBaseUrl = await resolveBaseUrl(endpoint, config.openaiBaseUrl);
+  if (!selectedBaseUrl) {
+    return;
+  }
+  const normalizedBaseUrl = selectedBaseUrl.trim();
+  try {
+    assertAllowedBaseUrl(normalizedBaseUrl);
+  } catch (error) {
+    vscode.window.showErrorMessage(errorMessage(error));
+    return;
+  }
+
+  const model = await vscode.window.showInputBox({
+    title: "BIBER Model",
+    prompt: "Enter the logical BIBER model id.",
+    value: config.model || DEFAULT_MODEL,
+    ignoreFocusOut: true,
+    validateInput: (value) => (value.trim() ? undefined : "Model id is required."),
+  });
+  if (!model) {
+    return;
+  }
+
+  await vscode.workspace
+    .getConfiguration("biber")
+    .update("openaiBaseUrl", normalizedBaseUrl, vscode.ConfigurationTarget.Global);
+  await vscode.workspace
+    .getConfiguration("biber")
+    .update("model", model.trim(), vscode.ConfigurationTarget.Global);
+
+  const existingKey = Boolean(await context.secrets.get(API_KEY_SECRET));
+  if (existingKey) {
+    const keyChoice = await vscode.window.showQuickPick(
+      ["Keep existing API key", "Replace API key"],
+      {
+        title: "BIBER API Key",
+        placeHolder: "Choose whether to keep or replace the stored key.",
+        ignoreFocusOut: true,
+      }
+    );
+    if (!keyChoice) {
+      await refreshUi(context);
+      return;
+    }
+    if (keyChoice === "Replace API key") {
+      const stored = await promptAndStoreApiKey(context);
+      if (!stored) {
+        await refreshUi(context);
+        return;
+      }
+    }
+  } else {
+    const stored = await promptAndStoreApiKey(context);
+    if (!stored) {
+      await refreshUi(context);
+      return;
+    }
+  }
+
+  await refreshUi(context);
+  if (options.offerNextAction === false) {
+    return;
+  }
+  const action = await vscode.window.showInformationMessage(
+    "BIBER API setup saved.",
+    "Test Connection",
+    "Plan Change"
+  );
+  if (action === "Test Connection") {
+    await runSingleFlight(() => testConnection(context, output));
+  } else if (action === "Plan Change") {
+    await runSingleFlight(() => orchestrationPlan(context, output));
+  }
+}
+
+async function resolveBaseUrl(
+  endpoint: SetupEndpointPick,
+  currentBaseUrl: string
+): Promise<string | undefined> {
+  if (endpoint.value === "default") {
+    return DEFAULT_BASE_URL;
+  }
+  if (endpoint.value === "local") {
+    return LOCAL_BASE_URL;
+  }
+  if (endpoint.value === "current") {
+    return currentBaseUrl;
+  }
+  return vscode.window.showInputBox({
+    title: "BIBER API Endpoint",
+    prompt: "Enter the protected BIBER API base URL.",
+    value: currentBaseUrl || DEFAULT_BASE_URL,
+    placeHolder: DEFAULT_BASE_URL,
+    ignoreFocusOut: true,
+    validateInput: (value) => {
+      try {
+        assertAllowedBaseUrl(value.trim());
+        return undefined;
+      } catch (error) {
+        return errorMessage(error);
+      }
+    },
+  });
+}
+
+async function setApiKey(
+  context: vscode.ExtensionContext,
+  output?: vscode.OutputChannel
+): Promise<void> {
+  const stored = await promptAndStoreApiKey(context);
+  await refreshUi(context);
+  if (!stored) {
+    return;
+  }
+  const action = await vscode.window.showInformationMessage(
+    "BIBER API key saved in VS Code SecretStorage.",
+    "Test Connection"
+  );
+  if (action === "Test Connection" && output) {
+    await runSingleFlight(() => testConnection(context, output));
+  }
+}
+
+async function promptAndStoreApiKey(context: vscode.ExtensionContext): Promise<boolean> {
   const apiKey = await vscode.window.showInputBox({
     title: "BIBER API Key",
-    prompt: "Enter a per-user BIBER API key.",
+    prompt: "Paste a per-user BIBER API key. It is stored only in VS Code SecretStorage.",
     password: true,
     ignoreFocusOut: true,
     validateInput: (value) =>
       value.trim().length < 16 ? "API key looks too short." : undefined,
   });
   if (!apiKey) {
-    return;
+    return false;
   }
   await context.secrets.store(API_KEY_SECRET, apiKey.trim());
-  vscode.window.showInformationMessage("BIBER API key saved in VS Code SecretStorage.");
+  return true;
 }
 
 async function clearApiKey(context: vscode.ExtensionContext): Promise<void> {
   await context.secrets.delete(API_KEY_SECRET);
+  await refreshUi(context);
   vscode.window.showInformationMessage("BIBER API key removed from VS Code SecretStorage.");
+}
+
+async function refreshUi(context: vscode.ExtensionContext): Promise<void> {
+  const config = readConfig();
+  const hasApiKey = Boolean(await context.secrets.get(API_KEY_SECRET));
+  treeProvider?.refresh();
+  if (statusBar) {
+    statusBar.text = hasApiKey ? "$(sparkle) BIBER Ready" : "$(key) BIBER Setup";
+    statusBar.tooltip = hasApiKey
+      ? `BIBER is configured for ${config.model} at ${config.openaiBaseUrl}. Click to edit setup.`
+      : "Set up your BIBER API endpoint and API key.";
+    statusBar.show();
+  }
 }
 
 async function runSingleFlight(operation: () => Promise<void>): Promise<void> {
@@ -76,21 +297,32 @@ async function orchestrationPlan(
   output: vscode.OutputChannel
 ): Promise<void> {
   const config = readConfig();
-  const apiKey = await context.secrets.get(API_KEY_SECRET);
+  let apiKey = await context.secrets.get(API_KEY_SECRET);
   if (!apiKey) {
     vscode.window.showWarningMessage("Set a BIBER API key before calling orchestration.");
-    await vscode.commands.executeCommand("biber.setApiKey");
-    return;
+    await openSetup(context, output, { offerNextAction: false });
+    apiKey = await context.secrets.get(API_KEY_SECRET);
+    if (!apiKey) {
+      return;
+    }
   }
 
+  const activePath = activeWorkspacePath();
   const instruction = await vscode.window.showInputBox({
-    title: "BIBER Orchestration Plan",
-    prompt: "Describe the coding task. The MVP sends path hints only, not file contents.",
+    title: "BIBER Change Agent",
+    prompt: "Describe the change you want planned. The MVP sends path hints only, not file contents.",
+    placeHolder: activePath
+      ? `Plan a safe change related to ${activePath}`
+      : "Plan a safe change for this repository.",
     ignoreFocusOut: true,
-    validateInput: (value) =>
-      value.length > config.maxPromptChars
+    validateInput: (value) => {
+      if (!value.trim()) {
+        return "Instruction is required.";
+      }
+      return value.length > config.maxPromptChars
         ? `Instruction is longer than ${config.maxPromptChars} characters.`
-        : undefined,
+        : undefined;
+    },
   });
   if (!instruction) {
     return;
@@ -112,7 +344,10 @@ async function orchestrationPlan(
     },
   };
 
-  output.appendLine("Requesting BIBER orchestration plan...");
+  output.appendLine("Requesting BIBER change plan...");
+  output.appendLine(`Endpoint: ${config.openaiBaseUrl}`);
+  output.appendLine(`Model: ${config.model}`);
+  output.appendLine(`Path hints: ${changedPaths.length ? changedPaths.join(", ") : "(none)"}`);
   output.show(true);
 
   try {
@@ -128,7 +363,7 @@ async function orchestrationPlan(
     output.appendLine(JSON.stringify(redactForOutput(response), null, 2));
   } catch (error) {
     output.appendLine(`BIBER request failed: ${errorMessage(error)}`);
-    vscode.window.showErrorMessage("BIBER orchestration request failed. See output.");
+    vscode.window.showErrorMessage("BIBER change plan request failed. See output.");
   }
 }
 
@@ -137,14 +372,18 @@ async function testConnection(
   output: vscode.OutputChannel
 ): Promise<void> {
   const config = readConfig();
-  const apiKey = await context.secrets.get(API_KEY_SECRET);
+  let apiKey = await context.secrets.get(API_KEY_SECRET);
   if (!apiKey) {
     vscode.window.showWarningMessage("Set a BIBER API key before testing the API.");
-    await vscode.commands.executeCommand("biber.setApiKey");
-    return;
+    await openSetup(context, output, { offerNextAction: false });
+    apiKey = await context.secrets.get(API_KEY_SECRET);
+    if (!apiKey) {
+      return;
+    }
   }
 
   output.appendLine("Testing BIBER API connection...");
+  output.appendLine(`Endpoint: ${config.openaiBaseUrl}`);
   output.show(true);
 
   try {
@@ -158,6 +397,7 @@ async function testConnection(
     );
     const summary = summarizeCapabilities(response);
     output.appendLine(JSON.stringify(summary, null, 2));
+    await refreshUi(context);
     vscode.window.showInformationMessage("BIBER API connection is ready.");
   } catch (error) {
     output.appendLine(`BIBER connection test failed: ${errorMessage(error)}`);
@@ -168,8 +408,8 @@ async function testConnection(
 function readConfig(): BiberConfig {
   const config = vscode.workspace.getConfiguration("biber");
   return {
-    openaiBaseUrl: String(config.get("openaiBaseUrl") || "https://api.beaverapi.com/v1"),
-    model: String(config.get("model") || "biber-dev-core-v1"),
+    openaiBaseUrl: String(config.get("openaiBaseUrl") || DEFAULT_BASE_URL),
+    model: String(config.get("model") || DEFAULT_MODEL),
     maxRequestsPerMinute: clampNumber(config.get("maxRequestsPerMinute"), 1, 60, 12),
     requestTimeoutMs: clampNumber(config.get("requestTimeoutMs"), 5000, 120000, 30000),
     maxPromptChars: clampNumber(config.get("maxPromptChars"), 200, 20000, 4000),
@@ -219,6 +459,14 @@ function collectChangedPaths(maxChangedPaths: number): string[] {
     paths.add(vscode.workspace.asRelativePath(editor.document.uri, false));
   }
   return Array.from(paths).slice(0, maxChangedPaths);
+}
+
+function activeWorkspacePath(): string | undefined {
+  const editor = vscode.window.activeTextEditor;
+  if (editor?.document.uri.scheme !== "file") {
+    return undefined;
+  }
+  return vscode.workspace.asRelativePath(editor.document.uri, false);
 }
 
 async function postJson(
@@ -327,4 +575,95 @@ function errorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+class BiberTreeProvider implements vscode.TreeDataProvider<BiberTreeItem> {
+  private readonly emitter = new vscode.EventEmitter<BiberTreeItem | undefined>();
+  readonly onDidChangeTreeData = this.emitter.event;
+
+  constructor(private readonly context: vscode.ExtensionContext) {}
+
+  refresh(): void {
+    this.emitter.fire(undefined);
+  }
+
+  getTreeItem(element: BiberTreeItem): vscode.TreeItem {
+    return element;
+  }
+
+  async getChildren(element?: BiberTreeItem): Promise<BiberTreeItem[]> {
+    if (element) {
+      return [];
+    }
+    const config = readConfig();
+    const hasApiKey = Boolean(await this.context.secrets.get(API_KEY_SECRET));
+    const activePath = activeWorkspacePath();
+    const actions: TreeAction[] = [
+      {
+        label: hasApiKey ? "API Key Configured" : "Setup API Connection",
+        description: hasApiKey ? "SecretStorage" : "required",
+        tooltip: hasApiKey
+          ? "A BIBER API key is stored securely in VS Code SecretStorage."
+          : "Open the guided setup flow to enter your API endpoint, model, and API key.",
+        icon: hasApiKey ? "shield" : "key",
+        command: {
+          command: "biber.openSetup",
+          title: "BIBER: Setup API Connection",
+        },
+      },
+      {
+        label: "Test API Connection",
+        description: config.model,
+        tooltip: config.openaiBaseUrl,
+        icon: "plug",
+        command: {
+          command: "biber.testConnection",
+          title: "BIBER: Test API Connection",
+        },
+      },
+      {
+        label: "Plan Change",
+        description: activePath ? "uses active file path hint" : "planning-only",
+        tooltip: "Ask BIBER for a safe repo-aware plan. This MVP sends path hints only.",
+        icon: "sparkle",
+        command: {
+          command: "biber.orchestrationPlan",
+          title: "BIBER: Plan Change",
+        },
+      },
+      {
+        label: "Show Output",
+        description: "redacted logs",
+        tooltip: "Open the BIBER output channel.",
+        icon: "output",
+        command: {
+          command: "biber.openOutput",
+          title: "BIBER: Show Output",
+        },
+      },
+      {
+        label: "Endpoint",
+        description: config.openaiBaseUrl,
+        tooltip: "Configured BIBER API base URL.",
+        icon: "globe",
+      },
+      {
+        label: "Workspace Context",
+        description: activePath || "no active file",
+        tooltip: "The MVP sends bounded path hints, not file contents.",
+        icon: "folder",
+      },
+    ];
+    return actions.map((action) => new BiberTreeItem(action));
+  }
+}
+
+class BiberTreeItem extends vscode.TreeItem {
+  constructor(action: TreeAction) {
+    super(action.label, vscode.TreeItemCollapsibleState.None);
+    this.description = action.description;
+    this.tooltip = action.tooltip || action.description;
+    this.iconPath = new vscode.ThemeIcon(action.icon);
+    this.command = action.command;
+  }
 }

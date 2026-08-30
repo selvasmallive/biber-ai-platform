@@ -99,6 +99,10 @@ def main() -> int:
                 check(extension_js.is_file(), "compiled_extension_js_exists"),
                 check(extension_map.is_file(), "compiled_source_map_exists"),
                 check("biber.testConnection" in extension_text, "compiled_test_connection"),
+                check("biber.openSetup" in extension_text, "compiled_setup_command"),
+                check("biber.openOutput" in extension_text, "compiled_open_output_command"),
+                check("registerTreeDataProvider" in extension_text, "compiled_tree_view"),
+                check("createStatusBarItem" in extension_text, "compiled_status_bar"),
                 check("/agent/capabilities" in extension_text, "compiled_capabilities_endpoint"),
                 check(
                     "/agent/orchestration/plan" in extension_text,

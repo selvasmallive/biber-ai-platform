@@ -182,11 +182,14 @@ only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 `python scripts/biber_external_agent_examples_smoke.py` for an offline
 fake-server validation before live GPU testing.
 Use `examples/vscode_extension/` for the VS Code extension MVP scaffold. It is
-an orchestration-planning client first: API keys live in SecretStorage, calls
-are explicit user commands, `BIBER: Test API Connection` checks
-`/v1/agent/capabilities` without sending repository data, the orchestration
-command sends bounded path hints rather than file contents, and local
-single-flight/rate-limit/timeout/HTTPS guards are present. Run
+an orchestration-planning client first: API keys live in SecretStorage, the
+extension is discoverable through the BIBER Activity Bar view, dedicated
+sidebar SVG icon, and status bar entry, `BIBER: Setup API Connection` guides
+endpoint/model/key setup,
+`BIBER: Test API Connection` checks `/v1/agent/capabilities` without sending
+repository data, `BIBER: Plan Change` sends bounded path hints rather than file
+contents, and local single-flight/rate-limit/timeout/HTTPS guards are present.
+Run
 `python scripts/biber_vscode_extension_contract_smoke.py` before changing that
 scaffold.
 When npm is available and you need to prove the extension actually compiles,
@@ -196,7 +199,8 @@ download npm packages and is intentionally not part of the default Python-only
 confidence gate.
 When preparing a VS Code Marketplace build, run
 `python scripts/biber_vscode_extension_package_smoke.py`; it compiles, packages
-`examples/vscode_extension/dist/biber-ai-assistant-0.1.0.vsix`, and install-tests
+the current `examples/vscode_extension/dist/biber-ai-assistant-<version>.vsix`,
+and install-tests
 the VSIX in an isolated temporary VS Code profile. If a Windows/OneDrive file
 lock blocks `npm ci` after dependencies are already installed, rerun the compile
 or package smoke with `--skip-npm-ci`.
@@ -214,7 +218,7 @@ repository data, and summarizes the advertised server-side protections. Add
 a failed process.
 
 Use the orchestration smoke to exercise the same planning-only command as
-`BIBER: Plan With BIBER Orchestration` without launching VS Code:
+`BIBER: Plan Change` without launching VS Code:
 
 ```bash
 python scripts/biber_vscode_extension_orchestration_smoke.py \

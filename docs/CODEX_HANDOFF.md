@@ -1,8 +1,33 @@
 # Codex Handoff
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 ## Current Goal
+
+2026-08-30 BIBER VS Code extension UX checkpoint:
+Complete locally for the user request to make the VS Code extension more
+intuitive and easier to configure after install. The extension is now version
+`0.2.0` with a visible BIBER Activity Bar container, `Change Agent` view,
+dedicated sidebar SVG icon, status bar entry, and guided `BIBER: Setup API
+Connection` flow for endpoint, model id, and per-user API key storage in VS
+Code SecretStorage. If users start `Test API Connection` or `Plan Change`
+without a key, setup now runs first and then continues the selected flow after
+the key is saved. The planning command is now titled `BIBER: Plan Change`; it
+still calls only
+`/v1/agent/orchestration/plan`, sends bounded path hints only, sends no file
+contents, performs no direct file mutation, keeps OpenAI mentor off, and does
+not call admin/training/raw vLLM endpoints. Rebuilt VSIX:
+`C:\Users\vselv\OneDrive\Biber\biber-mvp-only\examples\vscode_extension\dist\biber-ai-assistant-0.2.0.vsix`.
+Validation passed `scripts/biber_vscode_extension_contract_smoke.py` with
+90/90 checks, `scripts/biber_vscode_extension_compile_smoke.py --skip-npm-ci`
+with 15/15 checks, and `scripts/biber_vscode_extension_package_smoke.py
+--skip-npm-ci` with 17/17 checks, including isolated VS Code install as
+`flat-electronics-canada.biber-ai-assistant@0.2.0`. Standard local confidence
+also passed in `outputs/biber-local-confidence-smoke-vscode-ux-020.json` with
+13/13 checks, including `vscode_extension_contract` and
+`vscode_extension_orchestration_mock`. No GPU/model call, OpenAI mentor,
+training, paid API, credential rotation, destructive Git, or XRIQ/XRIS work
+occurred.
 
 2026-08-29 BIBER VS Code supplied-logo checkpoint:
 Complete locally after the user provided the intended BIBER AI logo artwork for

@@ -15,10 +15,14 @@ flat-electronics-canada.biber-ai-assistant
 
 ## Current Release Scope
 
-Version `0.1.2` is intentionally a planning-first extension:
+Version `0.2.0` is intentionally a planning-first extension:
 
 - Stores API keys in VS Code SecretStorage.
 - Ships the Marketplace icon from `media/icon.png`.
+- Shows a BIBER Activity Bar change-agent view after install with a dedicated
+  VS Code sidebar SVG icon.
+- Shows a status bar entry for setup/discovery.
+- Provides `BIBER: Setup API Connection` for endpoint, model, and key setup.
 - Tests `/v1/agent/capabilities` before orchestration.
 - Calls `/v1/agent/orchestration/plan` by explicit user command.
 - Sends bounded instructions and bounded workspace-relative path hints.
@@ -95,7 +99,7 @@ Install-test into an isolated temporary VS Code profile before publishing:
 ```bash
 code --extensions-dir <temp-extensions-dir> \
   --user-data-dir <temp-user-data-dir> \
-  --install-extension biber-ai-assistant-0.1.0.vsix \
+  --install-extension biber-ai-assistant-0.2.0.vsix \
   --force
 
 code --extensions-dir <temp-extensions-dir> \
@@ -106,7 +110,7 @@ code --extensions-dir <temp-extensions-dir> \
 The installed extension should appear as:
 
 ```text
-flat-electronics-canada.biber-ai-assistant@0.1.2
+flat-electronics-canada.biber-ai-assistant@0.2.0
 ```
 
 ## Publish
@@ -132,9 +136,13 @@ with the secret injected by the CI provider.
 - `package.json.name` is `biber-ai-assistant`.
 - `package.json.icon` is `media/icon.png`.
 - `media/icon.png` exists and is included in the VSIX.
+- `media/activity-icon.svg` exists and is included in the VSIX.
 - `npm ci` passes.
 - `npm run compile` passes.
-- `npm run package` creates `biber-ai-assistant-0.1.2.vsix`.
+- `npm run package` creates `biber-ai-assistant-0.2.0.vsix`.
+- The Activity Bar contains a `BIBER` container with the `Change Agent` view.
+- The command palette includes `BIBER: Setup API Connection`.
+- The status bar entry appears after extension activation and opens setup.
 - Isolated VS Code install-test passes.
 - `scripts/biber_vscode_extension_contract_smoke.py` passes.
 - `scripts/biber_vscode_extension_compile_smoke.py` passes.

@@ -1,17 +1,29 @@
 # BIBER AI Assistant
 
 BIBER AI Assistant is a secure VS Code client for testing BIBER as a
-Copilot-style local/remote coding assistant. The Marketplace icon is packaged from `media/icon.png`, using the supplied BIBER AI logo artwork. Version `0.1.2` focuses on API
-readiness and orchestration planning before direct file mutation is enabled.
+Copilot-style local/remote coding assistant. The Marketplace icon is packaged
+from `media/icon.png`, using the supplied BIBER AI logo artwork, and the
+Activity Bar uses `media/activity-icon.svg` for a crisp VS Code sidebar entry.
+Version `0.2.0` adds a visible Activity Bar change-agent view and guided API
+setup before direct file mutation is enabled.
+
+After installing, open the BIBER icon in the Activity Bar or click the BIBER
+status bar item, then run `Setup API Connection`. The setup flow lets users pick
+the public Beaver API, a local Vast tunnel, or a custom protected BIBER gateway,
+then stores the user API key in VS Code SecretStorage. If users start from
+`Test API Connection` or `Plan Change` without a key, BIBER opens setup first
+and then continues the selected flow after a key is saved.
 
 The first command surface is intentionally small:
 
+- `BIBER: Setup API Connection` guides endpoint, model, and key setup.
 - `BIBER: Set API Key` stores the user API key in VS Code SecretStorage.
 - `BIBER: Clear API Key` removes the stored key.
 - `BIBER: Test API Connection` calls `/v1/agent/capabilities` without sending
   repository data and prints a redacted readiness summary.
-- `BIBER: Plan With BIBER Orchestration` calls the planning-only
-  `/v1/agent/orchestration/plan` endpoint.
+- `BIBER: Plan Change` calls the planning-only `/v1/agent/orchestration/plan`
+  endpoint.
+- `BIBER: Show Output` opens the redacted BIBER output channel.
 
 The extension targets the OpenAI-compatible BIBER API base URL configured in
 `biber.openaiBaseUrl`, defaulting to:
@@ -35,7 +47,8 @@ The extension must protect the BIBER API and the user's code workspace:
 - Store API keys only in VS Code SecretStorage.
 - Never write API keys to settings, files, terminal output, or the output panel.
 - Require HTTPS for remote API URLs; allow HTTP only for localhost/127.0.0.1.
-- Use explicit user commands only; do not run background repository scans.
+- Use explicit user commands only; startup activation updates local UI state
+  but does not call BIBER or run background repository scans.
 - Send no file contents in the first MVP orchestration command.
 - Send only bounded workspace-relative path hints and a bounded instruction.
 - Enforce a local per-minute request limit before calling BIBER.
@@ -51,7 +64,9 @@ rate limits, payload size limits, logging redaction, and abuse monitoring.
 
 ## Current Limitation
 
-The current orchestration call is a planning contract test. It is useful for
+The Activity Bar view is intentionally an interactive launch point, not a fully
+autonomous coding agent yet. The current orchestration call is a planning
+contract test. It is useful for
 editor integration because it verifies API keys, URL configuration, path hints,
 repo planning output, and user-facing workflow. It does not yet implement a
 full autonomous editor agent, streaming chat, background indexing, or direct
