@@ -218,6 +218,14 @@ that path locally with:
 python scripts/biber_azure_devops_review_smoke.py
 ```
 
+Use the task-wrapper smoke to exercise the actual packaged Node task entrypoint
+with mock-only diff/model inputs and an optional local summary artifact:
+
+```bash
+python scripts/biber_azure_devops_task_wrapper_smoke.py \
+  --output outputs/biber-azure-devops-task-wrapper-smoke.json
+```
+
 The Azure DevOps smoke uses mock diff/model data and must report no BIBER API,
 Azure DevOps comment, GitHub, OpenAI mentor, training, or external paid API
 request. For live browser-panel calls to `https://api.beaverapi.com/v1`,

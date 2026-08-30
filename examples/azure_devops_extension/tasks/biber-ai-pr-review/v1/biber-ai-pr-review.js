@@ -38,6 +38,14 @@ function main() {
     "--output-md",
     outputMd,
   ];
+  const mockDiffFile = process.env.BIBER_AZURE_DEVOPS_MOCK_DIFF_FILE || "";
+  const mockResponseFile = process.env.BIBER_AZURE_DEVOPS_MOCK_RESPONSE_FILE || "";
+  if (mockDiffFile) {
+    args.push("--mock-diff-file", mockDiffFile);
+  }
+  if (mockResponseFile) {
+    args.push("--mock-biber-response-file", mockResponseFile);
+  }
 
   const biberKey = process.env.BIBER_API_KEY || "";
   const env = Object.assign({}, process.env, {

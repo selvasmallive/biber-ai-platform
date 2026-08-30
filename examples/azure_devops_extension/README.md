@@ -77,6 +77,13 @@ flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix
 findings, do not treat them as BIBER runtime dependencies; still revisit the
 packaging toolchain before a broad public Marketplace release.
 
+To test the task wrapper entrypoint without Azure DevOps credentials or a live
+BIBER API:
+
+```bash
+python ../../scripts/biber_azure_devops_task_wrapper_smoke.py
+```
+
 For now, validate the contract without Azure credentials or network calls:
 
 ```bash

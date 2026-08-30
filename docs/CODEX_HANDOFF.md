@@ -4,6 +4,25 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps task-wrapper checkpoint:
+Complete locally after the Azure DevOps package checkpoint. Added
+`scripts/biber_azure_devops_task_wrapper_smoke.py` and mock-only task wrapper
+controls `BIBER_AZURE_DEVOPS_MOCK_DIFF_FILE` /
+`BIBER_AZURE_DEVOPS_MOCK_RESPONSE_FILE` so the actual Node task entrypoint can
+be exercised without Azure DevOps credentials, BIBER API calls, or network
+access. The mock controls are for local smoke validation only; production
+pipeline behavior is unchanged unless those env vars are deliberately set.
+Validation passed Python `py_compile`, `git diff --check`,
+`scripts/biber_azure_devops_task_wrapper_smoke.py --output
+outputs/biber-azure-devops-task-wrapper-smoke-001.json` with 12/12 checks, and
+`scripts/biber_azure_devops_extension_package_smoke.py --skip-npm-install
+--output outputs/biber-azure-devops-extension-package-smoke-003.json` with all
+package checks passing. The wrapper smoke confirmed dry-run behavior,
+redaction, high-risk review parsing, no Azure comment, no BIBER request, no
+GitHub request, no OpenAI mentor, no GPU, and no training. On this Windows
+workstation, a fresh rerun is blocked because `python` is not on `PATH`; a Vast
+SSH probe reached the host but was denied with `Permission denied (publickey)`.
+
 2026-08-30 BIBER Azure DevOps package checkpoint:
 Complete locally after the Azure DevOps review demo checkpoint. Added the task
 `icon.png`, a sparse-safe generated-file ignore rule, and

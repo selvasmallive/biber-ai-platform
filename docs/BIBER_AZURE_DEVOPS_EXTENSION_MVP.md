@@ -96,6 +96,16 @@ tree. The generated VSIX excludes `node_modules`, but package public releases
 from a clean environment and reassess the packaging toolchain before a broad
 Marketplace launch.
 
+To test the actual task wrapper entrypoint without Azure DevOps credentials or
+a live BIBER API, run:
+
+```bash
+python scripts/biber_azure_devops_task_wrapper_smoke.py
+```
+
+That smoke feeds mock diff/model files through the same Node task wrapper that
+the packaged task uses, then verifies the generated review JSON and Markdown.
+
 ## Security Contract
 
 - Do not store BIBER user API keys in source control.
