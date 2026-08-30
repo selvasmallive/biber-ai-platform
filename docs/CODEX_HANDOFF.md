@@ -17,9 +17,9 @@ JSON/Markdown artifacts, and posts an Azure DevOps PR thread only when
 `commentMode=post` is deliberately enabled. Validation passed Python
 `py_compile`, `git diff --check`, focused
 `scripts/biber_azure_devops_review_smoke.py --output
-outputs/biber-azure-devops-review-smoke-006.json` with 61/61 checks, and full
+outputs/biber-azure-devops-review-smoke-007.json` with 63/63 checks, and full
 `scripts/biber_local_confidence_smoke.py --timeout-seconds 240 --output
-outputs/biber-local-confidence-smoke-azure-devops-002.json` with 14/14 checks
+outputs/biber-local-confidence-smoke-azure-devops-003.json` with 14/14 checks
 including `azure_devops_review_contract`. The smoke used mock diff/model data
 and sent no BIBER, Azure DevOps, GitHub, OpenAI mentor, training, or external
 paid API request. Created the slide-ready conference source outline at

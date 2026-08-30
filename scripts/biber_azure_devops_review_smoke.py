@@ -186,6 +186,8 @@ def main() -> int:
             check(manifest.get("id") == "biber-ai-azure-devops", "manifest:id"),
             check(manifest.get("publisher") == "flat-electronics-canada", "manifest:publisher"),
             check(manifest.get("version") == "0.1.0", "manifest:version"),
+            check("Azure Repos" in manifest.get("categories", []), "manifest:azure_repos_category"),
+            check("Azure Pipelines" in manifest.get("categories", []), "manifest:azure_pipelines_category"),
             check("Microsoft.VisualStudio.Services" in json.dumps(manifest), "manifest:target"),
             check("biber-ai-review-hub" in contribution_ids, "manifest:hub_contribution"),
             check("biber-ai-pr-review-task" in contribution_ids, "manifest:pipeline_task"),
