@@ -4,7 +4,9 @@
   "private": true,
   "description": "Azure DevOps extension scaffold for private BIBER AI PR and commit review.",
   "scripts": {
-    "validate": "python ../../scripts/biber_azure_devops_review_smoke.py",
+    "validate": "node ../../scripts/biber_azure_devops_publisher_readiness_smoke.js",
+    "validate:contract": "python ../../scripts/biber_azure_devops_review_smoke.py",
+    "validate:wrapper": "python ../../scripts/biber_azure_devops_task_wrapper_smoke.py",
     "package": "tfx extension create --manifest-globs vss-extension.json"
   },
   "devDependencies": {

@@ -4,6 +4,23 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps publisher-readiness checkpoint:
+Complete locally after the task-wrapper checkpoint. Added
+`scripts/biber_azure_devops_publisher_readiness_smoke.js` and changed
+`examples/azure_devops_extension/package.json` so `npm run validate` now runs a
+Node-only Marketplace/demo readiness preflight. The deeper Python contract
+smokes remain available as `npm run validate:contract` and
+`npm run validate:wrapper` for CI/Vast/local Python environments. Validation
+passed `node --check` for the new readiness script and task wrapper,
+`npm run validate` with 56/56 checks, escalated artifact write to
+`outputs/biber-azure-devops-publisher-readiness-smoke-001.json`, and
+`npm run package`, which recreated
+`examples/azure_devops_extension/flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix`.
+The readiness smoke sends no BIBER API, Azure DevOps, GitHub, OpenAI mentor,
+GPU, training, or external network request. `python` is still not on this
+Windows workstation `PATH`, and direct Vast SSH is still blocked by
+`Permission denied (publickey)`.
+
 2026-08-30 BIBER Azure DevOps task-wrapper checkpoint:
 Complete locally after the Azure DevOps package checkpoint. Added
 `scripts/biber_azure_devops_task_wrapper_smoke.py` and mock-only task wrapper

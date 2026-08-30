@@ -231,6 +231,16 @@ Azure DevOps comment, GitHub, OpenAI mentor, training, or external paid API
 request. For live browser-panel calls to `https://api.beaverapi.com/v1`,
 configure public-edge CORS only when needed:
 
+For a Node-only Marketplace/demo preflight from the extension folder:
+
+```bash
+cd examples/azure_devops_extension
+npm run validate
+```
+
+Use `npm run validate:contract` and `npm run validate:wrapper` when Python is
+available locally, on CI, or on Vast.
+
 ```text
 BIBER_CORS_ALLOWED_ORIGINS=https://dev.azure.com
 BIBER_CORS_ALLOWED_ORIGIN_REGEX=https://.*\.visualstudio\.com

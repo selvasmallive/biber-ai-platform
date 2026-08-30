@@ -56,8 +56,14 @@ tooling locally and run:
 
 ```bash
 npm ci
+npm run validate
 npm run package
 ```
+
+`npm run validate` is a Node-only publisher/demo readiness preflight. It checks
+the manifest, task metadata, icons, safe defaults, panel storage behavior, mock
+wrapper hooks, and obvious embedded-secret mistakes without calling BIBER,
+Azure DevOps, GitHub, OpenAI, GPU, or any external network service.
 
 Or use the repo-level smoke, which validates the manifest/task contract, runs
 the local extension validation, packages the VSIX, and checks the archive
@@ -81,11 +87,11 @@ To test the task wrapper entrypoint without Azure DevOps credentials or a live
 BIBER API:
 
 ```bash
-python ../../scripts/biber_azure_devops_task_wrapper_smoke.py
+npm run validate:wrapper
 ```
 
 For now, validate the contract without Azure credentials or network calls:
 
 ```bash
-python scripts/biber_azure_devops_review_smoke.py
+npm run validate:contract
 ```

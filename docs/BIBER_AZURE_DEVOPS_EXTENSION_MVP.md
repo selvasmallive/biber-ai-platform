@@ -70,11 +70,17 @@ release private:
 ```bash
 cd examples/azure_devops_extension
 npm install
+npm run validate
 npm run package
 ```
 
 Do not enter Marketplace tokens into source files, docs, terminal transcripts,
 or training/eval artifacts.
+
+`npm run validate` is a Node-only Marketplace/demo readiness preflight. It
+checks the manifest, task metadata, icons, safe defaults, browser-panel storage
+rules, mock wrapper hooks, and obvious embedded-secret mistakes without calling
+BIBER, Azure DevOps, GitHub, OpenAI, GPU, or external network services.
 
 The repo-level packaging smoke is:
 
@@ -100,7 +106,7 @@ To test the actual task wrapper entrypoint without Azure DevOps credentials or
 a live BIBER API, run:
 
 ```bash
-python scripts/biber_azure_devops_task_wrapper_smoke.py
+npm run validate:wrapper
 ```
 
 That smoke feeds mock diff/model files through the same Node task wrapper that
@@ -119,7 +125,7 @@ the packaged task uses, then verifies the generated review JSON and Markdown.
 ## Local Validation
 
 ```bash
-python scripts/biber_azure_devops_review_smoke.py
+npm run validate:contract
 ```
 
 This smoke uses mock diff/model data. It sends no BIBER request, no Azure
