@@ -18,6 +18,21 @@ pub const FED_2026: &str = include_str!("../data/fed-2026.json");
 /// in this repository has already needed four corrections.
 pub const T1_FEDERAL: &str = include_str!("../data/t1-federal.json");
 
+/// Capital cost allowance, shared by the T1 and the T2.
+///
+/// Classes, the half-year rule, recapture and terminal loss are the same
+/// statute whether a sole proprietor or a corporation is claiming, so the pool
+/// arithmetic lives once and is merged into both federal forms.
+pub const CCA_FEDERAL: &str = include_str!("../data/cca-federal.json");
+
+/// The federal T1 with capital cost allowance merged in.
+fn federal_t1() -> Result<FormSet, EngineError> {
+    FormSet::merge(
+        FormSet::from_json(T1_FEDERAL)?,
+        FormSet::from_json(CCA_FEDERAL)?,
+    )
+}
+
 /// One row per jurisdiction: code, form definition, and a pack per tax year.
 ///
 /// A table rather than match arms. With one province the arms were clearer;
@@ -197,10 +212,7 @@ pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
     }
     let j = find(province).ok_or_else(|| unsupported(year, province))?;
 
-    let mut forms = FormSet::compose(
-        FormSet::from_json(T1_FEDERAL)?,
-        FormSet::from_json(j.form)?,
-    )?;
+    let mut forms = FormSet::compose(federal_t1()?, FormSet::from_json(j.form)?)?;
 
     forms.tax_year = year;
     Ok(forms)
@@ -237,10 +249,12 @@ pub fn t2_forms(province: &str) -> Result<FormSet, EngineError> {
         )));
     }
 
-    FormSet::compose(
+    let federal = FormSet::merge(
         FormSet::from_json(T2_FEDERAL)?,
-        FormSet::from_json(T2_ON)?,
-    )
+        FormSet::from_json(CCA_FEDERAL)?,
+    )?;
+
+    FormSet::compose(federal, FormSet::from_json(T2_ON)?)
 }
 
 /// T2 parameters for a fiscal period, which may draw on two calendar years.
@@ -274,8 +288,21 @@ pub fn t2_packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
             EngineError::Unsupported(format!("no T2 parameters for {year}"))
         })?;
 
+    // Layered over the T1 federal pack rather than copied from it. Capital cost
+    // allowance rates are the same statute for both returns and are already
+    // verified there; a second copy would be free to drift out of step with the
+    // first, and nothing would notice.
+    let base = match year {
+        2025 => FED_2025,
+        2026 => FED_2026,
+        _ => return Err(EngineError::Unsupported(format!("no parameters for {year}"))),
+    };
+
     Ok(PackSet {
-        federal: ParamPack::from_json(fed)?,
+        federal: ParamPack::layered(
+            &ParamPack::from_json(base)?,
+            &ParamPack::from_json(fed)?,
+        ),
         provincial: ParamPack::from_json(prov)?,
     })
 }
@@ -317,9 +344,16 @@ mod tests {
         );
 
         // Composing them is what the loader does, and the result is the whole
-        // return.
+        // return: the federal form, the shared capital cost allowance fragment,
+        // and one province. Every line appears once — reindexing would have
+        // rejected a duplicate, so equality here is the no-overlap property.
+        let cca = FormSet::from_json(CCA_FEDERAL).unwrap();
         let composed = t1_forms(2026, "on").unwrap();
-        assert_eq!(composed.lines.len(), federal.lines.len() + ontario.lines.len());
+
+        assert_eq!(
+            composed.lines.len(),
+            federal.lines.len() + cca.lines.len() + ontario.lines.len()
+        );
     }
 
     /// A province that redefines a federal line must be rejected, not silently

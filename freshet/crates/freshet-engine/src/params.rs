@@ -136,6 +136,27 @@ impl ParamPack {
     }
 }
 
+impl ParamPack {
+    /// Layer one pack over another, the overlay winning on a clash.
+    ///
+    /// Used so a T2 can draw on the federal parameters a T1 already verified —
+    /// capital cost allowance rates are the same statute for both — without a
+    /// second copy of them drifting out of step with the first.
+    pub fn layered(base: &ParamPack, overlay: &ParamPack) -> ParamPack {
+        let mut merged = base.clone();
+        merged.tax_year = overlay.tax_year;
+
+        for (key, value) in &overlay.scalars {
+            merged.scalars.insert(key.clone(), value.clone());
+        }
+        for (key, value) in &overlay.brackets {
+            merged.brackets.insert(key.clone(), value.clone());
+        }
+
+        merged
+    }
+}
+
 /// The set of packs in play for one return: federal plus one province.
 #[derive(Debug, Clone)]
 pub struct PackSet {

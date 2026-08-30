@@ -213,17 +213,22 @@
           {
             "op": "fact",
             "key": "t2.other_additions"
+          },
+          {
+            "op": "line",
+            "id": "fed.recapture_total"
           }
         ]
-      }
+      },
+      "note": "Recapture is included here: selling an asset for more than its remaining undepreciated cost means past capital cost allowance was too generous, and the excess comes back into income."
     },
     {
       "id": "t2.sch1.cca",
       "label": "Capital cost allowance",
-      "note": "Schedule 8. A single entered figure for now: the pool arithmetic already exists for T1 self-employment and should be extracted into a shared fragment rather than written twice.",
+      "note": "Schedule 8, computed from the shared capital cost allowance fragment — the same pool arithmetic a T1 uses for a sole proprietor, because it is the same statute.",
       "expr": {
-        "op": "fact",
-        "key": "t2.capital_cost_allowance"
+        "op": "line",
+        "id": "fed.cca_total"
       }
     },
     {
@@ -239,9 +244,14 @@
           {
             "op": "fact",
             "key": "t2.other_deductions"
+          },
+          {
+            "op": "line",
+            "id": "fed.terminal_loss_total"
           }
         ]
-      }
+      },
+      "note": "Terminal loss is included here: retiring the last asset in a class for less than its remaining undepreciated cost means past capital cost allowance was too stingy, and the shortfall is deducted."
     },
     {
       "id": "t2.300",

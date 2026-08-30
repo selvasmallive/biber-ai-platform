@@ -107,11 +107,10 @@ impl FormSet {
     /// Reindexing also enforces the rule that matters once there are thirteen
     /// provincial files — a province that defines a line the federal form
     /// already owns is rejected as a duplicate rather than quietly shadowing it.
-    pub fn compose(mut federal: FormSet, provincial: FormSet) -> Result<FormSet, EngineError> {
-        federal.lines.extend(provincial.lines);
-        federal.checks.extend(provincial.checks);
-        federal.province = provincial.province;
-        federal.reindex()?;
+    pub fn compose(federal: FormSet, provincial: FormSet) -> Result<FormSet, EngineError> {
+        let province = provincial.province.clone();
+        let mut federal = Self::merge(federal, provincial)?;
+        federal.province = province;
 
         // The federal return reaches into the province through exactly these
         // two ids and no others, so a province that omits one produces a set
@@ -127,6 +126,26 @@ impl FormSet {
         }
 
         Ok(federal)
+    }
+
+    /// Join a fragment into a form.
+    ///
+    /// Separate from [`compose`] because not every join is federal-plus-province.
+    /// Capital cost allowance is the same arithmetic on a T1 and a T2 — classes,
+    /// the half-year rule, recapture, terminal loss — so it lives once and is
+    /// merged into both. Applying the provincial contract to that would be
+    /// nonsense: a fragment supplies lines, not a jurisdiction.
+    ///
+    /// Reindexing still rejects a fragment that redefines a line the base
+    /// already owns.
+    ///
+    /// [`compose`]: FormSet::compose
+    pub fn merge(mut base: FormSet, fragment: FormSet) -> Result<FormSet, EngineError> {
+        base.lines.extend(fragment.lines);
+        base.checks.extend(fragment.checks);
+        base.reindex()?;
+
+        Ok(base)
     }
 
     fn reindex(&mut self) -> Result<(), EngineError> {

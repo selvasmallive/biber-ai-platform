@@ -315,12 +315,14 @@ fn a_corporation_reporting_no_profit_can_still_have_taxable_income() {
 /// way to get net income for tax purposes wrong.
 #[test]
 fn amortization_is_replaced_by_capital_cost_allowance_not_netted_against_it() {
+    // Capital cost allowance is computed from the pools, not entered: a class 8
+    // balance of 400,000 at 20% gives 80,000.
     let got = assess(
         Period::calendar(2025),
         &[
             ("t2.accounting_income", "200000"),
             ("t2.amortization", "50000"),
-            ("t2.capital_cost_allowance", "80000"),
+            ("cca.class8.opening_ucc", "400000"),
         ],
     );
 
@@ -435,4 +437,104 @@ fn the_missing_reconciling_items_are_declared() {
 
     assert_eq!(warned.severity, Severity::Warning);
     assert!(warned.help.as_deref().unwrap().contains("other addition"));
+}
+
+// -- capital cost allowance, shared with the T1 ---------------------------
+
+/// The pool arithmetic is the same statute for a corporation as for a sole
+/// proprietor, so it lives in one fragment merged into both federal forms.
+/// This asserts the T2 actually computes it rather than merely compiling.
+#[test]
+fn the_corporation_computes_capital_cost_allowance_from_its_own_pools() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("t2.accounting_income", "300000"),
+            ("t2.amortization", "50000"),
+            ("cca.class8.opening_ucc", "100000"),
+            ("cca.class50.opening_ucc", "40000"),
+        ],
+    );
+
+    // Class 8 at 20% and class 50 at 55%, both on the opening balance.
+    assert_eq!(got.get("fed.cca_class8").unwrap(), d("20000.00"));
+    assert_eq!(got.get("fed.cca_class50").unwrap(), d("22000.00"));
+    assert_eq!(got.get("t2.sch1.cca").unwrap(), d("42000.00"));
+
+    // 300,000 + 50,000 amortization back − 42,000 of CCA.
+    assert_eq!(got.get("t2.300").unwrap(), d("308000.00"));
+}
+
+/// The half-year rule applies to a corporation exactly as it does to a sole
+/// proprietor: only half of a year's additions enter the pool.
+#[test]
+fn the_half_year_rule_applies_to_a_corporation_too() {
+    let bought = assess(
+        Period::calendar(2025),
+        &[("t2.accounting_income", "300000"), ("cca.class8.additions", "100000")],
+    );
+
+    // 20% of half of 100,000, not 20% of all of it.
+    assert_eq!(bought.get("fed.cca_class8").unwrap(), d("10000.00"));
+}
+
+/// Selling an asset for more than its remaining undepreciated cost means past
+/// allowance was too generous. The excess comes back into income, and for a
+/// corporation that happens on Schedule 1.
+#[test]
+fn recapture_is_added_back_on_schedule_1() {
+    let plain = assess(Period::calendar(2025), &[("t2.accounting_income", "200000")]);
+    let recaptured = assess(
+        Period::calendar(2025),
+        &[
+            ("t2.accounting_income", "200000"),
+            ("cca.class8.opening_ucc", "10000"),
+            ("cca.class8.dispositions", "30000"),
+        ],
+    );
+
+    assert!(recaptured.get("fed.recapture_total").unwrap() > d("0.00"));
+    assert!(
+        recaptured.get("t2.300").unwrap() > plain.get("t2.300").unwrap(),
+        "recapture did not reach net income for tax purposes"
+    );
+}
+
+/// Retiring the last asset in a class for less than its remaining cost is the
+/// mirror image: past allowance was too stingy, and the shortfall is deducted.
+#[test]
+fn a_terminal_loss_is_deducted_on_schedule_1() {
+    let plain = assess(Period::calendar(2025), &[("t2.accounting_income", "200000")]);
+    let terminal = assess(
+        Period::calendar(2025),
+        &[
+            ("t2.accounting_income", "200000"),
+            ("cca.class8.opening_ucc", "40000"),
+            ("cca.class8.dispositions", "5000"),
+            ("cca.class8.all_disposed", "1"),
+        ],
+    );
+
+    assert!(terminal.get("fed.terminal_loss_total").unwrap() > d("0.00"));
+    assert!(
+        terminal.get("t2.300").unwrap() < plain.get("t2.300").unwrap(),
+        "the terminal loss did not reduce net income for tax purposes"
+    );
+}
+
+/// The rates come from the federal pack the T1 already verified, layered under
+/// the T2 parameters rather than copied into them. A second copy would be free
+/// to drift out of step with the first and nothing would notice.
+#[test]
+fn the_cca_rates_are_the_verified_federal_ones_not_a_second_copy() {
+    let t1 = freshet_taxdata::packs(2025, "on").unwrap();
+    let t2 = freshet_taxdata::t2_packs(2025, "on").unwrap();
+
+    for key in ["fed:cca_rate_class8", "fed:cca_rate_class50", "fed:cca_first_year_adjustment"] {
+        assert_eq!(
+            t2.scalar(key).unwrap(),
+            t1.scalar(key).unwrap(),
+            "{key} differs between the T1 and T2 packs"
+        );
+    }
 }
