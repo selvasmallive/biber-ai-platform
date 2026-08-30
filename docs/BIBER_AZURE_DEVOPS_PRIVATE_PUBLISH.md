@@ -82,6 +82,12 @@ For a PR artifact demo, copy:
 examples/azure_devops_pipeline/biber-ai-pr-review.yml
 ```
 
+For a PR artifact demo that uses the installed extension task, copy:
+
+```text
+examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml
+```
+
 For a commit artifact demo, copy:
 
 ```text

@@ -14,6 +14,8 @@ assistant inside Azure DevOps.
   pipeline has `$(System.AccessToken)` access.
 - Provides a separate commit-review pipeline that publishes artifacts only and
   does not require Azure DevOps PR comment credentials.
+- Provides an installed extension-task PR pipeline example using
+  `BiberAiPrReview@1`.
 - Provides a first `BIBER AI Review` extension panel scaffold.
 
 ## Demo Order
@@ -22,10 +24,12 @@ assistant inside Azure DevOps.
 2. Inspect the published `biber-ai-review.md` artifact.
 3. Run the commit sample pipeline to review the latest pushed commit without
    any Azure PR comment permission.
-4. Show the Azure DevOps extension panel and paste a small diff manually.
-5. Explain that the same BIBER API can run behind `api.beaverapi.com`, a
+4. After private extension install, run the task-based PR pipeline that invokes
+   `BiberAiPrReview@1`.
+5. Show the Azure DevOps extension panel and paste a small diff manually.
+6. Explain that the same BIBER API can run behind `api.beaverapi.com`, a
    private tunnel, or a future enterprise gateway.
-6. Only after a dry-run artifact is accepted, switch `commentMode=post` in a
+7. Only after a dry-run artifact is accepted, switch `commentMode=post` in a
    test PR so the script posts one top-level PR thread.
 
 ## Files
@@ -35,6 +39,7 @@ scripts/biber_azure_devops_pr_review.py
 scripts/biber_azure_devops_review_smoke.py
 examples/azure_devops_pipeline/biber-ai-pr-review.yml
 examples/azure_devops_pipeline/biber-ai-commit-review.yml
+examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml
 examples/azure_devops_extension/vss-extension.json
 examples/azure_devops_extension/static/index.html
 examples/azure_devops_extension/tasks/biber-ai-pr-review/v1/task.json
@@ -55,6 +60,11 @@ For a push/commit-only demo, use
 `main` and `master`, checks out the last two commits, reviews the latest commit
 diff through the same BIBER script, publishes `biber-ai-commit-review.md`, and
 does not pass `$(System.AccessToken)` or post PR comments.
+
+After the private extension is installed in an Azure DevOps organization, use
+`examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml` to demo
+the packaged task form. It invokes `BiberAiPrReview@1`, keeps
+`commentMode=dry-run`, and publishes the same review artifacts.
 
 ## Extension Setup
 
@@ -107,11 +117,12 @@ redaction happens before `fetch`, checks `use_mentor=false`, confirms unsafe
 public HTTP URLs do not send requests, and exercises cancel/sample/copy/clear
 controls.
 
-`npm run validate:pipeline` is a Node-only readiness preflight for both sample
-Azure Pipelines. It checks the PR pipeline uses `commentMode=dry-run`, checks
-the commit pipeline uses `commentMode=none`, verifies both publish review
-artifacts, confirms `BIBER_API_KEY` is read from the pipeline environment, and
-confirms neither path requests mentor review or training.
+`npm run validate:pipeline` is a Node-only readiness preflight for all sample
+Azure Pipelines. It checks the script-based PR pipeline uses
+`commentMode=dry-run`, checks the commit pipeline uses `commentMode=none`,
+checks the installed-task PR pipeline invokes `BiberAiPrReview@1`, verifies all
+paths publish review artifacts, confirms `BIBER_API_KEY` is read from the
+pipeline environment, and confirms no path requests mentor review or training.
 
 `npm run demo:offline` writes a local presentation backup bundle with a fake
 redacted diff, a mock OpenAI-compatible BIBER response, a PR dry-run artifact,

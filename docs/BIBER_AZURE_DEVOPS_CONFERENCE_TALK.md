@@ -71,6 +71,8 @@ inference to future enterprise governance.
    - Pull request review is a familiar workflow.
    - Pipeline artifacts are easy to inspect.
    - PR comments create visible value quickly.
+   - The same flow can be shown as a repo-local script or installed extension
+     task.
    - Speaker note: This is why Azure DevOps is better for the conference demo
      than starting with a custom app.
 
@@ -158,6 +160,9 @@ Use `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as the operator checklist.
 9. If the live path is unavailable, open the latest
    `outputs/biber-azure-devops-offline-demo-*` bundle and show the same artifact
    shape with no live API request.
+10. After private extension install, show the
+    `biber-ai-extension-task-pr-review.yml` pipeline invoking
+    `BiberAiPrReview@1`.
 
 ## Speaker Notes For Hard Questions
 

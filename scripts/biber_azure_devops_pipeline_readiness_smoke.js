@@ -17,6 +17,12 @@ const COMMIT_PIPELINE_PATH = path.join(
   "azure_devops_pipeline",
   "biber-ai-commit-review.yml",
 );
+const EXTENSION_TASK_PIPELINE_PATH = path.join(
+  ROOT,
+  "examples",
+  "azure_devops_pipeline",
+  "biber-ai-extension-task-pr-review.yml",
+);
 
 function check(condition, name, detail = "") {
   return { name, ok: Boolean(condition), detail };
@@ -49,9 +55,11 @@ function main() {
     check(fs.existsSync(PR_PIPELINE_PATH), "pipeline_exists"),
     check(fs.existsSync(PR_PIPELINE_PATH), "pr_pipeline_exists"),
     check(fs.existsSync(COMMIT_PIPELINE_PATH), "commit_pipeline_exists"),
+    check(fs.existsSync(EXTENSION_TASK_PIPELINE_PATH), "extension_task_pipeline_exists"),
   ];
   const pipelineText = readIfExists(PR_PIPELINE_PATH);
   const commitPipelineText = readIfExists(COMMIT_PIPELINE_PATH);
+  const taskPipelineText = readIfExists(EXTENSION_TASK_PIPELINE_PATH);
 
   checks.push(check(/^trigger:\s*none\s*$/m.test(pipelineText), "trigger_disabled"));
   checks.push(check(/^pr:\s*$/m.test(pipelineText), "pr_trigger_present"));
@@ -115,6 +123,36 @@ function main() {
   checks.push(check(!/Review with OpenAI mentor/i.test(commitPipelineText), "commit_mentor_not_requested"));
   checks.push(check(!/BIBER_TRAIN_APPROVED/.test(commitPipelineText), "commit_training_not_enabled"));
 
+  checks.push(check(/^trigger:\s*none\s*$/m.test(taskPipelineText), "task_trigger_disabled"));
+  checks.push(check(/^pr:\s*$/m.test(taskPipelineText), "task_pr_trigger_present"));
+  checks.push(check(/-\s*main\b/.test(taskPipelineText), "task_pr_includes_main"));
+  checks.push(check(/-\s*master\b/.test(taskPipelineText), "task_pr_includes_master"));
+  checks.push(check(/vmImage:\s*ubuntu-latest/.test(taskPipelineText), "task_uses_ubuntu_hosted_agent"));
+  checks.push(check(/BIBER_OPENAI_BASE_URL:\s*https:\/\/api\.beaverapi\.com\/v1/.test(taskPipelineText), "task_base_url_default"));
+  checks.push(check(/BIBER_MODEL:\s*biber-dev-core-v1/.test(taskPipelineText), "task_model_default"));
+  checks.push(check(/-\s*checkout:\s*self/.test(taskPipelineText), "task_checkout_self"));
+  checks.push(check(/fetchDepth:\s*0/.test(taskPipelineText), "task_checkout_full_history"));
+  checks.push(check(/persistCredentials:\s*true/.test(taskPipelineText), "task_checkout_persist_credentials_for_pr_context"));
+  checks.push(check(/UsePythonVersion@0/.test(taskPipelineText), "task_python_version_task"));
+  checks.push(check(/versionSpec:\s*["']3\.11["']/.test(taskPipelineText), "task_python_311"));
+  checks.push(check(/-\s*task:\s*BiberAiPrReview@1/.test(taskPipelineText), "task_installed_task_invoked"));
+  checks.push(check(!/python scripts\/biber_azure_devops_pr_review\.py/.test(taskPipelineText), "task_no_direct_script_invocation"));
+  checks.push(check(/biberApiBaseUrl:\s*"\$\(BIBER_OPENAI_BASE_URL\)"/.test(taskPipelineText), "task_base_url_from_variable"));
+  checks.push(check(/biberModel:\s*"\$\(BIBER_MODEL\)"/.test(taskPipelineText), "task_model_from_variable"));
+  checks.push(check(/commentMode:\s*"dry-run"/.test(taskPipelineText), "task_comment_mode_dry_run"));
+  checks.push(check(!/commentMode:\s*"post"/.test(taskPipelineText), "task_comment_mode_post_not_enabled"));
+  checks.push(check(/maxDiffBytes:\s*"60000"/.test(taskPipelineText), "task_bounded_diff_input"));
+  checks.push(check(/BIBER_API_KEY:\s*\$\(BIBER_API_KEY\)/.test(taskPipelineText), "task_biber_key_from_secret_variable"));
+  checks.push(check(/SYSTEM_ACCESSTOKEN:\s*\$\(System\.AccessToken\)/.test(taskPipelineText), "task_system_access_token_env"));
+  checks.push(check(/-\s*publish:\s+"\$\(Build\.ArtifactStagingDirectory\)"/.test(taskPipelineText), "task_publishes_artifacts"));
+  checks.push(check(/artifact:\s*biber-ai-review/.test(taskPipelineText), "task_artifact_name"));
+  checks.push(check(countMatches(taskPipelineText, /BIBER_API_KEY/g) === 3, "task_no_extra_biber_key_mentions"));
+  checks.push(check(!/BIBER_API_KEY\s*:\s*["'][^"']{12,}["']/.test(taskPipelineText), "task_no_embedded_biber_key"));
+  checks.push(check(!/OPENAI_API_KEY\s*:/.test(taskPipelineText), "task_no_openai_key"));
+  checks.push(check(!/BIBER_ADMIN_API_KEY\s*:/.test(taskPipelineText), "task_no_admin_key"));
+  checks.push(check(!/Review with OpenAI mentor/i.test(taskPipelineText), "task_mentor_not_requested"));
+  checks.push(check(!/BIBER_TRAIN_APPROVED/.test(taskPipelineText), "task_training_not_enabled"));
+
   const failed = checks.filter((item) => !item.ok);
   const result = {
     source: "biber_azure_devops_pipeline_readiness_smoke",
@@ -131,6 +169,7 @@ function main() {
     pipeline_paths: {
       pr: PR_PIPELINE_PATH,
       commit: COMMIT_PIPELINE_PATH,
+      extension_task_pr: EXTENSION_TASK_PIPELINE_PATH,
     },
     checks,
     failed,

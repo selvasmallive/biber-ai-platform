@@ -46,6 +46,8 @@ Expected local safety posture:
 - The PR pipeline starts as artifact-only dry-run evidence.
 - The commit pipeline publishes artifacts only and does not use
   `$(System.AccessToken)`.
+- The installed-task pipeline invokes `BiberAiPrReview@1` after private
+  extension install.
 - The browser panel redacts secret-like pasted values before calling BIBER.
 - No admin key, OpenAI key, or user key is embedded in package files.
 
@@ -88,6 +90,15 @@ This path reviews the latest pushed commit, publishes
 `biber-ai-commit-review.md`, and intentionally does not request Azure PR
 comment permissions.
 
+After the private extension is installed, import or copy:
+
+```text
+examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml
+```
+
+This path invokes the packaged `BiberAiPrReview@1` task, keeps
+`commentMode=dry-run`, and publishes `biber-ai-review.md`.
+
 ## Dry-Run Demo Flow
 
 1. Open a small test pull request with one deliberate correctness issue.
@@ -117,6 +128,8 @@ comment permissions.
 
 7. Open the `BIBER AI Review` hub panel and explain that it is the UI direction
    for interactive review from inside Azure DevOps.
+8. If the extension is installed, rerun the same scenario with
+   `biber-ai-extension-task-pr-review.yml` to show the packaged task form.
 
 ## Commit Review Demo Flow
 

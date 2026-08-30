@@ -213,9 +213,11 @@ through the BIBER OpenAI-compatible endpoint, keeps OpenAI mentor disabled, and
 defaults to `commentMode=dry-run`. A second sample,
 `examples/azure_devops_pipeline/biber-ai-commit-review.yml`, reviews the latest
 pushed commit as artifact-only evidence with `commentMode=none` and no
-`System.AccessToken` wiring. The extension scaffold packages the same task plus
-a thin `BIBER AI Review` hub panel for interactive testing. Validate that path
-locally with:
+`System.AccessToken` wiring. After private extension installation,
+`examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml` invokes
+the packaged `BiberAiPrReview@1` task directly. The extension scaffold packages
+the same task plus a thin `BIBER AI Review` hub panel for interactive testing.
+Validate that path locally with:
 
 ```bash
 python scripts/biber_azure_devops_review_smoke.py

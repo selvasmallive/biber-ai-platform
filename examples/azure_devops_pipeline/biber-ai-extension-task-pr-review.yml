@@ -1,0 +1,42 @@
+# BIBER AI installed extension-task PR review pipeline MVP.
+# Install/share the private BIBER Azure DevOps extension before using this YAML.
+# Add BIBER_API_KEY as a secret pipeline variable before enabling comment posting.
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  BIBER_OPENAI_BASE_URL: https://api.beaverapi.com/v1
+  BIBER_MODEL: biber-dev-core-v1
+
+steps:
+  - checkout: self
+    fetchDepth: 0
+    persistCredentials: true
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.11"
+
+  - task: BiberAiPrReview@1
+    displayName: "BIBER AI review PR diff with installed task"
+    inputs:
+      biberApiBaseUrl: "$(BIBER_OPENAI_BASE_URL)"
+      biberModel: "$(BIBER_MODEL)"
+      commentMode: "dry-run"
+      maxDiffBytes: "60000"
+    env:
+      BIBER_API_KEY: $(BIBER_API_KEY)
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - publish: "$(Build.ArtifactStagingDirectory)"
+    artifact: biber-ai-review
+    displayName: "Publish BIBER AI review artifacts"

@@ -9,6 +9,8 @@ This folder contains the first Azure DevOps MVP for the conference demo:
   `examples/azure_devops_pipeline/biber-ai-pr-review.yml`.
 - A commit-review pipeline example at
   `examples/azure_devops_pipeline/biber-ai-commit-review.yml`.
+- An installed-task PR pipeline example at
+  `examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml`.
 
 ## Recommended Demo Order
 
@@ -16,10 +18,12 @@ This folder contains the first Azure DevOps MVP for the conference demo:
    Markdown review artifact.
 2. Run the commit-review sample when you want push/commit review without any
    Azure PR comment token.
-3. Enable `commentMode: post` only after the pipeline has access to
+3. After private extension install, run the installed-task sample to show
+   `BiberAiPrReview@1` from a normal Azure Pipeline.
+4. Enable `commentMode: post` only after the pipeline has access to
    `$(System.AccessToken)` and the project allows the build service to comment
    on pull requests.
-4. Open the extension panel to show how the same BIBER review contract can be
+5. Open the extension panel to show how the same BIBER review contract can be
    surfaced inside Azure DevOps.
 
 ## BIBER API Configuration
@@ -77,10 +81,10 @@ GPU, or any external network service.
 DOM and mock `fetch`; it verifies redaction, mentor-disabled requests, unsafe
 URL blocking, and copy/clear/sample controls without calling the live API.
 
-`npm run validate:pipeline` checks the PR and commit sample Azure Pipelines
-remain safe artifact flows before you copy either into Azure DevOps. The PR
-sample stays dry-run by default; the commit sample stays artifact-only with no
-`System.AccessToken` wiring.
+`npm run validate:pipeline` checks the script-based PR, commit, and installed
+extension-task Azure Pipelines remain safe artifact flows before you copy any
+of them into Azure DevOps. The PR samples stay dry-run by default; the commit
+sample stays artifact-only with no `System.AccessToken` wiring.
 
 `npm run demo:offline` creates a non-secret local presentation bundle with a
 fake redacted diff, mock BIBER response, PR dry-run Markdown artifact, commit

@@ -18,6 +18,9 @@ PIPELINE_EXAMPLE = ROOT / "examples" / "azure_devops_pipeline" / "biber-ai-pr-re
 COMMIT_PIPELINE_EXAMPLE = (
     ROOT / "examples" / "azure_devops_pipeline" / "biber-ai-commit-review.yml"
 )
+EXTENSION_TASK_PIPELINE_EXAMPLE = (
+    ROOT / "examples" / "azure_devops_pipeline" / "biber-ai-extension-task-pr-review.yml"
+)
 
 
 def check(condition: bool, name: str, detail: str = "") -> dict[str, Any]:
@@ -161,6 +164,7 @@ def main() -> int:
         task_icon_path,
         PIPELINE_EXAMPLE,
         COMMIT_PIPELINE_EXAMPLE,
+        EXTENSION_TASK_PIPELINE_EXAMPLE,
         script_path,
         task_script_path,
         src_config_path,
@@ -178,6 +182,7 @@ def main() -> int:
     task_script_text = task_script_path.read_text(encoding="utf-8")
     pipeline_text = PIPELINE_EXAMPLE.read_text(encoding="utf-8")
     commit_pipeline_text = COMMIT_PIPELINE_EXAMPLE.read_text(encoding="utf-8")
+    task_pipeline_text = EXTENSION_TASK_PIPELINE_EXAMPLE.read_text(encoding="utf-8")
     api_text = "\n".join(
         path.read_text(encoding="utf-8")
         for path in (src_config_path, src_main_path, app_config_path, app_main_path)
@@ -234,6 +239,11 @@ def main() -> int:
             check("System.AccessToken" not in commit_pipeline_text, "commit_pipeline:no_system_access_token"),
             check("biber-ai-commit-review.md" in commit_pipeline_text, "commit_pipeline:markdown_artifact"),
             check("BIBER_API_KEY" in commit_pipeline_text, "commit_pipeline:secret_biber_key"),
+            check("BiberAiPrReview@1" in task_pipeline_text, "task_pipeline:installed_task"),
+            check("python scripts/biber_azure_devops_pr_review.py" not in task_pipeline_text, "task_pipeline:no_direct_script"),
+            check('commentMode: "dry-run"' in task_pipeline_text, "task_pipeline:dry_run"),
+            check("System.AccessToken" in task_pipeline_text, "task_pipeline:system_access_token"),
+            check("fetchDepth: 0" in task_pipeline_text, "task_pipeline:full_history_for_diff"),
             check("BIBER AI Review" in panel_text, "panel:title"),
             check("apiKey" in panel_text, "panel:api_key_field"),
             check("localStorage" not in panel_text, "panel:no_local_storage"),
@@ -286,6 +296,7 @@ def main() -> int:
         "extension_root": str(AZURE_EXTENSION_ROOT),
         "pipeline_example": str(PIPELINE_EXAMPLE),
         "commit_pipeline_example": str(COMMIT_PIPELINE_EXAMPLE),
+        "extension_task_pipeline_example": str(EXTENSION_TASK_PIPELINE_EXAMPLE),
         "checks": checks,
         "failed": [item for item in checks if not item["ok"]],
     }

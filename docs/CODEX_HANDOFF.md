@@ -4,6 +4,27 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps installed-task pipeline checkpoint:
+Complete locally after the offline demo bundle checkpoint. Added
+`examples/azure_devops_pipeline/biber-ai-extension-task-pr-review.yml` so the
+conference/demo path can show the packaged Azure DevOps task form after private
+extension install. This YAML invokes `BiberAiPrReview@1`, keeps
+`commentMode=dry-run`, uses `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`
+variables, reads `BIBER_API_KEY` only from the pipeline environment, wires
+`$(System.AccessToken)` only for future optional PR comment posting, and
+publishes the standard `biber-ai-review` artifacts. Updated
+`scripts/biber_azure_devops_pipeline_readiness_smoke.js` to validate all three
+pipeline lanes: script-based PR, script-based commit, and installed-task PR.
+Updated the Python contract smoke metadata for Vast/CI and refreshed the Azure
+DevOps docs, private publish guide, demo runbook, BIBER-only workspace guide,
+extension README, and slide-ready talk source. Validation passed
+`node --check scripts/biber_azure_devops_pipeline_readiness_smoke.js`,
+`npm run validate:pipeline` with 93/93 checks, saved artifact
+`outputs/biber-azure-devops-pipeline-readiness-smoke-005.json`, and
+`npm run validate` with 64/64 checks. No BIBER API, Azure DevOps, Marketplace,
+GitHub, OpenAI mentor, GPU, training, or external network request was sent.
+Next narrow step: run `npm run package`, then commit/push this checkpoint.
+
 2026-08-30 BIBER Azure DevOps offline demo bundle checkpoint:
 Complete locally after the private-publish guide checkpoint. Added
 `scripts/biber_azure_devops_offline_demo_bundle_smoke.js` and wired
