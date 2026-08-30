@@ -102,6 +102,9 @@ contents:
 python scripts/biber_azure_devops_extension_package_smoke.py
 ```
 
+That package smoke also checks the generated VSIX contains the panel
+`Test Connection` control and `/models` readiness call.
+
 The generated package is ignored by Git and currently lands at:
 
 ```text

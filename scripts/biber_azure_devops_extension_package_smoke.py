@@ -207,6 +207,9 @@ def main() -> int:
             check(not any("node_modules/" in member for member in members), "vsix_excludes_node_modules"),
             check("OPENAI_API_KEY=" not in archive_text, "vsix_no_openai_key_assignment"),
             check("BIBER_ADMIN_API_KEY=" not in archive_text, "vsix_no_admin_key_assignment"),
+            check("testConnectionButton" in archive_text, "vsix_panel_test_connection_button"),
+            check("connectionResult" in archive_text, "vsix_panel_connection_status"),
+            check("/models" in archive_text, "vsix_panel_models_readiness_call"),
         ]
     )
 

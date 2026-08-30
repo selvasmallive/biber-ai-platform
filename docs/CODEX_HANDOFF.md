@@ -19,8 +19,24 @@ the panel and smoke scripts, `npm run validate:panel` with 37/37 checks,
 validate:pipeline` with 93/93 checks, `git diff --check`, and `npm run package`,
 which recreated the private VSIX. No live BIBER API, Azure DevOps, Marketplace,
 GitHub, OpenAI mentor, GPU, training, admin endpoint, or raw vLLM request was
-sent. Next narrow step: commit/push this checkpoint, then run a private Azure
-DevOps dry-run or continue local demo polish.
+sent. Saved to GitHub as commit `37bd6ef`. Next narrow step: tighten the package
+smoke so the generated VSIX itself proves this panel readiness control shipped.
+
+2026-08-30 BIBER Azure DevOps package connection-test guard checkpoint:
+Complete locally after the panel connection-test checkpoint. Tightened
+`scripts/biber_azure_devops_extension_package_smoke.py` so the generated VSIX
+must include the browser-panel `Test Connection` control, `connectionResult`
+status element, and `/models` readiness call before a package is accepted.
+Updated the Azure DevOps MVP docs and extension README to mention the stronger
+package guard. Since this Windows workstation has no `python` or `py` launcher
+on `PATH`, the Python package smoke itself was not executed here; instead,
+Node verified the package-smoke source contains the new guard checks and
+PowerShell inspected the regenerated VSIX archive for `testConnectionButton`,
+`connectionResult`, and `/models`. `git diff --check` passed. No live BIBER API,
+Azure DevOps, Marketplace, GitHub, OpenAI mentor, GPU, training, admin endpoint,
+or raw vLLM request was sent. Next narrow step: commit/push this checkpoint,
+then run `python scripts/biber_azure_devops_extension_package_smoke.py
+--skip-npm-install` on Vast or another Python-capable host when available.
 
 2026-08-30 BIBER Azure DevOps live dry-run checklist checkpoint:
 Complete locally after the Vast SSH note. Added

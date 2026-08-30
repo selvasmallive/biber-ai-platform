@@ -139,6 +139,8 @@ python scripts/biber_azure_devops_extension_package_smoke.py
 
 It may download npm packages the first time. It still sends no BIBER, Azure
 DevOps, GitHub, OpenAI mentor, GPU, or training request.
+The package smoke also inspects the generated VSIX to confirm the browser panel
+ships the `Test Connection` control and `/models` readiness call.
 
 The validated local package path is:
 
