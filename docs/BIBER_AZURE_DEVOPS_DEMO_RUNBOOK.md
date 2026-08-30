@@ -48,6 +48,10 @@ Expected local safety posture:
 
 ## Azure DevOps Setup
 
+Before publishing or sharing the private extension, follow
+`docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md`. Use `tfx-cli` for Azure DevOps
+extensions; reserve `vsce` for the separate VS Code extension.
+
 1. Upload the generated private VSIX:
 
    ```text

@@ -99,6 +99,12 @@ flat-electronics-canada.biber-ai-azure-devops-0.1.0.vsix
 findings, do not treat them as BIBER runtime dependencies; still revisit the
 packaging toolchain before a broad public Marketplace release.
 
+For private Marketplace upload/share steps, use:
+
+```text
+docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md
+```
+
 To test the task wrapper entrypoint without Azure DevOps credentials or a live
 BIBER API:
 

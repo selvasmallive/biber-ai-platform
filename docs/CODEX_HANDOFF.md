@@ -4,6 +4,25 @@ Last updated: 2026-08-30
 
 ## Current Goal
 
+2026-08-30 BIBER Azure DevOps private-publish guide checkpoint:
+Complete locally after the commit-review pipeline checkpoint. Added
+`docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md` with the safe private
+Marketplace upload/share path for the BIBER Azure DevOps extension. It clarifies
+that Azure DevOps extensions use `tfx-cli`, while VS Code extensions use
+`vsce`; keeps the first release private; keeps Marketplace PATs out of source,
+docs, transcripts, screenshots, training data, and eval artifacts; points to the
+generated VSIX; documents browser upload and `npx tfx extension publish`; and
+keeps broad public listing delayed until durable key storage, quotas, audit
+logs, abuse controls, monitoring, incident procedures, and data-handling policy
+exist. Linked the guide from the Azure DevOps MVP docs, demo runbook, extension
+README, BIBER-only workspace guide, and slide-ready talk source. Source notes
+are from official Microsoft Azure DevOps extension publish/manifest docs. No
+BIBER API, Azure DevOps publish, Marketplace upload, GitHub request, OpenAI
+mentor, GPU, training, or paid API request was sent by the project workflow.
+Next narrow step: run the Python Azure DevOps contract smoke on Vast/CI when
+Python is available, then do a private Azure DevOps dry-run with the PR or
+commit sample pipeline.
+
 2026-08-30 BIBER Azure DevOps commit-review pipeline checkpoint:
 Complete locally after the panel-behavior checkpoint. Added
 `examples/azure_devops_pipeline/biber-ai-commit-review.yml` as a separate

@@ -245,6 +245,9 @@ npm run validate:pipeline
 
 Use `npm run validate:contract` and `npm run validate:wrapper` when Python is
 available locally, on CI, or on Vast.
+Use `docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md` before uploading the private
+Azure DevOps VSIX; Azure DevOps extensions use `tfx-cli`, while the VS Code
+extension uses `vsce`.
 
 ```text
 BIBER_CORS_ALLOWED_ORIGINS=https://dev.azure.com

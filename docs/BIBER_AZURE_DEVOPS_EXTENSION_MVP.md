@@ -90,6 +90,10 @@ npm run package
 Do not enter Marketplace tokens into source files, docs, terminal transcripts,
 or training/eval artifacts.
 
+Use `docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md` for the private upload/share
+checklist. Do not use `vsce` for this extension; `vsce` is for VS Code
+Marketplace packages.
+
 `npm run validate` is a Node-only Marketplace/demo readiness preflight. It
 checks the manifest, task metadata, icons, safe defaults, browser-panel storage
 rules, client-side redaction, diff budget UI, mock wrapper hooks, and obvious

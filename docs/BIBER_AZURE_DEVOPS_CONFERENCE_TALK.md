@@ -129,6 +129,7 @@ inference to future enterprise governance.
 
 16. The next release should stay practical
     - Package the extension privately.
+    - Share the private Azure DevOps extension only with the demo organization.
     - Run a private Azure Pipeline dry-run.
     - Add a push/commit artifact demo for audit-style review.
     - Add one controlled PR comment demo.
