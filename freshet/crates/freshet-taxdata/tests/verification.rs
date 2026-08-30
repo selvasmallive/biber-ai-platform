@@ -759,7 +759,9 @@ fn t2_fed_2025_residual_is_exactly_this() {
         "scalars.t2_abatement_rate",
         "scalars.t2_base_rate",
         "scalars.t2_business_limit",
+        "scalars.t2_donation_limit_rate",
         "scalars.t2_general_reduction_rate",
+        "scalars.t2_meals_deductible_rate",
         "scalars.t2_sbd_rate",
     ];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
@@ -781,7 +783,9 @@ fn t2_fed_2026_residual_is_exactly_this() {
         "scalars.t2_abatement_rate",
         "scalars.t2_base_rate",
         "scalars.t2_business_limit",
+        "scalars.t2_donation_limit_rate",
         "scalars.t2_general_reduction_rate",
+        "scalars.t2_meals_deductible_rate",
         "scalars.t2_sbd_rate",
     ];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();

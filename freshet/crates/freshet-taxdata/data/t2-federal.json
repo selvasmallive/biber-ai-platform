@@ -3,6 +3,7 @@
   "province": "on",
   "_comment": "The federal T2, structure-first. The Part I flow and the small business deduction, which is where proration for a short tax year first bites. Schedules and GIFI are not here yet.",
   "summary": [
+    "t2.sch1.accounting_income",
     "t2.300",
     "t2.360",
     "t2.430",
@@ -30,23 +31,6 @@
       }
     },
     {
-      "id": "t2.no_income_entered",
-      "severity": "info",
-      "message": "No net income has been entered.",
-      "help": "A nil return is valid, but check this is what you meant.",
-      "when": {
-        "cmp": "lte",
-        "left": {
-          "op": "line",
-          "id": "t2.300"
-        },
-        "right": {
-          "op": "const",
-          "value": "0"
-        }
-      }
-    },
-    {
       "id": "t2.rates_apportioned",
       "severity": "info",
       "message": "This tax year falls in two calendar years, so the rates have been apportioned by days.",
@@ -62,29 +46,274 @@
           "value": "0"
         }
       }
+    },
+    {
+      "id": "t2.sch1.common_addbacks_only",
+      "severity": "warning",
+      "message": "Schedule 1 covers the common reconciling items only.",
+      "help": "Reserves, resource deductions, scientific research expenditures and several other items are not modelled. Anything missing can be entered as an other addition or deduction, but the return will not compute it for you.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "t2.sch1.donations_limited",
+      "severity": "info",
+      "message": "Part of the charitable donations could not be deducted this year.",
+      "help": "The deduction is capped at a share of net income. The excess carries forward, which Freshet does not track yet.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "sub",
+          "from": {
+            "op": "fact",
+            "key": "t2.charitable_donations"
+          },
+          "minus": {
+            "op": "line",
+            "id": "t2.311"
+          }
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "t2.loss_year",
+      "severity": "info",
+      "message": "This tax year is a loss for tax purposes.",
+      "help": "No tax is payable. The loss may be carried back or forward, which Freshet does not track yet.",
+      "when": {
+        "cmp": "lt",
+        "left": {
+          "op": "line",
+          "id": "t2.300"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
     }
   ],
   "lines": [
     {
-      "id": "t2.300",
-      "label": "Net income for income tax purposes",
-      "note": "Schedule 1 reconciles accounting profit to this. Taken as a single figure for now; the reconciliation is its own schedule.",
+      "id": "t2.sch1.accounting_income",
+      "label": "Net income per the financial statements",
+      "note": "Where the reconciliation starts. Comes from GIFI line 9999 once GIFI exists; entered directly until then.",
       "expr": {
         "op": "fact",
-        "key": "t2.net_income"
+        "key": "t2.accounting_income"
+      }
+    },
+    {
+      "id": "t2.sch1.income_tax_provision",
+      "label": "Provision for income taxes",
+      "note": "Income tax is not deductible in computing income for tax purposes, so the accounting provision comes straight back.",
+      "expr": {
+        "op": "fact",
+        "key": "t2.income_tax_provision"
+      }
+    },
+    {
+      "id": "t2.sch1.amortization",
+      "label": "Amortization and depreciation",
+      "note": "Accounting depreciation is added back in full and replaced by capital cost allowance, deducted below. The two are unrelated figures and the difference is usually large.",
+      "expr": {
+        "op": "fact",
+        "key": "t2.amortization"
+      }
+    },
+    {
+      "id": "t2.sch1.meals_addback",
+      "label": "Non-deductible portion of meals and entertainment",
+      "note": "ITA 67.1 allows half. The parameter is the *deductible* share and the addback is what is left, written that way because the Act states the deductible half rather than the disallowed one.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "fact",
+          "key": "t2.meals_and_entertainment"
+        },
+        "by": {
+          "op": "sub",
+          "from": {
+            "op": "const",
+            "value": "1"
+          },
+          "minus": {
+            "op": "param",
+            "key": "fed:t2_meals_deductible_rate"
+          }
+        }
+      }
+    },
+    {
+      "id": "t2.sch1.non_deductible",
+      "label": "Fines, penalties and club dues",
+      "note": "ITA 67.6 disallows fines and penalties outright; ITA 18(1)(l) disallows dues for a club whose main purpose is dining, recreation or sport.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "fact",
+            "key": "t2.fines_and_penalties"
+          },
+          {
+            "op": "fact",
+            "key": "t2.club_dues"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.sch1.donations_addback",
+      "label": "Charitable donations added back",
+      "note": "Donations are an expense in the accounts but are not deducted in computing income. They come back here and are deducted from taxable income instead, where a limit applies.",
+      "expr": {
+        "op": "fact",
+        "key": "t2.charitable_donations"
+      }
+    },
+    {
+      "id": "t2.sch1.additions",
+      "label": "Total additions",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "t2.sch1.income_tax_provision"
+          },
+          {
+            "op": "line",
+            "id": "t2.sch1.amortization"
+          },
+          {
+            "op": "line",
+            "id": "t2.sch1.meals_addback"
+          },
+          {
+            "op": "line",
+            "id": "t2.sch1.non_deductible"
+          },
+          {
+            "op": "line",
+            "id": "t2.sch1.donations_addback"
+          },
+          {
+            "op": "fact",
+            "key": "t2.other_additions"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.sch1.cca",
+      "label": "Capital cost allowance",
+      "note": "Schedule 8. A single entered figure for now: the pool arithmetic already exists for T1 self-employment and should be extracted into a shared fragment rather than written twice.",
+      "expr": {
+        "op": "fact",
+        "key": "t2.capital_cost_allowance"
+      }
+    },
+    {
+      "id": "t2.sch1.deductions",
+      "label": "Total deductions",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "t2.sch1.cca"
+          },
+          {
+            "op": "fact",
+            "key": "t2.other_deductions"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.300",
+      "label": "Net income for income tax purposes",
+      "note": "Schedule 1 reconciles the accounting result to this. It may be negative — a loss is a real outcome, so this line is not floored.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "t2.sch1.accounting_income"
+            },
+            {
+              "op": "line",
+              "id": "t2.sch1.additions"
+            }
+          ]
+        },
+        "minus": {
+          "op": "line",
+          "id": "t2.sch1.deductions"
+        }
+      }
+    },
+    {
+      "id": "t2.311",
+      "label": "Charitable donations deducted",
+      "note": "ITA 110.1(1): capped at a share of net income, so a corporation that donated more than it earned carries the excess forward rather than creating a loss with it.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "t2.charitable_donations"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "mul",
+              "of": {
+                "op": "line",
+                "id": "t2.300"
+              },
+              "by": {
+                "op": "param",
+                "key": "fed:t2_donation_limit_rate"
+              }
+            }
+          }
+        ]
       }
     },
     {
       "id": "t2.360",
       "label": "Taxable income",
-      "note": "Net income less loss carryforwards and other deductions.",
+      "note": "Net income less the charitable donations deduction and other deductions such as loss carryforwards.",
       "expr": {
         "op": "floor_zero",
         "of": {
           "op": "sub",
           "from": {
-            "op": "line",
-            "id": "t2.300"
+            "op": "sub",
+            "from": {
+              "op": "line",
+              "id": "t2.300"
+            },
+            "minus": {
+              "op": "line",
+              "id": "t2.311"
+            }
           },
           "minus": {
             "op": "fact",

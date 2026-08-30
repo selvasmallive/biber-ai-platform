@@ -27,6 +27,16 @@
       "value": "500000",
       "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 125(2) business limit. Not checked against a published source. The T2 return cannot be filed while this stands.",
       "verified": false
+    },
+    "t2_meals_deductible_rate": {
+      "value": "0.50",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 67.1 deductible share of meals. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
+    },
+    "t2_donation_limit_rate": {
+      "value": "0.75",
+      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 110.1 donation limit as a share of net income. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "verified": false
     }
   },
   "brackets": {}

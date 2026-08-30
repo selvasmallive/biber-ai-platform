@@ -53,7 +53,7 @@ fn fired(got: &Assessment) -> Vec<&str> {
 fn the_federal_provincial_contract_carries_over_from_t1() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "300000"), ("t2.active_business_income", "300000")],
+        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")],
     );
 
     assert!(got.get("t2.700").is_some(), "no federal Part I tax line");
@@ -75,11 +75,11 @@ fn the_federal_provincial_contract_carries_over_from_t1() {
 fn a_short_first_year_prorates_the_business_limit() {
     let short = assess(
         period((2025, 9, 15), (2025, 12, 31)),
-        &[("t2.net_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
     );
     let full = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
     );
 
     let short_limit = short.get("t2.business_limit").unwrap();
@@ -97,11 +97,11 @@ fn a_short_first_year_prorates_the_business_limit() {
 fn a_short_year_reduces_the_small_business_deduction_too() {
     let short = assess(
         period((2025, 9, 15), (2025, 12, 31)),
-        &[("t2.net_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
     );
     let full = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "600000"), ("t2.active_business_income", "600000")],
+        &[("t2.accounting_income", "600000"), ("t2.active_business_income", "600000")],
     );
 
     assert!(short.get("t2.430").unwrap() < full.get("t2.430").unwrap());
@@ -114,9 +114,9 @@ fn a_short_year_reduces_the_small_business_deduction_too() {
 fn a_short_year_says_that_it_prorated() {
     let short = assess(
         period((2025, 9, 15), (2025, 12, 31)),
-        &[("t2.net_income", "300000")],
+        &[("t2.accounting_income", "300000")],
     );
-    let full = assess(Period::calendar(2025), &[("t2.net_income", "300000")]);
+    let full = assess(Period::calendar(2025), &[("t2.accounting_income", "300000")]);
 
     assert!(fired(&short).contains(&"t2.short_year_prorated"));
     assert!(!fired(&full).contains(&"t2.short_year_prorated"));
@@ -145,7 +145,7 @@ fn a_straddling_year_refuses_a_single_years_parameters() {
 fn a_straddling_year_computes_from_both_years_and_says_so() {
     let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
-        &[("t2.net_income", "300000"), ("t2.active_business_income", "300000")],
+        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")],
     );
 
     assert!(got.get("t2.700").is_some());
@@ -158,7 +158,7 @@ fn a_straddling_year_computes_from_both_years_and_says_so() {
 /// answer.
 #[test]
 fn identical_rates_across_the_boundary_change_nothing() {
-    let facts = [("t2.net_income", "300000"), ("t2.active_business_income", "300000")];
+    let facts = [("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")];
 
     let straddling = assess_across(period((2025, 7, 1), (2026, 6, 30)), &facts);
     let inside = assess(Period::calendar(2025), &facts);
@@ -176,7 +176,7 @@ fn identical_rates_across_the_boundary_change_nothing() {
 fn a_straddling_return_reports_both_years_as_unverified() {
     let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
-        &[("t2.net_income", "300000")],
+        &[("t2.accounting_income", "300000")],
     );
 
     assert!(!got.is_filable());
@@ -201,11 +201,11 @@ fn a_straddling_return_reports_both_years_as_unverified() {
 fn income_within_the_limit_is_taxed_more_lightly_than_income_above_it() {
     let small = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "400000"), ("t2.active_business_income", "400000")],
+        &[("t2.accounting_income", "400000"), ("t2.active_business_income", "400000")],
     );
     let large = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "2000000"), ("t2.active_business_income", "2000000")],
+        &[("t2.accounting_income", "2000000"), ("t2.active_business_income", "2000000")],
     );
 
     let rate = |a: &Assessment, income: &str| {
@@ -225,11 +225,11 @@ fn income_within_the_limit_is_taxed_more_lightly_than_income_above_it() {
 fn investment_income_does_not_earn_the_small_business_deduction() {
     let active = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "300000"), ("t2.active_business_income", "300000")],
+        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "300000")],
     );
     let passive = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "300000"), ("t2.active_business_income", "0")],
+        &[("t2.accounting_income", "300000"), ("t2.active_business_income", "0")],
     );
 
     assert_eq!(active.get("t2.360"), passive.get("t2.360"), "same taxable income");
@@ -243,7 +243,7 @@ fn investment_income_does_not_earn_the_small_business_deduction() {
 fn the_general_reduction_and_the_small_business_deduction_do_not_stack() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "400000"), ("t2.active_business_income", "400000")],
+        &[("t2.accounting_income", "400000"), ("t2.active_business_income", "400000")],
     );
 
     // All of it is within the limit, so there is nothing left to reduce.
@@ -258,14 +258,13 @@ fn a_nil_return_owes_nothing() {
     assert_eq!(got.get("t2.700").unwrap(), d("0.00"));
     assert_eq!(got.get("prov.tax").unwrap(), d("0.00"));
     assert_eq!(got.get("summary.balance").unwrap(), d("0.00"));
-    assert!(fired(&got).contains(&"t2.no_income_entered"));
 }
 
 #[test]
 fn tax_never_goes_negative() {
     let got = assess(
         Period::calendar(2025),
-        &[("t2.net_income", "50000"), ("t2.deductions", "500000")],
+        &[("t2.accounting_income", "50000"), ("t2.deductions", "500000")],
     );
 
     assert_eq!(got.get("t2.360").unwrap(), d("0.00"));
@@ -277,7 +276,7 @@ fn tax_never_goes_negative() {
 
 #[test]
 fn no_t2_return_can_be_filed_on_placeholder_rates() {
-    let got = assess(Period::calendar(2025), &[("t2.net_income", "300000")]);
+    let got = assess(Period::calendar(2025), &[("t2.accounting_income", "300000")]);
 
     assert!(!got.is_filable(), "T2 claims to be filable on placeholder rates");
     assert!(got.warnings.iter().all(|w| w.contains("unverified")));
@@ -288,4 +287,152 @@ fn only_ontario_has_a_t2_supplement_so_far() {
     assert!(freshet_taxdata::t2_forms("ab").is_err());
     assert!(freshet_taxdata::t2_packs(2025, "bc").is_err());
     assert!(freshet_taxdata::t2_packs(2099, "on").is_err());
+}
+
+// -- Schedule 1: reconciling the accounts to taxable income ---------------
+
+/// The reconciliation is the whole point of Schedule 1: accounting profit and
+/// income for tax purposes are different numbers, and a corporation that
+/// reported nil profit can still owe tax.
+#[test]
+fn a_corporation_reporting_no_profit_can_still_have_taxable_income() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("t2.accounting_income", "0"),
+            ("t2.income_tax_provision", "40000"),
+            ("t2.amortization", "60000"),
+        ],
+    );
+
+    // Neither item is deductible, so both come back.
+    assert_eq!(got.get("t2.300").unwrap(), d("100000.00"));
+    assert!(got.get("t2.700").unwrap() > d("0.00"));
+}
+
+/// Accounting depreciation is added back in full and replaced by capital cost
+/// allowance. The two are unrelated figures, and conflating them is the classic
+/// way to get net income for tax purposes wrong.
+#[test]
+fn amortization_is_replaced_by_capital_cost_allowance_not_netted_against_it() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("t2.accounting_income", "200000"),
+            ("t2.amortization", "50000"),
+            ("t2.capital_cost_allowance", "80000"),
+        ],
+    );
+
+    // 200,000 + 50,000 − 80,000. Netting the two to a difference of 30,000
+    // would give the same answer here only by coincidence of the arithmetic;
+    // the lines are separate so a reader can see both.
+    assert_eq!(got.get("t2.300").unwrap(), d("170000.00"));
+    assert_eq!(got.get("t2.sch1.amortization").unwrap(), d("50000.00"));
+    assert_eq!(got.get("t2.sch1.cca").unwrap(), d("80000.00"));
+}
+
+/// Half of meals and entertainment is disallowed. The parameter is the
+/// deductible share, so the addback is the remainder.
+#[test]
+fn half_of_meals_and_entertainment_is_added_back() {
+    let got = assess(
+        Period::calendar(2025),
+        &[("t2.accounting_income", "100000"), ("t2.meals_and_entertainment", "20000")],
+    );
+
+    assert_eq!(got.get("t2.sch1.meals_addback").unwrap(), d("10000.00"));
+    assert_eq!(got.get("t2.300").unwrap(), d("110000.00"));
+}
+
+#[test]
+fn fines_and_club_dues_are_added_back_in_full() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("t2.accounting_income", "100000"),
+            ("t2.fines_and_penalties", "5000"),
+            ("t2.club_dues", "3000"),
+        ],
+    );
+
+    assert_eq!(got.get("t2.sch1.non_deductible").unwrap(), d("8000.00"));
+    assert_eq!(got.get("t2.300").unwrap(), d("108000.00"));
+}
+
+/// A loss is a real outcome. Net income for tax purposes is not floored at
+/// nil — flooring it would hide the loss and quietly overstate taxable income
+/// in the years either side of it.
+#[test]
+fn a_loss_year_reports_the_loss_rather_than_flooring_it() {
+    let got = assess(
+        Period::calendar(2025),
+        &[("t2.accounting_income", "-150000"), ("t2.amortization", "20000")],
+    );
+
+    assert_eq!(got.get("t2.300").unwrap(), d("-130000.00"));
+
+    // Taxable income floors at nil, and no tax is payable.
+    assert_eq!(got.get("t2.360").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.700").unwrap(), d("0.00"));
+    assert!(fired(&got).contains(&"t2.loss_year"));
+}
+
+// -- donations, which move twice ------------------------------------------
+
+/// Donations are added back on Schedule 1 and deducted from taxable income
+/// instead. For a corporation well under the limit the two cancel, which is
+/// worth asserting because it looks like a no-op and is not.
+#[test]
+fn donations_are_added_back_then_deducted_again() {
+    let got = assess(
+        Period::calendar(2025),
+        &[("t2.accounting_income", "200000"), ("t2.charitable_donations", "10000")],
+    );
+
+    assert_eq!(got.get("t2.sch1.donations_addback").unwrap(), d("10000.00"));
+    assert_eq!(got.get("t2.311").unwrap(), d("10000.00"));
+
+    // Net income is higher by the addback; taxable income is back where the
+    // accounts had it.
+    assert_eq!(got.get("t2.300").unwrap(), d("210000.00"));
+    assert_eq!(got.get("t2.360").unwrap(), d("200000.00"));
+}
+
+/// A corporation that gave away most of what it earned cannot deduct all of it.
+/// The excess carries forward, and the return says so rather than silently
+/// dropping it.
+///
+/// The threshold is further out than it looks. Donations are added back before
+/// the limit is applied, so net income rises with them: at a 75% cap the
+/// deduction only binds once donations exceed *three times* accounting income.
+/// An earlier version of this test used 90,000 against 50,000 and nothing was
+/// capped, because the limit had risen to 105,000 along with the addback.
+#[test]
+fn donations_above_the_limit_are_capped_and_reported() {
+    let got = assess(
+        Period::calendar(2025),
+        &[("t2.accounting_income", "20000"), ("t2.charitable_donations", "100000")],
+    );
+
+    // 20,000 + 100,000 addback = 120,000 of net income, capped at 90,000.
+    assert_eq!(got.get("t2.300").unwrap(), d("120000.00"));
+    assert_eq!(got.get("t2.311").unwrap(), d("90000.00"));
+
+    assert!(fired(&got).contains(&"t2.sch1.donations_limited"));
+}
+
+/// What is not modelled is declared, the same way BC479 is on the T1.
+#[test]
+fn the_missing_reconciling_items_are_declared() {
+    let got = assess(Period::calendar(2025), &[("t2.accounting_income", "100000")]);
+
+    let warned = got
+        .diagnostics
+        .iter()
+        .find(|x| x.id == "t2.sch1.common_addbacks_only")
+        .expect("Schedule 1 did not admit what it leaves out");
+
+    assert_eq!(warned.severity, Severity::Warning);
+    assert!(warned.help.as_deref().unwrap().contains("other addition"));
 }
