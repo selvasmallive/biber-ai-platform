@@ -191,7 +191,9 @@ The artifact-only flow is still the safest and clearest conference story.
 
 If the live BIBER API is unavailable, use the offline smoke outputs and explain
 that the extension and task contract are validated without sending code outside
-the test environment.
+the test environment. The offline bundle now uses the same disposable fixture
+patch as the live Path A dry-run, so the backup artifact matches the intended
+PR scenario.
 
 If Azure DevOps itself is unavailable during the talk, use the latest
 `outputs/biber-azure-devops-offline-demo-*` bundle. Show `README.md`,

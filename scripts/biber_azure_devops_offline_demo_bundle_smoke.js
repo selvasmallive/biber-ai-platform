@@ -17,50 +17,58 @@ const SECRET_PATTERNS = [
   /\b[A-Za-z0-9+/]{40,}={0,2}\b/g,
 ];
 
-const SAMPLE_DIFF = `diff --git a/src/payments.ts b/src/payments.ts
---- a/src/payments.ts
-+++ b/src/payments.ts
-@@ -1,7 +1,13 @@
- export function approveTransfer(amount: number, userRole: string): boolean {
-+  const apiKey = "fake-secret-for-redaction-demo";
-+  if (userRole === "admin") return true;
-+  if (amount < 0) return true;
-   return amount > 0 && amount < 1000;
- }
+const DEMO_FIXTURE_ROOT = path.join(ROOT, "examples", "azure_devops_demo_fixture");
+const DEMO_FIXTURE_PATCH = path.join(DEMO_FIXTURE_ROOT, "patches", "demo-pr-reviewable-change.diff");
+const DEMO_FIXTURE_README = path.join(DEMO_FIXTURE_ROOT, "README.md");
 
- export function formatReceipt(id: string): string {
--  return "receipt:" + id;
-+  return "receipt:" + id.trim();
- }
+const FALLBACK_SAMPLE_DIFF = `diff --git a/examples/azure_devops_demo_fixture/src/refund_policy.py b/examples/azure_devops_demo_fixture/src/refund_policy.py
+--- a/examples/azure_devops_demo_fixture/src/refund_policy.py
++++ b/examples/azure_devops_demo_fixture/src/refund_policy.py
+@@ -22,2 +22,5 @@ def decide_refund(
+-    del operator_token
+-    if amount_cents <= 0:
++    if operator_token:
++        LOGGER.info("operator token accepted for refund review: %s", operator_token)
++    demo_token = "FAKE_DEMO_TOKEN_DO_NOT_USE"
++    if amount_cents < 0:
 `;
 
 const SAMPLE_REVIEW = `### Summary
-The transfer approval change introduces broad approval paths and a small receipt formatting improvement.
+The refund policy change adds token-like logging and weakens an important validation boundary.
 
 ### Risk level
-High risk because negative amounts and all admin requests are approved without policy checks.
+High risk because zero-amount refunds are no longer rejected and token-like values appear in logging paths.
 
 ### Correctness risks
-- Negative transfer amounts should never be approved.
-- Admin bypass logic should be explicit, audited, and tested.
-- Receipt trimming is probably fine, but callers that depend on exact IDs should be checked.
+- Zero-amount refunds should remain rejected.
+- Refund validation boundaries need explicit regression tests.
+- The change should not ship unless the behavior is intentional and documented.
 
 ### Security/privacy risks
-- Secret-like values were present in the diff and must stay redacted.
-- Authorization bypass behavior should not ship without a separate security review.
+- Token-like values were present in the diff and must stay redacted.
+- Logging operator tokens or token-like values creates avoidable audit and leakage risk.
 
 ### Tests to run or add
-- Add boundary tests for negative, zero, allowed, and over-limit amounts.
-- Add role-based tests proving admin behavior is intentional.
-- Add a regression test for receipt formatting.
+- Run the refund fixture unittest before and after the patch.
+- Add boundary tests for negative, zero, valid, and high-value refunds.
+- Add a logging assertion or static check that token-like values are not emitted.
 
 ### Reviewer checklist
 - Confirm no real secrets are present in the commit.
-- Confirm the approval policy is documented.
-- Confirm CI tests cover the changed branches.
+- Confirm the refund policy is documented.
+- Confirm the PR is artifact-only dry-run before enabling comment posting.
 
 ### Merge recommendation
-Do not merge until the negative amount path and admin bypass are fixed or explicitly approved.`;
+Do not merge until zero-amount refunds are rejected again and token-like logging is removed.`;
+
+function readOptionalText(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+}
+
+function readDemoDiff() {
+  const fixturePatch = readOptionalText(DEMO_FIXTURE_PATCH);
+  return fixturePatch || FALLBACK_SAMPLE_DIFF;
+}
 
 function parseArgs(argv) {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -163,7 +171,12 @@ function check(condition, name, detail = "") {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const outputDir = path.resolve(args.outputDir);
-  const redacted = redactSecrets(SAMPLE_DIFF);
+  const rawDiff = readDemoDiff();
+  const sourceFixture = fs.existsSync(DEMO_FIXTURE_PATCH)
+    ? path.relative(ROOT, DEMO_FIXTURE_PATCH).replace(/\\/g, "/")
+    : "fallback_sample_diff";
+  const fixtureReadmeText = readOptionalText(DEMO_FIXTURE_README);
+  const redacted = redactSecrets(rawDiff);
   const changedPaths = changedPathsFromDiff(redacted.text);
   const prMarkdown = formatReviewArtifact({
     artifactKind: "azure_devops_pr_dry_run",
@@ -198,6 +211,7 @@ function main() {
   const files = {
     readme: path.join(outputDir, "README.md"),
     sampleDiff: path.join(outputDir, "sample-redacted.diff"),
+    demoFixtureReadme: path.join(outputDir, "demo-fixture-readme.md"),
     mockResponse: path.join(outputDir, "mock-biber-response.json"),
     prMarkdown: path.join(outputDir, "biber-ai-review.md"),
     commitMarkdown: path.join(outputDir, "biber-ai-commit-review.md"),
@@ -205,6 +219,7 @@ function main() {
   };
 
   writeText(files.sampleDiff, redacted.text);
+  writeText(files.demoFixtureReadme, fixtureReadmeText || "# BIBER Azure DevOps Demo Fixture\n\nFixture README was unavailable; sample diff used fallback content.\n");
   writeJson(files.mockResponse, mockResponse);
   writeText(files.prMarkdown, prMarkdown);
   writeText(files.commitMarkdown, commitMarkdown);
@@ -235,10 +250,12 @@ Use this bundle only when the live demo path is unavailable.
     check(fs.existsSync(files.prMarkdown), "pr_markdown_written"),
     check(fs.existsSync(files.commitMarkdown), "commit_markdown_written"),
     check(redacted.count >= 1, "secret_like_value_redacted"),
-    check(!fs.readFileSync(files.sampleDiff, "utf8").includes("fake-secret-for-redaction-demo"), "sample_diff_no_raw_secret"),
+    check(fs.existsSync(files.demoFixtureReadme), "fixture_readme_written"),
+    check(sourceFixture !== "fallback_sample_diff", "fixture_patch_used", sourceFixture),
+    check(!fs.readFileSync(files.sampleDiff, "utf8").includes("FAKE_DEMO_TOKEN_DO_NOT_USE"), "sample_diff_no_raw_secret"),
     check(prMarkdown.includes("OpenAI mentor:** `disabled`"), "pr_mentor_disabled"),
     check(commitMarkdown.includes("Artifact kind:** `azure_devops_commit_artifact_only`"), "commit_artifact_kind"),
-    check(changedPaths.includes("src/payments.ts"), "changed_path_detected"),
+    check(changedPaths.includes("examples/azure_devops_demo_fixture/src/refund_policy.py"), "changed_path_detected"),
   ];
   const failed = checks.filter((item) => !item.ok);
   const summary = {
@@ -255,6 +272,7 @@ Use this bundle only when the live demo path is unavailable.
     training_allowed: false,
     base_url: args.baseUrl,
     model: args.model,
+    source_fixture: sourceFixture,
     changed_paths: changedPaths,
     secret_like_values_redacted: redacted.count,
     output_dir: outputDir,
