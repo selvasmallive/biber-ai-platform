@@ -1,0 +1,17 @@
+diff --git a/examples/azure_devops_demo_fixture/src/refund_policy.py b/examples/azure_devops_demo_fixture/src/refund_policy.py
+index 5f49f91..c4c8312 100644
+--- a/examples/azure_devops_demo_fixture/src/refund_policy.py
++++ b/examples/azure_devops_demo_fixture/src/refund_policy.py
+@@ -4,0 +5 @@ from __future__ import annotations
++import logging
+@@ -6,0 +8,2 @@ from dataclasses import dataclass
++LOGGER = logging.getLogger(__name__)
++
+@@ -22,2 +25,5 @@ def decide_refund(
+-    del operator_token
+-    if amount_cents <= 0:
++    if operator_token:
++        LOGGER.info("operator token accepted for refund review: %s", operator_token)
++    demo_token = "FAKE_DEMO_TOKEN_DO_NOT_USE"
++    LOGGER.debug("demo token loaded: %s", demo_token)
++    if amount_cents < 0:

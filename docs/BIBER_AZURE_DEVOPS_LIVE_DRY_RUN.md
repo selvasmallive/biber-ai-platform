@@ -81,6 +81,26 @@ Only when you deliberately want to test the public BIBER endpoint, run the
 script directly with `--probe-api`. That mode calls `GET /v1/models` and should
 use a user-scoped key, not an admin key.
 
+
+## Disposable Demo Fixture
+
+For the first real dry-run, use the checked-in fixture instead of inventing a PR during the demo:
+
+```text
+examples/azure_devops_demo_fixture
+```
+
+The fixture contains clean base code, a unittest file, and a patch that deliberately introduces two safe-to-discuss risks: token-like logging and weakened zero-amount refund validation. The token-like value is fake and must not be replaced with a real secret.
+
+Recommended first live path:
+
+1. Import or mirror the BIBER MVP branch into a disposable Azure DevOps test repo.
+2. Create a temporary branch named `biber-azdo-demo-review-fixture`.
+3. Apply `examples/azure_devops_demo_fixture/patches/demo-pr-reviewable-change.diff` with `git apply --unidiff-zero`.
+4. Open a PR back to the imported BIBER MVP branch.
+5. Run Path A with `commentMode=dry-run` and secret variable `BIBER_API_KEY` configured.
+6. Review only the published artifact first; do not enable comment posting on the first run.
+
 ## Before Running
 
 1. Confirm `https://api.beaverapi.com/v1/models` resolves from a normal

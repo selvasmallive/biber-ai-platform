@@ -107,9 +107,9 @@ This path invokes the packaged `BiberAiPrReview@1` task, keeps
 
 ## Dry-Run Demo Flow
 
-1. Open a small test pull request with one deliberate correctness issue.
+1. Open a small test pull request with one deliberate correctness issue. Prefer the checked-in fixture at `examples/azure_devops_demo_fixture` for the first dry-run.
 
-2. Include one fake secret-like value in the diff so redaction is visible. Use
+2. Apply `examples/azure_devops_demo_fixture/patches/demo-pr-reviewable-change.diff` with `git apply --unidiff-zero`, or include one fake secret-like value in the diff so redaction is visible. Use
    a clearly fake value, not a real credential.
 
 3. Run the pipeline with:

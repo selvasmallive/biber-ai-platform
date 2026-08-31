@@ -17451,3 +17451,9 @@ still needs user-side setup: add a user-scoped `BIBER_API_KEY` secret pipeline
 variable and choose a disposable Azure DevOps test repo/PR. Keep
 `commentMode=dry-run`; do not enable `commentMode=post`, OpenAI mentor,
 training, paid APIs, GPU work, or XRIQ/XRIS work unless the user explicitly asks.
+
+## 2026-08-31 BIBER Azure DevOps Disposable Demo Fixture
+
+Added `examples/azure_devops_demo_fixture` so the first live Azure DevOps dry-run can use a predictable, disposable PR instead of inventing a change during the demo. The fixture has clean refund-policy base code, stdlib unittest coverage, and `patches/demo-pr-reviewable-change.diff`, which deliberately introduces fake token-like logging and weakened zero-amount refund validation. Use it only with `commentMode=dry-run` first and a user-scoped `BIBER_API_KEY` secret pipeline variable. The patch is whitespace-clean zero-context format, so apply it with `git apply --unidiff-zero examples/azure_devops_demo_fixture/patches/demo-pr-reviewable-change.diff`.
+
+Added `scripts/biber_azure_devops_demo_fixture_smoke.py` and package script `npm run validate:demo-fixture`. Validation passed locally from `examples/azure_devops_extension`: `npm run validate:demo-fixture`, `npm run validate:live-dry-run`, `npm run validate`, `npm run validate:conference`, and `npm run validate:pipeline`. `validate:live-dry-run` still reports `status=local_ready_waiting_for_live_inputs` because the real Azure DevOps dry-run needs a user-scoped `BIBER_API_KEY` secret variable and a disposable Azure DevOps test repo/PR. No Azure DevOps request, BIBER API request, GPU work, training, OpenAI mentor, paid API, or XRIQ/XRIS work was used for this checkpoint.

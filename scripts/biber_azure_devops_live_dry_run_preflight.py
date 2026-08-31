@@ -23,6 +23,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION_ROOT = ROOT / "examples" / "azure_devops_extension"
 PIPELINE_ROOT = ROOT / "examples" / "azure_devops_pipeline"
+DEMO_FIXTURE_ROOT = ROOT / "examples" / "azure_devops_demo_fixture"
 DOCS = ROOT / "docs"
 DEFAULT_BASE_URL = "https://api.beaverapi.com/v1"
 DEFAULT_MODEL = "biber-dev-core-v1"
@@ -41,6 +42,12 @@ REQUIRED_DOCS = [
     "BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md",
     "BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md",
     "BIBER_AZURE_DEVOPS_CONFERENCE_TALK.md",
+]
+REQUIRED_DEMO_FIXTURE = [
+    "README.md",
+    "src/refund_policy.py",
+    "tests/test_refund_policy.py",
+    "patches/demo-pr-reviewable-change.diff",
 ]
 REQUIRED_PIPELINES = {
     "script_pr": "biber-ai-pr-review.yml",
@@ -197,6 +204,17 @@ def main() -> int:
         check((PIPELINE_ROOT / name).is_file(), f"pipeline_file_exists:{label}")
         for label, name in REQUIRED_PIPELINES.items()
     )
+    checks.extend(
+        check((DEMO_FIXTURE_ROOT / name).is_file(), f"demo_fixture_file_exists:{name}")
+        for name in REQUIRED_DEMO_FIXTURE
+    )
+    fixture_text = read_text(DEMO_FIXTURE_ROOT / "README.md") + "\n" + read_text(
+        DEMO_FIXTURE_ROOT / "patches" / "demo-pr-reviewable-change.diff"
+    )
+    checks.append(check("commentMode=dry-run" in fixture_text, "demo_fixture_dry_run_guidance"))
+    checks.append(check("FAKE_DEMO_TOKEN_DO_NOT_USE" in fixture_text, "demo_fixture_fake_token_marker"))
+    checks.append(check("BIBER_ADMIN_API_KEY" not in fixture_text, "demo_fixture_no_admin_key"))
+    checks.append(check("OPENAI_API_KEY" not in fixture_text, "demo_fixture_no_openai_key"))
     scripts = package_json.get("scripts") if isinstance(package_json.get("scripts"), dict) else {}
     checks.extend(check(name in scripts, f"package_script:{name}") for name in REQUIRED_PACKAGE_SCRIPTS)
     checks.append(check(manifest.get("public") is False, "manifest_private_release_default"))
