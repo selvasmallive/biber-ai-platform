@@ -60,7 +60,7 @@ Before publishing or sharing the private extension, follow
 `docs/BIBER_AZURE_DEVOPS_PRIVATE_PUBLISH.md`. Use `tfx-cli` for Azure DevOps
 extensions; reserve `vsce` for the separate VS Code extension.
 
-For the first real pipeline run, follow
+For the first real pipeline run, follow `docs/BIBER_AZURE_DEVOPS_FIRST_RUN_QUICKSTART.md`, then follow
 `docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md` and keep the run artifact-only.
 
 1. Upload the generated private VSIX:

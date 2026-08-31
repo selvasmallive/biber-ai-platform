@@ -17461,3 +17461,7 @@ Added `scripts/biber_azure_devops_demo_fixture_smoke.py` and package script `npm
 ## 2026-08-31 BIBER Azure DevOps Offline Demo Fixture Alignment
 
 Updated `scripts/biber_azure_devops_offline_demo_bundle_smoke.js` so the offline fallback bundle uses the same disposable Azure DevOps fixture patch from `examples/azure_devops_demo_fixture/patches/demo-pr-reviewable-change.diff`. The generated `sample-redacted.diff` now mirrors the planned live PR scenario, and the bundle includes `demo-fixture-readme.md` for operator context. Validate with `npm run demo:offline -- --output-dir <writable-output-dir>` and keep the run local-only unless the user provides live Azure DevOps inputs.
+
+## 2026-08-31 BIBER Azure DevOps First-Run Quickstart
+
+Added `docs/BIBER_AZURE_DEVOPS_FIRST_RUN_QUICKSTART.md` as the shortest operator path for the first real Azure DevOps dry-run. It uses Path A (`examples/azure_devops_pipeline/biber-ai-pr-review.yml`), the checked-in disposable fixture patch, `commentMode=dry-run`, and a user-scoped secret pipeline variable named `BIBER_API_KEY`. The quickstart explicitly excludes admin keys, OpenAI keys, Vast SSH keys, training variables, PR comment posting, GPU work, and XRIQ/XRIS work from the first run.
