@@ -56,6 +56,31 @@ Default behavior:
 - Publishes `biber-ai-commit-review.json` and
   `biber-ai-commit-review.md`.
 
+## Local Live-Run Preflight
+
+Before touching Azure DevOps, run the offline preflight from the BIBER-only
+checkout:
+
+```bash
+cd examples/azure_devops_extension
+npm run validate:live-dry-run
+```
+
+Default mode sends no Azure DevOps request, no BIBER API request, no GitHub
+request, no mentor request, no training request, and no GPU work. It reports
+whether the local demo pack is ready and lists any live inputs still needed:
+
+- `BIBER_API_KEY` as a user-scoped secret pipeline variable.
+- `BIBER_AZURE_DEVOPS_TEST_REPO_URL` for the disposable test repository or PR.
+- `BIBER_AZURE_DEVOPS_PRIVATE_EXTENSION_INSTALLED=yes` only after the private
+  VSIX is uploaded/shared/installed.
+- `BIBER_AZURE_DEVOPS_OAUTH_TOKEN_ALLOWED=yes` only later, if testing
+  `commentMode=post` in a disposable test PR.
+
+Only when you deliberately want to test the public BIBER endpoint, run the
+script directly with `--probe-api`. That mode calls `GET /v1/models` and should
+use a user-scoped key, not an admin key.
+
 ## Before Running
 
 1. Confirm `https://api.beaverapi.com/v1/models` resolves from a normal

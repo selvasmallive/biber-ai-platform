@@ -7,10 +7,11 @@
     "validate": "node ../../scripts/biber_azure_devops_publisher_readiness_smoke.js",
     "validate:panel": "node ../../scripts/biber_azure_devops_panel_behavior_smoke.js",
     "validate:pipeline": "node ../../scripts/biber_azure_devops_pipeline_readiness_smoke.js",
+    "validate:conference": "python ../../scripts/biber_azure_devops_conference_pack_smoke.py",
+    "validate:live-dry-run": "python ../../scripts/biber_azure_devops_live_dry_run_preflight.py",
     "validate:contract": "python ../../scripts/biber_azure_devops_review_smoke.py",
     "validate:wrapper": "python ../../scripts/biber_azure_devops_task_wrapper_smoke.py",
     "demo:offline": "node ../../scripts/biber_azure_devops_offline_demo_bundle_smoke.js",
-    "validate:conference": "python ../../scripts/biber_azure_devops_conference_pack_smoke.py",
     "package": "tfx extension create --manifest-globs vss-extension.json"
   },
   "devDependencies": {

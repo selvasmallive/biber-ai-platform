@@ -17417,3 +17417,18 @@ GitHub request, mentor request, training request, paid API call, or GPU work.
 
 Next narrow BIBER step: run `npm run validate:conference` from
 `examples/azure_devops_extension`, then commit/push the smoke if it passes.
+
+## 2026-08-31 BIBER Azure DevOps Live Dry-Run Preflight
+
+Added `scripts/biber_azure_devops_live_dry_run_preflight.py` and wired it as
+`npm run validate:live-dry-run` in `examples/azure_devops_extension/package.json`.
+Default mode is offline/local only: it validates the conference/demo pack,
+private VSIX, sample pipelines, safety defaults, and live-input readiness while
+sending no Azure DevOps, BIBER API, GitHub, mentor, training, paid API, or GPU
+request. Use `--probe-api` only with deliberate user approval and a user-scoped
+`BIBER_API_KEY` when testing `https://api.beaverapi.com/v1/models`.
+
+Next narrow BIBER step: run `npm run validate:live-dry-run` from
+`examples/azure_devops_extension`; then, if it reports only missing live inputs,
+ask the user to add `BIBER_API_KEY` as a secret pipeline variable and choose a
+disposable Azure DevOps test repo/PR for Path A dry-run.
