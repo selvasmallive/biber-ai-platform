@@ -10,6 +10,7 @@
     "validate:contract": "python ../../scripts/biber_azure_devops_review_smoke.py",
     "validate:wrapper": "python ../../scripts/biber_azure_devops_task_wrapper_smoke.py",
     "demo:offline": "node ../../scripts/biber_azure_devops_offline_demo_bundle_smoke.js",
+    "validate:conference": "python ../../scripts/biber_azure_devops_conference_pack_smoke.py",
     "package": "tfx extension create --manifest-globs vss-extension.json"
   },
   "devDependencies": {

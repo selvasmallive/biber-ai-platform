@@ -17405,3 +17405,15 @@ for conference prep, then run a private Azure DevOps dry-run using
 `docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md` before enabling any PR comment post
 mode. Do not enable OpenAI mentor, training, paid APIs, or XRIQ/XRIS work unless
 the user explicitly asks.
+
+## 2026-08-31 BIBER Azure DevOps Conference Pack Smoke
+
+Added `scripts/biber_azure_devops_conference_pack_smoke.py` and wired it as
+`npm run validate:conference` in `examples/azure_devops_extension/package.json`.
+The smoke is offline-only and checks the PPTX, speaker notes, conference docs,
+private VSIX contents, panel `/models` connection affordance, dry-run posture,
+and absence of embedded API/admin/OpenAI keys. It sends no Azure DevOps request,
+GitHub request, mentor request, training request, paid API call, or GPU work.
+
+Next narrow BIBER step: run `npm run validate:conference` from
+`examples/azure_devops_extension`, then commit/push the smoke if it passes.
