@@ -17432,3 +17432,22 @@ Next narrow BIBER step: run `npm run validate:live-dry-run` from
 `examples/azure_devops_extension`; then, if it reports only missing live inputs,
 ask the user to add `BIBER_API_KEY` as a secret pipeline variable and choose a
 disposable Azure DevOps test repo/PR for Path A dry-run.
+
+## 2026-08-31 BIBER Azure DevOps Live Preflight Validation
+
+Commit `a9ea1af` added and pushed the live dry-run preflight. Validation after
+that commit:
+
+- `npm run validate:live-dry-run`: passed with `status=local_ready_waiting_for_live_inputs`.
+- `npm run validate`: passed.
+- `npm run validate:conference`: passed.
+- `npm run validate:contract`: passed.
+- `npm run validate:wrapper`: passed.
+- Offline demo bundle passed when run with `--output-dir` pointing to a writable
+  local outputs folder.
+
+The local/demo pack is ready for Azure DevOps Path A dry-run, but live execution
+still needs user-side setup: add a user-scoped `BIBER_API_KEY` secret pipeline
+variable and choose a disposable Azure DevOps test repo/PR. Keep
+`commentMode=dry-run`; do not enable `commentMode=post`, OpenAI mentor,
+training, paid APIs, GPU work, or XRIQ/XRIS work unless the user explicitly asks.
