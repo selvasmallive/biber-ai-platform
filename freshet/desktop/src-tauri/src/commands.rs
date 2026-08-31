@@ -12,7 +12,7 @@ use freshet_autofill::{
     apply, reconcile, CraAutofill, Disposition, FixtureSource, SlipSource,
 };
 use freshet_couple::{optimize, Household, Spouse};
-use freshet_engine::{compute, Assessment, Decimal, FactSet, Severity};
+use freshet_engine::{compute, Assessment, Date, Decimal, FactSet, Period, Severity};
 use freshet_license::{Activation, Credential, LicenceError};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -719,7 +719,12 @@ pub fn rrsp_plan(input: ComputeInput, room: Option<String>) -> Result<RrspPlan, 
 
 // -- licensing ------------------------------------------------------------
 
-const PRODUCT: &str = "freshet-t1";
+const PRODUCT_T1: &str = "freshet-t1";
+const PRODUCT_T2: &str = "freshet-t2";
+
+/// The product this build's T1 paths refer to. A T2 licence names
+/// [`PRODUCT_T2`] and the two must never be interchangeable.
+const PRODUCT: &str = PRODUCT_T1;
 
 /// Whether this build carries the built-in development licences.
 ///
@@ -733,8 +738,50 @@ const DEV_LICENCES_COMPILED_IN: bool = cfg!(feature = "dev-licences");
 /// the case that does not fit — a corporation files for a fiscal period ending
 /// on any date — which is why `Filing` is an enum and why this function exists
 /// rather than the conversion being inlined at each call site.
-fn filing_for(tax_year: u16) -> freshet_license::Filing {
-    freshet_license::Filing::TaxYear(tax_year)
+/// What is being filed, in the terms a licence is written in.
+///
+/// A T1 covers a calendar year and a T2 a fiscal period ending on a date, and a
+/// licence for one must not unlock the other. This used to return a tax year
+/// unconditionally, which was right while the T1 was the only product and
+/// silently wrong the moment the T2 existed: a corporate return would have been
+/// checked against a calendar year it does not have.
+fn filing_for(what: &Filed) -> freshet_license::Filing {
+    match what {
+        Filed::T1 { tax_year } => freshet_license::Filing::TaxYear(*tax_year),
+        // Coverage is expressed as a range of period end dates, so the end is
+        // what decides whether a licence covers this return.
+        Filed::T2 { period } => {
+            freshet_license::Filing::PeriodEnding(period.end.to_days() * 86_400)
+        }
+    }
+}
+
+/// A return, identified the way its own return type identifies itself.
+#[derive(Debug, Clone, Copy)]
+pub enum Filed {
+    T1 { tax_year: u16 },
+    T2 { period: Period },
+}
+
+impl Filed {
+    /// The product code a licence must name to unlock this return.
+    fn product(&self) -> &'static str {
+        match self {
+            Filed::T1 { .. } => PRODUCT_T1,
+            Filed::T2 { .. } => PRODUCT_T2,
+        }
+    }
+
+    /// The tax year whose parameters and certification apply.
+    ///
+    /// For a corporation that is the year its fiscal period ends, which is also
+    /// the year CRA certifies the return against.
+    fn tax_year(&self) -> u16 {
+        match self {
+            Filed::T1 { tax_year } => *tax_year,
+            Filed::T2 { period } => period.end.year as u16,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -798,7 +845,12 @@ fn describe(token: &str, tax_year: u16, already_filed: u32) -> LicenceView {
     };
 
     let now = freshet_store::now_unix();
-    let entitlement = licence.check(PRODUCT, &filing_for(tax_year), already_filed, now);
+    let entitlement = licence.check(
+        PRODUCT_T1,
+        &filing_for(&Filed::T1 { tax_year }),
+        already_filed,
+        now,
+    );
     let standing = freshet_license::standing(licence.issued_unix, licence.expires_unix, now);
 
     LicenceView {
@@ -986,11 +1038,12 @@ pub struct FilingGate {
 /// Pure so it can be tested without a running app.
 fn evaluate_gate(
     a: &Assessment,
-    tax_year: u16,
+    filed: Filed,
     province: &str,
     licence_token: Option<&str>,
     already_filed: u32,
 ) -> FilingGate {
+    let tax_year = filed.tax_year();
     let data_verified = a.warnings.is_empty();
     let return_sound = !a.has_errors();
     let in_scope = freshet_taxdata::in_certification_scope(province);
@@ -1004,7 +1057,12 @@ fn evaluate_gate(
         Some(token) => match freshet_license::verify(token) {
             Err(e) => (false, Some(e.to_string())),
             Ok(l) => {
-                let e = l.check(PRODUCT, &filing_for(tax_year), already_filed, freshet_store::now_unix());
+                let e = l.check(
+                    filed.product(),
+                    &filing_for(&filed),
+                    already_filed,
+                    freshet_store::now_unix(),
+                );
                 (e.granted(), (!e.granted()).then(|| e.explain()))
             }
         },
@@ -1054,7 +1112,7 @@ pub fn filing_gate(state: State<'_, AppState>, input: ComputeInput) -> Result<Fi
     let token = stored_licence(&state);
     let filed = returns_filed(&state);
 
-    Ok(evaluate_gate(&a, input.tax_year, &input.province, token.as_deref(), filed))
+    Ok(evaluate_gate(&a, Filed::T1 { tax_year: input.tax_year }, &input.province, token.as_deref(), filed))
 }
 
 // -- capital cost allowance planner ---------------------------------------
@@ -1467,6 +1525,154 @@ pub fn delete_return(
     })
 }
 
+// -- the T2 ----------------------------------------------------------------
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct T2Input {
+    /// The fiscal period, as `YYYY-MM-DD`.
+    ///
+    /// Dates rather than a tax year, because a corporation does not have one:
+    /// its year is whatever falls between one year-end and the next.
+    pub period_start: String,
+    pub period_end: String,
+    pub province: String,
+    pub facts: BTreeMap<String, String>,
+}
+
+fn parse_date(raw: &str) -> Result<Date, String> {
+    let parts: Vec<&str> = raw.trim().split('-').collect();
+    if parts.len() != 3 {
+        return Err(format!("{raw} is not a date in YYYY-MM-DD form"));
+    }
+
+    let num = |s: &str, what: &str| {
+        s.parse::<i64>()
+            .map_err(|_| format!("{raw} has a {what} that is not a number"))
+    };
+
+    Date::new(
+        num(parts[0], "year")? as i32,
+        num(parts[1], "month")? as u32,
+        num(parts[2], "day")? as u32,
+    )
+    .map_err(|e| e.to_string())
+}
+
+impl T2Input {
+    fn period(&self) -> Result<Period, String> {
+        Period::new(parse_date(&self.period_start)?, parse_date(&self.period_end)?)
+            .map_err(|e| e.to_string())
+    }
+}
+
+fn assess_t2(input: &T2Input) -> Result<(Assessment, Period), String> {
+    let period = input.period()?;
+    let forms = freshet_taxdata::t2_forms(&input.province).map_err(|e| e.to_string())?;
+
+    let mut facts = FactSet::new();
+    for (key, raw) in &input.facts {
+        if let Some(value) = parse_money(raw) {
+            facts.set(key.clone(), value);
+        }
+    }
+
+    // A period crossing a calendar boundary draws on both years, so a rate
+    // that moved between them can be apportioned by days. The engine refuses
+    // to guess from one year, which is why this branches rather than always
+    // taking the closing year.
+    let assessment = if period.straddles() {
+        let packs = freshet_taxdata::t2_period_packs(period, &input.province)
+            .map_err(|e| e.to_string())?;
+        freshet_engine::compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?
+    } else {
+        let packs = freshet_taxdata::t2_packs(period.end.year as u16, &input.province)
+            .map_err(|e| e.to_string())?;
+        freshet_engine::compute_for_period(&forms, &packs, &facts, period)
+            .map_err(|e| e.to_string())?
+    };
+
+    Ok((assessment, period))
+}
+
+#[derive(Debug, Serialize)]
+pub struct T2View {
+    pub period_days: i64,
+    pub is_short_year: bool,
+    pub straddles: bool,
+    pub accounting_income: String,
+    pub net_income_for_tax: String,
+    pub taxable_income: String,
+    pub small_business_deduction: String,
+    pub federal_tax: String,
+    pub provincial_tax: String,
+    pub total_tax: String,
+    pub balance: String,
+    pub lines: Vec<LineView>,
+    pub diagnostics: Vec<DiagnosticView>,
+    pub has_errors: bool,
+    pub filable: bool,
+}
+
+#[tauri::command]
+pub fn compute_t2(input: T2Input) -> Result<T2View, String> {
+    let (a, period) = assess_t2(&input)?;
+
+    Ok(T2View {
+        period_days: period.days(),
+        is_short_year: period.is_short(),
+        straddles: period.straddles(),
+        accounting_income: dp2(line(&a, "gifi.9999")),
+        net_income_for_tax: dp2(line(&a, "t2.300")),
+        taxable_income: dp2(line(&a, "t2.360")),
+        small_business_deduction: dp2(line(&a, "t2.430")),
+        federal_tax: dp2(line(&a, "t2.700")),
+        provincial_tax: dp2(line(&a, "prov.tax")),
+        total_tax: dp2(line(&a, "summary.total_tax")),
+        balance: dp2(line(&a, "summary.balance")),
+        // The audit trail, which carries labels and notes alongside the
+        // values, in the order the engine resolved them.
+        lines: a
+            .audit
+            .iter()
+            .map(|e| LineView {
+                id: e.id.clone(),
+                label: e.label.clone(),
+                value: dp2(e.value),
+                note: e.note.clone(),
+            })
+            .collect(),
+        diagnostics: a
+            .diagnostics
+            .iter()
+            .map(|x| DiagnosticView {
+                id: x.id.clone(),
+                severity: severity_str(x.severity).to_string(),
+                message: x.message.clone(),
+                help: x.help.clone(),
+            })
+            .collect(),
+        has_errors: a.has_errors(),
+        filable: a.is_filable(),
+    })
+}
+
+#[tauri::command]
+pub fn t2_filing_gate(
+    state: State<'_, AppState>,
+    input: T2Input,
+) -> Result<FilingGate, String> {
+    let (a, period) = assess_t2(&input)?;
+    let token = stored_licence(&state);
+
+    Ok(evaluate_gate(
+        &a,
+        Filed::T2 { period },
+        &input.province,
+        token.as_deref(),
+        returns_filed(&state),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1720,7 +1926,7 @@ mod tests {
         // 2026, whose Ontario amounts are still unverified, so all three of the
         // non-return locks are shut at once.
         let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, "on", None, 0);
+        let gate = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", None, 0);
 
         assert!(!gate.can_file);
         // Nothing about this return is wrong; it is the surrounding state.
@@ -1741,11 +1947,11 @@ mod tests {
         let verified = assess(&input_for(2025, &facts)).unwrap();
         let unverified = assess(&input_for(2026, &facts)).unwrap();
 
-        assert!(evaluate_gate(&verified, 2025, "on", None, 0).data_verified);
-        assert!(!evaluate_gate(&unverified, 2026, "on", None, 0).data_verified);
+        assert!(evaluate_gate(&verified, Filed::T1 { tax_year: 2025 }, "on", None, 0).data_verified);
+        assert!(!evaluate_gate(&unverified, Filed::T1 { tax_year: 2026 }, "on", None, 0).data_verified);
 
         // Verified data is still not permission to file.
-        assert!(!evaluate_gate(&verified, 2025, "on", None, 0).can_file);
+        assert!(!evaluate_gate(&verified, Filed::T1 { tax_year: 2025 }, "on", None, 0).can_file);
     }
 
     /// Ontario is inside the certification application and the other twelve are
@@ -1755,8 +1961,8 @@ mod tests {
     fn a_jurisdiction_outside_the_application_is_told_so_plainly() {
         let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
 
-        let ontario = evaluate_gate(&a, 2026, "on", None, 0);
-        let alberta = evaluate_gate(&a, 2026, "ab", None, 0);
+        let ontario = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", None, 0);
+        let alberta = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "ab", None, 0);
 
         assert!(ontario.in_scope, "Ontario is the certification target");
         assert!(!alberta.in_scope);
@@ -1778,7 +1984,7 @@ mod tests {
         let a = assess(&input_for(2025, &[("t4.employment_income", "60000")])).unwrap();
 
         assert_eq!(a.get("fed.15000"), Some(Decimal::from(60_000)));
-        assert!(!evaluate_gate(&a, 2025, "ab", None, 0).can_file);
+        assert!(!evaluate_gate(&a, Filed::T1 { tax_year: 2025 }, "ab", None, 0).can_file);
     }
 
     /// A person hitting a paywall should be told it is a paywall, not left
@@ -1786,7 +1992,7 @@ mod tests {
     #[test]
     fn a_missing_licence_says_preparing_is_free() {
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, "on", None, 0);
+        let gate = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", None, 0);
 
         assert!(gate
             .blocked_by
@@ -1804,7 +2010,7 @@ mod tests {
             .token;
 
         let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, "on", Some(&token), 0);
+        let gate = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(&token), 0);
 
         assert!(gate.licensed, "the development licence did not verify");
         // It grants a licence, not a certification and not verified data.
@@ -1819,7 +2025,7 @@ mod tests {
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
 
         for bogus in ["", "not-a-licence", "AAAA.BBBB"] {
-            let gate = evaluate_gate(&a, 2026, "on", Some(bogus), 0);
+            let gate = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(bogus), 0);
             assert!(!gate.licensed, "accepted {bogus:?}");
         }
     }
@@ -1830,8 +2036,8 @@ mod tests {
         let built = freshet_license::dev::licences().into_iter().next().unwrap();
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
 
-        let fresh = evaluate_gate(&a, 2026, "on", Some(&built.token), 0);
-        let spent = evaluate_gate(&a, 2026, "on", Some(&built.token), built.licence.allowance.remaining(0).expect("the built-in licence is counted"));
+        let fresh = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(&built.token), 0);
+        let spent = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(&built.token), built.licence.allowance.remaining(0).expect("the built-in licence is counted"));
 
         assert!(fresh.licensed);
         assert!(!spent.licensed);
@@ -1933,7 +2139,7 @@ mod tests {
         let token = expiring_at(long_ago);
 
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, "on", Some(&token), 0);
+        let gate = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(&token), 0);
 
         // Filing is closed, and nothing else is.
         assert!(!gate.licensed);
@@ -1960,7 +2166,7 @@ mod tests {
 
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
         assert!(
-            evaluate_gate(&a, 2026, "on", Some(&token), 0).licensed,
+            evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(&token), 0).licensed,
             "a lapse of one day must not stand between someone and a deadline"
         );
 
@@ -2054,6 +2260,110 @@ mod tests {
         assert_eq!(view.expires_unix, None);
         assert!(view.standing_note.is_none());
         assert!(!view.standing_urgent);
+    }
+
+    // -- the T2 reaches the app --------------------------------------------
+
+    fn t2_input(start: &str, end: &str, facts: &[(&str, &str)]) -> T2Input {
+        T2Input {
+            period_start: start.into(),
+            period_end: end.into(),
+            province: "on".into(),
+            facts: facts
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_corporate_return_computes_through_the_app() {
+        let got = compute_t2(t2_input(
+            "2025-01-01",
+            "2025-12-31",
+            &[("gifi.8000", "500000"), ("t2.active_business_income", "500000")],
+        ))
+        .unwrap();
+
+        assert_eq!(got.period_days, 365);
+        assert!(!got.is_short_year);
+        assert!(!got.straddles);
+        assert!(got.small_business_deduction.parse::<f64>().unwrap() > 0.0);
+    }
+
+    /// A corporation with an off-calendar year-end goes through the
+    /// period-aware path, because one year of rates cannot express a change
+    /// inside the period.
+    #[test]
+    fn a_straddling_fiscal_year_computes_rather_than_being_refused() {
+        let got = compute_t2(t2_input(
+            "2025-07-01",
+            "2026-06-30",
+            &[("gifi.8000", "500000")],
+        ))
+        .unwrap();
+
+        assert!(got.straddles);
+        assert_eq!(got.period_days, 365);
+    }
+
+    #[test]
+    fn a_short_first_year_is_reported_as_short() {
+        let got = compute_t2(t2_input("2025-09-15", "2025-12-31", &[("gifi.8000", "100000")]))
+            .unwrap();
+
+        assert_eq!(got.period_days, 108);
+        assert!(got.is_short_year);
+    }
+
+    #[test]
+    fn dates_that_are_not_dates_are_refused_clearly() {
+        for (start, end, expect) in [
+            ("2025-02-29", "2025-12-31", "no day 29"),
+            ("not-a-date", "2025-12-31", "not a number"),
+            ("2025-01-01", "2024-12-31", "cannot end"),
+            ("2025-01-01", "2027-01-01", "53 weeks"),
+        ] {
+            let e = compute_t2(t2_input(start, end, &[])).unwrap_err();
+            assert!(e.contains(expect), "{start}..{end} said: {e}");
+        }
+    }
+
+    /// The seam this change existed to fix. A licence for personal tax must not
+    /// unlock a corporate return, and the check now compares a fiscal period
+    /// against the licence rather than a calendar year the corporation does not
+    /// have.
+    #[cfg(feature = "dev-licences")]
+    #[test]
+    fn a_t1_licence_does_not_unlock_a_corporate_return() {
+        let token = freshet_license::dev::licences()
+            .into_iter()
+            .next()
+            .unwrap()
+            .token;
+
+        let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
+
+        let personal = evaluate_gate(&a, Filed::T1 { tax_year: 2026 }, "on", Some(&token), 0);
+        let corporate = evaluate_gate(
+            &a,
+            Filed::T2 {
+                period: Period::calendar(2026),
+            },
+            "on",
+            Some(&token),
+            0,
+        );
+
+        assert!(personal.licensed, "the development licence covers the T1");
+        assert!(
+            !corporate.licensed,
+            "a T1 licence unlocked a corporate return"
+        );
+        assert!(corporate
+            .blocked_by
+            .iter()
+            .any(|b| b.contains("freshet-t1")));
     }
 
     #[test]

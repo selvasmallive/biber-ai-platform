@@ -33,6 +33,8 @@ pub fn run() {
             commands::install_licence_file,
             commands::remove_licence,
             commands::filing_gate,
+            commands::compute_t2,
+            commands::t2_filing_gate,
             commands::couple_optimize,
         ])
         .run(tauri::generate_context!())
