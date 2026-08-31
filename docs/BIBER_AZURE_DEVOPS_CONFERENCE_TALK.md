@@ -198,8 +198,15 @@ Use `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md` as the operator checklist.
 
 ## PPTX Status
 
-Actual PowerPoint generation is blocked until Codex can access the presentation
-artifact runtime paths normally supplied by `load_workspace_dependencies`:
-`RUNTIME_NODE`, `RUNTIME_NODE_MODULES`, and `RUNTIME_BIN_DIR`. Do not create the
-deck with `python-pptx`; the required presentation workflow uses
-`@oai/artifact-tool`.
+Generated PowerPoint deck:
+
+```text
+docs/BIBER_Azure_DevOps_Private_Code_Review_Talk.pptx
+```
+
+Generated with `@oai/artifact-tool` on 2026-08-31 as a 16-slide editable PPTX
+with speaker notes and source references. The deck rendered to PNG previews and
+was visually checked from the montage. The helper render commands produced all
+16 slide images; the artifact renderer still returned a nonzero status after
+writing render output, so keep the generated PNG/montage preview as the current
+visual QA evidence.

@@ -17379,3 +17379,29 @@ GitHub main branch. Vast may be stopped or terminated; do not assume
 /workspace, vLLM, FastAPI, or live Vast SSH access exists unless I provide a
 fresh Vast instance.
 ```
+## 2026-08-31 BIBER Azure DevOps Conference Deck
+
+Generated the 16-slide editable conference PowerPoint deck at:
+
+```text
+docs/BIBER_Azure_DevOps_Private_Code_Review_Talk.pptx
+```
+
+Source outline remains at `docs/BIBER_AZURE_DEVOPS_CONFERENCE_TALK.md`, and the
+operator demo checklist remains at `docs/BIBER_AZURE_DEVOPS_DEMO_RUNBOOK.md`.
+The deck covers the narrow Azure DevOps PR/commit review workflow, swappable
+local model API, dry-run safety posture, extension panel direction, server-side
+security boundaries, demo script, roadmap, and cost-control story.
+
+Validation notes: the deck was generated with `@oai/artifact-tool`, all 16
+slides were rendered to PNG previews, and the rendered montage was visually
+checked. `render_slides.py` and `slides_test.py` emitted a nonzero renderer
+status after producing slide images, so future sessions should keep using visual
+montage inspection plus layout JSON scans until that artifact-tool render-status
+quirk is resolved.
+
+Next narrow BIBER step: keep the Azure DevOps demo path practical. Use the PPTX
+for conference prep, then run a private Azure DevOps dry-run using
+`docs/BIBER_AZURE_DEVOPS_LIVE_DRY_RUN.md` before enabling any PR comment post
+mode. Do not enable OpenAI mentor, training, paid APIs, or XRIQ/XRIS work unless
+the user explicitly asks.
