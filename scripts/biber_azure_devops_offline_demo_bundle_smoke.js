@@ -137,6 +137,7 @@ function formatReviewArtifact({
   redactionCount,
 }) {
   const pathPreview = changedPaths.map((item) => `- \`${item}\``).join("\n") || "- none detected";
+  const redactionMarkerLine = redactionCount > 0 ? "**Redaction marker:** `[REDACTED_BIBER_SECRET]`\n" : "";
   return `## BIBER AI Review
 
 **Artifact kind:** \`${artifactKind}\`
@@ -145,6 +146,7 @@ function formatReviewArtifact({
 **OpenAI mentor:** \`disabled\`
 **Diff truncated:** \`no\`
 **Secret-like values redacted:** \`${redactionCount}\`
+${redactionMarkerLine}
 
 ${reviewMarkdown}
 
@@ -254,6 +256,7 @@ Use this bundle only when the live demo path is unavailable.
     check(sourceFixture !== "fallback_sample_diff", "fixture_patch_used", sourceFixture),
     check(!fs.readFileSync(files.sampleDiff, "utf8").includes("FAKE_DEMO_TOKEN_DO_NOT_USE"), "sample_diff_no_raw_secret"),
     check(prMarkdown.includes("OpenAI mentor:** `disabled`"), "pr_mentor_disabled"),
+    check(prMarkdown.includes("[REDACTED_BIBER_SECRET]"), "pr_redaction_marker"),
     check(commitMarkdown.includes("Artifact kind:** `azure_devops_commit_artifact_only`"), "commit_artifact_kind"),
     check(changedPaths.includes("examples/azure_devops_demo_fixture/src/refund_policy.py"), "changed_path_detected"),
   ];

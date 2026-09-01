@@ -48,8 +48,14 @@ Open a PR from `biber-azdo-demo-review-fixture` into the imported BIBER MVP bran
 2. Choose the BIBER repo branch and select `examples/azure_devops_pipeline/biber-ai-pr-review.yml`.
 3. Add secret variable `BIBER_API_KEY`.
 4. Run the pipeline against the demo PR.
-5. Open the published `biber-ai-review` artifact.
+5. Open or download the published `biber-ai-review` artifact.
 6. Review `biber-ai-review.md` and `biber-ai-review.json`.
+7. Validate the downloaded artifact locally before using it in the demo:
+
+   ```bash
+   cd examples/azure_devops_extension
+   npm run validate:live-artifact -- --artifact-dir <downloaded-biber-ai-review-artifact-dir>
+   ```
 
 Expected posture:
 
@@ -60,6 +66,13 @@ Expected posture:
 - fake token-like values are redacted as `[REDACTED_BIBER_SECRET]`
 
 ## Fallback
+
+Before the live run exists, you can self-test the artifact checker without any network calls:
+
+```bash
+cd examples/azure_devops_extension
+npm run validate:live-artifact
+```
 
 If Azure DevOps or the public BIBER API is unavailable, run the offline bundle locally:
 

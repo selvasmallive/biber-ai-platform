@@ -118,9 +118,16 @@ This path invokes the packaged `BiberAiPrReview@1` task, keeps
    commentMode=dry-run
    ```
 
-4. Open the published `biber-ai-review.md` artifact.
+4. Open or download the published `biber-ai-review` artifact.
 
-5. Show these sections:
+5. Validate it locally before showing it:
+
+   ```bash
+   cd examples/azure_devops_extension
+   npm run validate:live-artifact -- --artifact-dir <downloaded-biber-ai-review-artifact-dir>
+   ```
+
+6. Show these sections:
 
    - Summary
    - Risk level
@@ -130,13 +137,13 @@ This path invokes the packaged `BiberAiPrReview@1` task, keeps
    - Reviewer checklist
    - Merge recommendation
 
-6. Show that the fake secret-like value is redacted.
+7. Show that the fake secret-like value is redacted.
 
-7. Open the `BIBER AI Review` hub panel and explain that it is the UI direction
+8. Open the `BIBER AI Review` hub panel and explain that it is the UI direction
    for interactive review from inside Azure DevOps.
-8. Paste the user-scoped API key in the panel and click `Test Connection` to
+9. Paste the user-scoped API key in the panel and click `Test Connection` to
    verify `/models` before generating the browser-panel review.
-9. If the extension is installed, rerun the same scenario with
+10. If the extension is installed, rerun the same scenario with
    `biber-ai-extension-task-pr-review.yml` to show the packaged task form.
 
 ## Commit Review Demo Flow

@@ -1,8 +1,13 @@
 # Codex Handoff
 
-Last updated: 2026-08-30
+Last updated: 2026-09-01
 
 ## Current Goal
+
+## 2026-09-01 BIBER Azure DevOps live artifact acceptance checkpoint
+Added `scripts/biber_azure_devops_live_artifact_acceptance.py` and package script `npm run validate:live-artifact`. The checker validates a downloaded/published `biber-ai-review` Azure DevOps dry-run artifact, or runs a local mock self-test using the checked-in disposable fixture. It verifies the artifact is BIBER-scoped, mentor-disabled, training-disabled, GitHub-not-called, dry-run/no-comment-post, human-review-only, and redacted before the artifact is used for the conference demo. Default validation sends no Azure DevOps request, BIBER API request, GitHub request, OpenAI mentor request, GPU work, training, or paid API request.
+
+Next live step remains unchanged: user supplies a disposable Azure DevOps test repo/PR and user-scoped secret pipeline variable `BIBER_API_KEY`, runs Path A with `commentMode=dry-run`, downloads the `biber-ai-review` artifact, then runs `npm run validate:live-artifact -- --artifact-dir <downloaded-biber-ai-review-artifact-dir>` before enabling any PR comment posting.
 
 2026-08-30 BIBER Azure DevOps conference submission checkpoint:
 Complete locally after the package connection-test guard checkpoint. Added

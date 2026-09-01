@@ -313,6 +313,9 @@ def format_comment(
     if len(changed_paths) > 20:
         path_preview += f"\n- ... {len(changed_paths) - 20} more"
     truncation_note = "yes" if diff_truncated else "no"
+    redaction_marker_line = (
+        "**Redaction marker:** `[REDACTED_BIBER_SECRET]`\n" if redaction_count > 0 else ""
+    )
     return textwrap.dedent(
         f"""
         ## BIBER AI Review
@@ -322,7 +325,7 @@ def format_comment(
         **OpenAI mentor:** `disabled`  
         **Diff truncated:** `{truncation_note}`  
         **Secret-like values redacted:** `{redaction_count}`
-
+        {redaction_marker_line}
         {review_markdown}
 
         ### Changed paths reviewed

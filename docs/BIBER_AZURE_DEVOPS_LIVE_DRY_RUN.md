@@ -81,6 +81,15 @@ Only when you deliberately want to test the public BIBER endpoint, run the
 script directly with `--probe-api`. That mode calls `GET /v1/models` and should
 use a user-scoped key, not an admin key.
 
+After the first Azure DevOps dry-run publishes `biber-ai-review`, validate the downloaded artifact locally before using it in the demo:
+
+```bash
+cd examples/azure_devops_extension
+npm run validate:live-artifact -- --artifact-dir <downloaded-biber-ai-review-artifact-dir>
+```
+
+Without a downloaded artifact, `npm run validate:live-artifact` runs a local mock self-test against the checked-in disposable fixture.
+
 
 ## Disposable Demo Fixture
 
@@ -125,21 +134,28 @@ running `Generate Review`.
 
 1. Import or copy exactly one sample YAML into the Azure DevOps test repo.
 2. Run the pipeline with the default settings.
-3. Open the published artifact.
-4. Confirm the artifact says:
+3. Download or open the published artifact.
+4. Run the acceptance checker from the BIBER-only checkout:
+
+   ```bash
+   cd examples/azure_devops_extension
+   npm run validate:live-artifact -- --artifact-dir <downloaded-biber-ai-review-artifact-dir>
+   ```
+
+5. Confirm the artifact says:
 
    ```text
    OpenAI mentor: disabled
    ```
 
-5. Confirm the JSON summary reports no training and no GitHub request.
-6. Confirm fake secret-like values are replaced with:
+6. Confirm the JSON summary reports no training and no GitHub request.
+7. Confirm fake secret-like values are replaced with:
 
    ```text
    [REDACTED_BIBER_SECRET]
    ```
 
-7. Treat the output as human-review assistance, not merge approval.
+8. Treat the output as human-review assistance, not merge approval.
 
 ## Only After Dry-Run Acceptance
 

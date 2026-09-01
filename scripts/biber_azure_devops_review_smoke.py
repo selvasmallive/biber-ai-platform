@@ -279,6 +279,7 @@ def main() -> int:
                 check(payload.get("secret_like_values_redacted", 0) >= 1, "script:redaction_count"),
                 check("secret-value-for-redaction" not in markdown, "script:markdown_secret_redacted"),
                 check("BIBER AI Review" in markdown, "script:markdown_comment_header"),
+                check("[REDACTED_BIBER_SECRET]" in markdown, "script:markdown_redaction_marker"),
             ]
         )
     else:

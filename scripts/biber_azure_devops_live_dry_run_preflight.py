@@ -32,6 +32,8 @@ REQUIRED_PACKAGE_SCRIPTS = [
     "validate:panel",
     "validate:pipeline",
     "validate:conference",
+    "validate:live-dry-run",
+    "validate:live-artifact",
     "validate:contract",
     "validate:wrapper",
     "demo:offline",
