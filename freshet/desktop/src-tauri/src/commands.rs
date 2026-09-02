@@ -1029,6 +1029,9 @@ pub struct FilingGate {
     /// Distinct from `year_certified` so the app can tell someone "not yet"
     /// rather than "not ever, in this release". Those deserve different wording.
     pub in_scope: bool,
+    /// Whether this return files free because the corporation is nil or
+    /// inactive. Honours the commitment given on the T2 developer application.
+    pub nil_return: bool,
     /// A licence permits filing this year.
     pub licensed: bool,
     /// One line per closed lock, in the words to show.
@@ -1046,10 +1049,24 @@ fn evaluate_gate(
     let tax_year = filed.tax_year();
     let data_verified = a.warnings.is_empty();
     let return_sound = !a.has_errors();
+
+    // A nil or inactive corporation files free.
+    //
+    // Not a pricing decision made here: it is a commitment given to CRA on the
+    // T2 developer application, which asked whether a free product would be
+    // offered for nil or inactive accounts and was answered yes. The code has
+    // to honour that or the declaration was false.
+    //
+    // Scoped to the T2 because that is the form the commitment was made on. A
+    // T1 with no tax owing is a normal return, not an inactive account.
+    let nil_return = matches!(filed, Filed::T2 { .. })
+        && a.get("summary.total_tax").unwrap_or_default().is_zero();
     let in_scope = freshet_taxdata::in_certification_scope(province);
     let year_certified = freshet_taxdata::is_certified(tax_year, province);
 
     let (licensed, licence_reason) = match licence_token {
+        // Nothing to pay for, so nothing to check.
+        _ if nil_return => (true, None),
         None => (
             false,
             Some("Filing needs a licence key. Preparing this return is free.".to_string()),
@@ -1086,7 +1103,7 @@ fn evaluate_gate(
             format!("Freshet is not yet CRA-certified to file {tax_year}.")
         } else {
             format!(
-                "Freshet is not certified to file {} returns. This release covers                  Ontario only; other jurisdictions can be prepared and printed,                  but not filed.",
+                "Freshet is not certified to file {} returns. This release covers Ontario only; other jurisdictions can be prepared and printed, but not filed.",
                 province.to_uppercase()
             )
         });
@@ -1101,6 +1118,7 @@ fn evaluate_gate(
         return_sound,
         year_certified,
         in_scope,
+        nil_return,
         licensed,
         blocked_by,
     }
@@ -2364,6 +2382,70 @@ mod tests {
             .blocked_by
             .iter()
             .any(|b| b.contains("freshet-t1")));
+    }
+
+    // -- the nil-return commitment -----------------------------------------
+
+    fn t2_gate(facts: &[(&str, &str)], licence: Option<&str>) -> FilingGate {
+        let input = t2_input("2025-01-01", "2025-12-31", facts);
+        let (a, period) = assess_t2(&input).unwrap();
+
+        evaluate_gate(&a, Filed::T2 { period }, "on", licence, 0)
+    }
+
+    /// The T2 developer application asked whether a free product would be
+    /// offered for nil or inactive accounts, and was answered yes. A dormant
+    /// corporation must therefore not hit the licence gate — otherwise the
+    /// declaration made to CRA is false.
+    #[test]
+    fn a_nil_corporation_files_without_a_licence() {
+        let dormant = t2_gate(&[], None);
+
+        assert!(dormant.nil_return);
+        assert!(
+            dormant.licensed,
+            "an inactive corporation was asked for a licence"
+        );
+        assert!(!dormant
+            .blocked_by
+            .iter()
+            .any(|b| b.contains("licence")));
+    }
+
+    /// A corporation that owes tax is not nil, and the free tier must not
+    /// become a way to file a real return without paying.
+    #[test]
+    fn a_corporation_that_owes_tax_still_needs_a_licence() {
+        let trading = t2_gate(
+            &[("gifi.8000", "500000"), ("t2.active_business_income", "500000")],
+            None,
+        );
+
+        assert!(!trading.nil_return);
+        assert!(!trading.licensed);
+        assert!(trading.blocked_by.iter().any(|b| b.contains("licence")));
+    }
+
+    /// A loss year owes nothing, which is exactly the case a small corporation
+    /// most resents being charged for.
+    #[test]
+    fn a_loss_year_is_treated_as_nil() {
+        let loss = t2_gate(&[("gifi.8000", "50000"), ("gifi.9270", "200000")], None);
+
+        assert!(loss.nil_return);
+        assert!(loss.licensed);
+    }
+
+    /// The commitment was made on the T2 form. A personal return with no tax
+    /// owing is an ordinary return, not an inactive account, and is not covered
+    /// by it.
+    #[test]
+    fn a_t1_with_no_tax_owing_is_not_a_nil_account() {
+        let a = assess(&input_for(2025, &[])).unwrap();
+        let gate = evaluate_gate(&a, Filed::T1 { tax_year: 2025 }, "on", None, 0);
+
+        assert!(!gate.nil_return);
+        assert!(!gate.licensed);
     }
 
     #[test]

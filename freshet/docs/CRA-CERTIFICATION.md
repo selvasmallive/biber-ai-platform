@@ -160,6 +160,65 @@ Confirm with CRA whether the certification agreement imposes any constraint on t
 - [Filing your T2 return electronically using certified software (canada.ca)](https://www.canada.ca/en/revenue-agency/news/newsroom/tax-tips/tax-tips-2022/filing-t2-return-electronically-using-certified-software.html)
 - [NETFILE certification, vendor description (UFile)](https://www.ufile.ca/get-started/netfile-certification)
 
+## What was actually applied for
+
+**A T2 developer application was submitted on 2 September 2026**, filed with the
+T2 Software Certification team. It changes several things this document
+previously assumed, and the assumptions are corrected below rather than quietly
+edited away.
+
+The completed questionnaire is deliberately **not** committed: it carries a home
+address and personal phone number, and the parts that affect the build are
+recorded here instead.
+
+| Declared | |
+|---|---|
+| Applicant | 16631886 Canada Inc., BN **790623961 RC0001** |
+| Products | **Freshet T2 for Windows**, **Freshet T2 for MAC**, **Freshet T2 Online** |
+| Website | https://bumi.ca |
+| Market | small, medium **and large** businesses |
+| Release | 6-12 months from September 2026 |
+| Price | $0-$799 |
+| Free for nil or inactive accounts | **yes** |
+| Available for a Teams interview | yes |
+
+### The T2 is the live application, not the T1
+
+This document sequenced the work **Windows T1 → macOS T1 → Windows T2 → macOS
+T2**. The application that actually went in is for the T2, so that ordering is
+now wrong: corporate work is on the critical path rather than ahead of it.
+
+### Three declared channels, including web
+
+The recommendation below is desktop-only, on the grounds that a web product
+makes you the transmitter. **Freshet T2 Online was declared anyway**, so the
+application covers a product that does not exist and whose architecture
+contradicts what is built:
+
+- Licensing verifies **offline** against a key compiled into the binary. A
+  browser cannot do that.
+- The return is held in an **encrypted vault on the user's disk**, which is the
+  basis of the claim that it never leaves their machine.
+- The AI advisor sends line numbers to a provider the **user** chose with the
+  **user's** key. A hosted product would be sending them with yours.
+
+None of that is fatal. It is a different product with a different security story
+and a separate certification, and it is worth deciding deliberately whether to
+build it or to tell CRA the web channel is deferred. The declaration is not a
+commitment to ship all three at once, but it is the scope CRA will expect.
+
+### The free nil-return commitment is now in the code
+
+The application answered **yes** to offering a free product for nil or inactive
+accounts. That is a commitment, so the filing gate honours it: a T2 whose total
+tax is nil files without a licence, and a test asserts a corporation that owes
+tax still needs one. It is scoped to the T2 because that is the form the
+commitment was made on.
+
+Worth noting this is the opposite of TaxTron, which requires a purchase for
+EFILE and print even at nil or a loss. It is a real differentiator, and now a
+real obligation.
+
 ## Target year: 2027, not 2026
 
 **CRA's application window for the 2026 T1 closed before this product applied.**
