@@ -718,14 +718,40 @@ fn a_balanced_balance_sheet_raises_nothing() {
 
 /// Accumulated amortization is entered as a positive figure and subtracted,
 /// the way it appears on a balance sheet, rather than expecting a negative.
+///
+/// This test used to assert that 1740 reduced total assets, because the data
+/// had 1740 labelled as accumulated amortization. It is not: CRA 1740 is
+/// **machinery and equipment**, an asset, and the contra account is 1741. The
+/// old arrangement understated total assets by twice whatever was entered,
+/// and then reported a balance-sheet difference the user could not explain.
 #[test]
 fn accumulated_amortization_reduces_total_assets() {
     let got = assess(
         Period::calendar(2025),
+        &[
+            ("gifi.1600", "400000"),
+            ("gifi.1740", "150000"),
+            ("gifi.1741", "60000"),
+        ],
+    );
+
+    // Land 400,000 + machinery 150,000 - accumulated amortization 60,000.
+    assert_eq!(got.get("gifi.2599").unwrap(), d("490000.00"));
+}
+
+/// An asset code is not a contra account, whatever it was once called here.
+#[test]
+fn machinery_adds_to_total_assets_rather_than_reducing_them() {
+    let bare = assess(Period::calendar(2025), &[("gifi.1600", "400000")]);
+    let with_machines = assess(
+        Period::calendar(2025),
         &[("gifi.1600", "400000"), ("gifi.1740", "150000")],
     );
 
-    assert_eq!(got.get("gifi.2599").unwrap(), d("250000.00"));
+    assert!(
+        with_machines.get("gifi.2599").unwrap() > bare.get("gifi.2599").unwrap(),
+        "machinery must increase total assets"
+    );
 }
 
 /// The code set is a subset, and says so rather than letting a corporation
@@ -829,4 +855,58 @@ fn a_year_crossing_a_calendar_boundary_still_says_so() {
     );
 
     assert!(fired(&got).contains(&"t2.rates_apportioned"));
+}
+
+/// Both halves of the income tax provision come back on Schedule 1.
+///
+/// Income tax is not deductible in computing income for tax purposes, and that
+/// is as true of the deferred provision as the current one. Reading only 9990
+/// would have let a corporation with a deferred charge understate its income
+/// by exactly that amount.
+#[test]
+fn schedule_one_adds_back_the_deferred_provision_as_well_as_the_current_one() {
+    let current_only = assess(
+        Period::calendar(2025),
+        &[("gifi.8000", "500000"), ("gifi.9990", "40000")],
+    );
+    let both = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("gifi.9990", "40000"),
+            ("gifi.9995", "15000"),
+        ],
+    );
+
+    // Net income after taxes falls by the deferred charge...
+    assert_eq!(
+        both.get("gifi.9999").unwrap(),
+        current_only.get("gifi.9999").unwrap() - d("15000.00")
+    );
+
+    // ...and income for tax purposes does not, because it is added back.
+    assert_eq!(
+        both.get("t2.300").unwrap(),
+        current_only.get("t2.300").unwrap()
+    );
+}
+
+/// Cost of sales is computed from inventories and purchases, not entered.
+///
+/// 8300 is opening inventory. It was labelled "Cost of sales" here, which put
+/// a whole year of purchases under a code CRA reads as an inventory balance.
+#[test]
+fn cost_of_sales_is_opening_plus_purchases_less_closing() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("gifi.8300", "80000"),
+            ("gifi.8320", "300000"),
+            ("gifi.8500", "60000"),
+        ],
+    );
+
+    assert_eq!(got.get("gifi.8518").unwrap(), d("320000.00"));
+    assert_eq!(got.get("gifi.8519").unwrap(), d("180000.00"));
 }

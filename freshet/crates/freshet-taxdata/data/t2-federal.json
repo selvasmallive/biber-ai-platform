@@ -152,10 +152,19 @@
     {
       "id": "t2.sch1.income_tax_provision",
       "label": "Provision for income taxes",
-      "note": "GIFI line 9990. Income tax is not deductible in computing income for tax purposes, so the accounting provision comes straight back.",
+      "note": "GIFI 9990 and 9995. Income tax is not deductible in computing income for tax purposes, so the accounting provision comes straight back — the deferred half as well as the current one. Reading 9990 alone would leave a corporation with a deferred provision understating its income by that amount.",
       "expr": {
-        "op": "line",
-        "id": "gifi.9990"
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "gifi.9990"
+          },
+          {
+            "op": "line",
+            "id": "gifi.9995"
+          }
+        ]
       }
     },
     {

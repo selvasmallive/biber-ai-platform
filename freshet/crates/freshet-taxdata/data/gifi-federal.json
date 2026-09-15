@@ -1,7 +1,7 @@
 {
   "tax_year": 2025,
   "province": "on",
-  "_comment": "GIFI: Schedule 100 (balance sheet) and Schedule 125 (income statement). A representative code set rather than the full taxonomy — the codes are entered amounts and the totals are sums over them, so extending the set is data rather than design.",
+  "_comment": "GIFI, the General Index of Financial Information. Codes and names checked against CRA RC4088 and the GIFI-Short guide RC4089 on 2026-09-15. The item set is GIFI-Short's (form T1178), a published CRA subset aimed at corporations under a million in revenue and assets. A corporation using tax software cannot file T1178 itself, so these are transmitted on the full Schedules 100 and 125 — the codes are the same codes either way.",
   "summary": [],
   "checks": [
     {
@@ -106,6 +106,15 @@
       }
     },
     {
+      "id": "gifi.1061",
+      "label": "Allowance for doubtful accounts",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1061"
+      },
+      "note": "A contra-asset: entered as a positive figure and subtracted, the way it sits on a balance sheet."
+    },
+    {
       "id": "gifi.1120",
       "label": "Inventories",
       "expr": {
@@ -114,25 +123,141 @@
       }
     },
     {
+      "id": "gifi.1180",
+      "label": "Short-term investments",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1180"
+      }
+    },
+    {
+      "id": "gifi.1240",
+      "label": "Loans and notes receivable",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1240"
+      }
+    },
+    {
+      "id": "gifi.1300",
+      "label": "Due from shareholder(s)/director(s)",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1300"
+      }
+    },
+    {
+      "id": "gifi.1480",
+      "label": "Other current assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1480"
+      }
+    },
+    {
       "id": "gifi.1600",
-      "label": "Capital assets at cost",
+      "label": "Land",
       "expr": {
         "op": "fact",
         "key": "gifi.1600"
       }
     },
     {
+      "id": "gifi.1680",
+      "label": "Buildings",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1680"
+      }
+    },
+    {
+      "id": "gifi.1681",
+      "label": "Accumulated amortization of buildings",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1681"
+      },
+      "note": "Entered as a positive figure and subtracted below."
+    },
+    {
       "id": "gifi.1740",
-      "label": "Accumulated amortization of capital assets",
-      "note": "Entered as a positive figure and subtracted below, the way it appears on a balance sheet, rather than expecting a negative.",
+      "label": "Machinery and equipment",
       "expr": {
         "op": "fact",
         "key": "gifi.1740"
       }
     },
     {
-      "id": "gifi.2599",
-      "label": "Total assets",
+      "id": "gifi.1741",
+      "label": "Accumulated amortization of machinery and equipment",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1741"
+      },
+      "note": "Entered as a positive figure and subtracted below."
+    },
+    {
+      "id": "gifi.1787",
+      "label": "Furniture and fixtures",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1787"
+      }
+    },
+    {
+      "id": "gifi.1788",
+      "label": "Accumulated amortization of furniture and fixtures",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1788"
+      },
+      "note": "Entered as a positive figure and subtracted below."
+    },
+    {
+      "id": "gifi.1900",
+      "label": "Other tangible capital assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1900"
+      }
+    },
+    {
+      "id": "gifi.1901",
+      "label": "Accumulated amortization of other tangible capital assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.1901"
+      },
+      "note": "Entered as a positive figure and subtracted below."
+    },
+    {
+      "id": "gifi.2010",
+      "label": "Intangible assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2010"
+      }
+    },
+    {
+      "id": "gifi.2011",
+      "label": "Accumulated amortization of intangible assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2011"
+      },
+      "note": "Entered as a positive figure and subtracted below."
+    },
+    {
+      "id": "gifi.2420",
+      "label": "Other long-term assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2420"
+      }
+    },
+    {
+      "id": "gifi.1599",
+      "label": "Total current assets",
       "expr": {
         "op": "sub",
         "from": {
@@ -152,30 +277,181 @@
             },
             {
               "op": "line",
-              "id": "gifi.1600"
+              "id": "gifi.1180"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1240"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1300"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1480"
             }
           ]
         },
         "minus": {
-          "op": "line",
-          "id": "gifi.1740"
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.1061"
+            }
+          ]
         }
       }
     },
     {
+      "id": "gifi.2599",
+      "label": "Total assets",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.1599"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1600"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1680"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1740"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1787"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1900"
+            },
+            {
+              "op": "line",
+              "id": "gifi.2010"
+            },
+            {
+              "op": "line",
+              "id": "gifi.2420"
+            }
+          ]
+        },
+        "minus": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.1681"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1741"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1788"
+            },
+            {
+              "op": "line",
+              "id": "gifi.1901"
+            },
+            {
+              "op": "line",
+              "id": "gifi.2011"
+            }
+          ]
+        }
+      },
+      "note": "Current assets plus capital assets at cost, less the accumulated amortization on each class. The accumulated amounts are entered positive and subtracted here, which is how they appear on a statement."
+    },
+    {
       "id": "gifi.2600",
-      "label": "Accounts payable and accrued liabilities",
+      "label": "Bank overdraft",
       "expr": {
         "op": "fact",
         "key": "gifi.2600"
       }
     },
     {
+      "id": "gifi.2620",
+      "label": "Amounts payable and accrued liabilities",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2620"
+      }
+    },
+    {
+      "id": "gifi.2680",
+      "label": "Taxes payable",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2680"
+      }
+    },
+    {
       "id": "gifi.2700",
-      "label": "Loans and other long-term debt",
+      "label": "Short-term debt",
       "expr": {
         "op": "fact",
         "key": "gifi.2700"
+      }
+    },
+    {
+      "id": "gifi.2780",
+      "label": "Due to shareholder(s)/director(s)",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2780"
+      }
+    },
+    {
+      "id": "gifi.2920",
+      "label": "Current portion of long-term liability",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2920"
+      }
+    },
+    {
+      "id": "gifi.2960",
+      "label": "Other current liabilities",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.2960"
+      }
+    },
+    {
+      "id": "gifi.3140",
+      "label": "Long-term debt",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.3140"
+      }
+    },
+    {
+      "id": "gifi.3240",
+      "label": "Future (deferred) income taxes",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.3240"
+      }
+    },
+    {
+      "id": "gifi.3320",
+      "label": "Other long-term liabilities",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.3320"
       }
     },
     {
@@ -190,7 +466,39 @@
           },
           {
             "op": "line",
+            "id": "gifi.2620"
+          },
+          {
+            "op": "line",
+            "id": "gifi.2680"
+          },
+          {
+            "op": "line",
             "id": "gifi.2700"
+          },
+          {
+            "op": "line",
+            "id": "gifi.2780"
+          },
+          {
+            "op": "line",
+            "id": "gifi.2920"
+          },
+          {
+            "op": "line",
+            "id": "gifi.2960"
+          },
+          {
+            "op": "line",
+            "id": "gifi.3140"
+          },
+          {
+            "op": "line",
+            "id": "gifi.3240"
+          },
+          {
+            "op": "line",
+            "id": "gifi.3320"
           }
         ]
       }
@@ -204,8 +512,24 @@
       }
     },
     {
+      "id": "gifi.3520",
+      "label": "Preferred shares",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.3520"
+      }
+    },
+    {
+      "id": "gifi.3540",
+      "label": "Contributed and other surplus",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.3540"
+      }
+    },
+    {
       "id": "gifi.3600",
-      "label": "Retained earnings",
+      "label": "Retained earnings/deficit",
       "expr": {
         "op": "fact",
         "key": "gifi.3600"
@@ -223,15 +547,41 @@
           },
           {
             "op": "line",
+            "id": "gifi.3520"
+          },
+          {
+            "op": "line",
+            "id": "gifi.3540"
+          },
+          {
+            "op": "line",
             "id": "gifi.3600"
           }
         ]
       }
     },
     {
+      "id": "gifi.3640",
+      "label": "Total liabilities and shareholder equity",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "gifi.3499"
+          },
+          {
+            "op": "line",
+            "id": "gifi.3620"
+          }
+        ]
+      },
+      "note": "Must equal total assets. The check below says so if it does not."
+    },
+    {
       "id": "gifi.balance_difference",
       "label": "Balance sheet difference",
-      "note": "Assets less liabilities and equity. Anything other than nil means the statements do not balance, which is an error in the accounts rather than in the tax calculation — but it is caught here because the return is where it stops being ignorable.",
+      "note": "Total assets less total liabilities and equity. Anything other than nil means the statements do not balance, which is an error in the accounts rather than in the tax calculation — but it is caught here because the return is where it stops being ignorable.",
       "expr": {
         "op": "sub",
         "from": {
@@ -239,17 +589,8 @@
           "id": "gifi.2599"
         },
         "minus": {
-          "op": "sum",
-          "of": [
-            {
-              "op": "line",
-              "id": "gifi.3499"
-            },
-            {
-              "op": "line",
-              "id": "gifi.3620"
-            }
-          ]
+          "op": "line",
+          "id": "gifi.3640"
         }
       }
     },
@@ -270,6 +611,46 @@
       }
     },
     {
+      "id": "gifi.8095",
+      "label": "Dividend income",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8095"
+      }
+    },
+    {
+      "id": "gifi.8120",
+      "label": "Commission revenue",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8120"
+      }
+    },
+    {
+      "id": "gifi.8140",
+      "label": "Rental revenue",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8140"
+      }
+    },
+    {
+      "id": "gifi.8210",
+      "label": "Realized gains/losses on disposal of assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8210"
+      }
+    },
+    {
+      "id": "gifi.8230",
+      "label": "Other revenue",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8230"
+      }
+    },
+    {
       "id": "gifi.8299",
       "label": "Total revenue",
       "expr": {
@@ -282,16 +663,145 @@
           {
             "op": "line",
             "id": "gifi.8090"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8095"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8120"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8140"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8210"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8230"
           }
         ]
       }
     },
     {
       "id": "gifi.8300",
-      "label": "Cost of sales",
+      "label": "Opening inventory",
       "expr": {
         "op": "fact",
         "key": "gifi.8300"
+      },
+      "note": "Opening inventory, not cost of sales. Cost of sales is computed at 8518."
+    },
+    {
+      "id": "gifi.8320",
+      "label": "Purchases/cost of materials",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8320"
+      }
+    },
+    {
+      "id": "gifi.8340",
+      "label": "Direct wages",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8340"
+      }
+    },
+    {
+      "id": "gifi.8350",
+      "label": "Benefits on direct wages",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8350"
+      }
+    },
+    {
+      "id": "gifi.8360",
+      "label": "Trades and sub-contracts",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8360"
+      }
+    },
+    {
+      "id": "gifi.8500",
+      "label": "Closing inventory",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8500"
+      },
+      "note": "Subtracted: what is still on hand at the year end was not sold."
+    },
+    {
+      "id": "gifi.8518",
+      "label": "Cost of sales",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.8300"
+            },
+            {
+              "op": "line",
+              "id": "gifi.8320"
+            },
+            {
+              "op": "line",
+              "id": "gifi.8340"
+            },
+            {
+              "op": "line",
+              "id": "gifi.8350"
+            },
+            {
+              "op": "line",
+              "id": "gifi.8360"
+            }
+          ]
+        },
+        "minus": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.8500"
+            }
+          ]
+        }
+      },
+      "note": "Opening inventory plus purchases and direct costs, less closing inventory. A trading corporation that tracks cost of sales directly can enter it as purchases and leave both inventories nil."
+    },
+    {
+      "id": "gifi.8519",
+      "label": "Gross profit/loss",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.8299"
+            }
+          ]
+        },
+        "minus": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.8518"
+            }
+          ]
+        }
       }
     },
     {
@@ -308,6 +818,31 @@
       "expr": {
         "op": "fact",
         "key": "gifi.8523"
+      },
+      "note": "ITA 67.1 allows half. Schedule 1 adds the other half back."
+    },
+    {
+      "id": "gifi.8570",
+      "label": "Amortization of intangible assets",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8570"
+      }
+    },
+    {
+      "id": "gifi.8590",
+      "label": "Bad debt expense",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8590"
+      }
+    },
+    {
+      "id": "gifi.8620",
+      "label": "Employee benefits",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8620"
       }
     },
     {
@@ -316,7 +851,8 @@
       "expr": {
         "op": "fact",
         "key": "gifi.8670"
-      }
+      },
+      "note": "Added back in full on Schedule 1 and replaced by capital cost allowance."
     },
     {
       "id": "gifi.8690",
@@ -336,10 +872,18 @@
     },
     {
       "id": "gifi.8760",
-      "label": "Business taxes, licences and memberships",
+      "label": "Business taxes, licences, and memberships",
       "expr": {
         "op": "fact",
         "key": "gifi.8760"
+      }
+    },
+    {
+      "id": "gifi.8810",
+      "label": "Office expenses",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8810"
       }
     },
     {
@@ -351,11 +895,59 @@
       }
     },
     {
+      "id": "gifi.8910",
+      "label": "Rental",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8910"
+      }
+    },
+    {
+      "id": "gifi.8960",
+      "label": "Repairs and maintenance",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.8960"
+      }
+    },
+    {
       "id": "gifi.9060",
       "label": "Salaries and wages",
       "expr": {
         "op": "fact",
         "key": "gifi.9060"
+      }
+    },
+    {
+      "id": "gifi.9110",
+      "label": "Sub-contracts",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.9110"
+      }
+    },
+    {
+      "id": "gifi.9130",
+      "label": "Supplies",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.9130"
+      }
+    },
+    {
+      "id": "gifi.9150",
+      "label": "Computer-related expenses",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.9150"
+      }
+    },
+    {
+      "id": "gifi.9180",
+      "label": "Property taxes",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.9180"
       }
     },
     {
@@ -367,15 +959,11 @@
       }
     },
     {
-      "id": "gifi.9368",
-      "label": "Total expenses",
+      "id": "gifi.9367",
+      "label": "Total operating expenses",
       "expr": {
         "op": "sum",
         "of": [
-          {
-            "op": "line",
-            "id": "gifi.8300"
-          },
           {
             "op": "line",
             "id": "gifi.8520"
@@ -383,6 +971,18 @@
           {
             "op": "line",
             "id": "gifi.8523"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8570"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8590"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8620"
           },
           {
             "op": "line",
@@ -402,11 +1002,39 @@
           },
           {
             "op": "line",
+            "id": "gifi.8810"
+          },
+          {
+            "op": "line",
             "id": "gifi.8860"
           },
           {
             "op": "line",
+            "id": "gifi.8910"
+          },
+          {
+            "op": "line",
+            "id": "gifi.8960"
+          },
+          {
+            "op": "line",
             "id": "gifi.9060"
+          },
+          {
+            "op": "line",
+            "id": "gifi.9110"
+          },
+          {
+            "op": "line",
+            "id": "gifi.9130"
+          },
+          {
+            "op": "line",
+            "id": "gifi.9150"
+          },
+          {
+            "op": "line",
+            "id": "gifi.9180"
           },
           {
             "op": "line",
@@ -416,41 +1044,104 @@
       }
     },
     {
+      "id": "gifi.9368",
+      "label": "Total expenses",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "gifi.8518"
+          },
+          {
+            "op": "line",
+            "id": "gifi.9367"
+          }
+        ]
+      }
+    },
+    {
       "id": "gifi.9970",
-      "label": "Net income before taxes and extraordinary items",
+      "label": "Net income/loss before taxes and extraordinary items",
       "expr": {
         "op": "sub",
         "from": {
-          "op": "line",
-          "id": "gifi.8299"
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.8299"
+            }
+          ]
         },
         "minus": {
-          "op": "line",
-          "id": "gifi.9368"
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.9368"
+            }
+          ]
         }
       }
     },
     {
-      "id": "gifi.9990",
-      "label": "Current and deferred income taxes",
+      "id": "gifi.9975",
+      "label": "Extraordinary items",
       "expr": {
         "op": "fact",
-        "key": "gifi.9990"
+        "key": "gifi.9975"
       }
     },
     {
+      "id": "gifi.9990",
+      "label": "Current income taxes",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.9990"
+      },
+      "note": "Current income taxes only. The deferred provision is 9995, and Schedule 1 adds both back."
+    },
+    {
+      "id": "gifi.9995",
+      "label": "Future (deferred) income tax provision",
+      "expr": {
+        "op": "fact",
+        "key": "gifi.9995"
+      },
+      "note": "Added back on Schedule 1 with the current provision: neither is deductible in computing income."
+    },
+    {
       "id": "gifi.9999",
-      "label": "Net income after taxes",
+      "label": "Net income/loss after taxes and extraordinary items",
       "note": "Where the tax return starts. Schedule 1 reconciles this to income for tax purposes.",
       "expr": {
         "op": "sub",
         "from": {
-          "op": "line",
-          "id": "gifi.9970"
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.9970"
+            },
+            {
+              "op": "line",
+              "id": "gifi.9975"
+            }
+          ]
         },
         "minus": {
-          "op": "line",
-          "id": "gifi.9990"
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "gifi.9990"
+            },
+            {
+              "op": "line",
+              "id": "gifi.9995"
+            }
+          ]
         }
       }
     }
