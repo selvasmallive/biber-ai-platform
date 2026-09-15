@@ -587,3 +587,117 @@ mod period_facts {
         assert!(e.to_string().contains("derived from the reporting period"), "{e}");
     }
 }
+
+// -- parameter segments ----------------------------------------------------
+//
+// A fiscal period is cut wherever its parameters change. Usually that is a
+// calendar year; Ontario moved a corporate rate to 1 July 2026, so not always.
+//
+// These check the validation rather than the arithmetic, because the failure
+// mode is quiet. A gap or an overlap does not error on its own: it produces a
+// weighted average over the wrong denominator, which is a plausible rate and
+// therefore a plausible, wrong return.
+
+use freshet_engine::{Date, Period, PeriodPacks};
+
+fn pack(rate: &str) -> PackSet {
+    let json = format!(
+        r#"{{"jurisdiction":"x","tax_year":2026,"scalars":{{
+             "r":{{"value":"{rate}","source":"test","verified":true}}}},
+           "brackets":{{}}}}"#
+    );
+    PackSet {
+        federal: ParamPack::from_json(&json).unwrap(),
+        provincial: ParamPack::from_json(&json).unwrap(),
+    }
+}
+
+fn day(y: i32, m: u32, d: u32) -> Date {
+    Date::new(y, m, d).unwrap()
+}
+
+fn span(a: (i32, u32, u32), b: (i32, u32, u32)) -> Period {
+    Period::new(day(a.0, a.1, a.2), day(b.0, b.1, b.2)).unwrap()
+}
+
+#[test]
+fn segments_are_blended_by_the_days_they_cover() {
+    let year = span((2026, 1, 1), (2026, 12, 31));
+
+    let packs = PeriodPacks::segmented(
+        year,
+        vec![
+            ("h1".into(), span((2026, 1, 1), (2026, 6, 30)), pack("0.032")),
+            ("h2".into(), span((2026, 7, 1), (2026, 12, 31)), pack("0.022")),
+        ],
+    )
+    .unwrap();
+
+    // 181 days at 0.032 and 184 at 0.022, over 365.
+    assert_eq!(
+        packs.blended("fed:r").unwrap(),
+        "9.84".parse::<rust_decimal::Decimal>().unwrap()
+            / rust_decimal::Decimal::from(365)
+    );
+}
+
+#[test]
+fn a_gap_between_segments_is_refused() {
+    let year = span((2026, 1, 1), (2026, 12, 31));
+
+    // 1 July is missing entirely.
+    let built = PeriodPacks::segmented(
+        year,
+        vec![
+            ("h1".into(), span((2026, 1, 1), (2026, 6, 30)), pack("0.032")),
+            ("h2".into(), span((2026, 7, 2), (2026, 12, 31)), pack("0.022")),
+        ],
+    );
+
+    assert!(built.is_err(), "a day fell through the gap unnoticed");
+}
+
+#[test]
+fn overlapping_segments_are_refused() {
+    let year = span((2026, 1, 1), (2026, 12, 31));
+
+    // June is counted twice, so the weights would sum to more than one.
+    let built = PeriodPacks::segmented(
+        year,
+        vec![
+            ("h1".into(), span((2026, 1, 1), (2026, 6, 30)), pack("0.032")),
+            ("h2".into(), span((2026, 6, 1), (2026, 12, 31)), pack("0.022")),
+        ],
+    );
+
+    assert!(built.is_err(), "an overlap would double-count those days");
+}
+
+#[test]
+fn segments_that_stop_short_of_the_period_are_refused() {
+    let year = span((2026, 1, 1), (2026, 12, 31));
+
+    let built = PeriodPacks::segmented(
+        year,
+        vec![("h1".into(), span((2026, 1, 1), (2026, 6, 30)), pack("0.032"))],
+    );
+
+    assert!(built.is_err(), "half the year had no parameters at all");
+}
+
+#[test]
+fn a_single_segment_covering_the_period_is_the_ordinary_case() {
+    let year = span((2026, 1, 1), (2026, 12, 31));
+
+    let packs = PeriodPacks::segmented(
+        year,
+        vec![("2026".into(), year, pack("0.115"))],
+    )
+    .unwrap();
+
+    assert!(!packs.straddles());
+    assert_eq!(
+        packs.blended("fed:r").unwrap(),
+        "0.115".parse::<rust_decimal::Decimal>().unwrap()
+    );
+}

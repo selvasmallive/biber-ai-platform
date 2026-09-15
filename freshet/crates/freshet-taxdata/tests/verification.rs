@@ -809,13 +809,12 @@ fn t2_on_2026_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    // Ontario's lower rate is 3.2% until 30 June 2026 and 2.2% from 1 July
-    // 2026, prorated across a year straddling the date. A pack holds one
-    // value per calendar year, so there is no single correct number to put
-    // here — see the source note in the pack. This stays unverified until the
-    // parameters can be bounded by date rather than by year, which keeps the
-    // filing gate shut for exactly the right reason.
-    let expected: Vec<&str> = vec!["scalars.t2_small_business_rate"];
+    // Empty. Ontario's lower rate changes on 1 July 2026, which a pack keyed
+    // by calendar year could not express — so the year was cut in two and
+    // both halves cited. `t2_packs(2026, "on")` returns the first of them;
+    // the pair is assembled by `t2_period_packs`, which is what every caller
+    // now uses.
+    let expected: Vec<&str> = vec![];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
     assert_eq!(actual, want, "the T2 residual moved without being recorded");

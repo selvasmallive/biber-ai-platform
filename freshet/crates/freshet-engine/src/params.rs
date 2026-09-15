@@ -218,12 +218,31 @@ impl PackSet {
 #[derive(Debug)]
 pub struct PeriodPacks {
     pub period: crate::Period,
-    /// One entry per calendar year touched, in order: year, days, packs.
+    /// The period cut into stretches over which every parameter holds still,
+    /// in order.
+    ///
+    /// Usually one per calendar year, because that is where parameters
+    /// normally change. Not always: Ontario's lower corporate rate falls from
+    /// 3.2% to 2.2% on 1 July 2026, so a corporation with an October year end
+    /// has three segments in play, two of them inside one calendar year.
     ///
     /// Days rather than a precomputed weight, deliberately — see [`blended`].
     ///
     /// [`blended`]: PeriodPacks::blended
-    years: Vec<(i32, i64, PackSet)>,
+    segments: Vec<Segment>,
+}
+
+/// One stretch of a fiscal period over which the parameters do not move.
+#[derive(Debug, Clone)]
+struct Segment {
+    /// How this stretch is named when reporting an unverified parameter.
+    ///
+    /// A year on its own where a year is all there is, so the common case
+    /// reads as it always did; something like `2026 from 07-01` when a year
+    /// had to be cut.
+    label: String,
+    days: i64,
+    packs: PackSet,
 }
 
 impl PeriodPacks {
@@ -247,22 +266,85 @@ impl PeriodPacks {
             )));
         }
 
-        let mut years = Vec::new();
+        let mut segments = Vec::new();
         for ((want_year, days), (got_year, packs)) in needed.into_iter().zip(packs_by_year) {
             if want_year != got_year {
                 return Err(EngineError::BadPeriod(format!(
                     "{period} needs the {want_year} parameters, but {got_year} was supplied"
                 )));
             }
-            years.push((want_year, days, packs));
+            segments.push(Segment {
+                label: want_year.to_string(),
+                days,
+                packs,
+            });
         }
 
-        Ok(PeriodPacks { period, years })
+        Ok(PeriodPacks { period, segments })
     }
 
-    /// Whether this period draws on more than one year's parameters.
+    /// Segments given explicitly, for a parameter that changes part-way
+    /// through a calendar year.
+    ///
+    /// Each entry is a label, the stretch it covers, and the packs in force
+    /// over it. They must be in order, must not overlap or leave a gap, and
+    /// together must cover the period exactly.
+    ///
+    /// That validation is the whole value of this constructor. A gap or an
+    /// overlap does not fail loudly — it produces a weighted average over the
+    /// wrong denominator, which is a plausible-looking rate and therefore a
+    /// plausible-looking return. It is checked here so it cannot be got wrong
+    /// by a caller assembling the segments.
+    pub fn segmented(
+        period: crate::Period,
+        segments: Vec<(String, crate::Period, PackSet)>,
+    ) -> Result<Self, EngineError> {
+        if segments.is_empty() {
+            return Err(EngineError::BadPeriod(format!(
+                "{period} was given no parameter segments"
+            )));
+        }
+
+        let mut expected = period.start;
+        let mut built = Vec::new();
+
+        for (label, stretch, packs) in segments {
+            if stretch.start != expected {
+                return Err(EngineError::BadPeriod(format!(
+                    "parameter segments for {period} are not contiguous: \
+                     expected one beginning {expected}, got {stretch}"
+                )));
+            }
+
+            if stretch.end > period.end {
+                return Err(EngineError::BadPeriod(format!(
+                    "parameter segment {stretch} runs past the end of {period}"
+                )));
+            }
+
+            built.push(Segment {
+                label,
+                days: stretch.days(),
+                packs,
+            });
+
+            expected = crate::Date::from_days(stretch.end.to_days() + 1);
+        }
+
+        let covered: i64 = built.iter().map(|s| s.days).sum();
+        if covered != period.days() {
+            return Err(EngineError::BadPeriod(format!(
+                "parameter segments for {period} cover {covered} of its {} days",
+                period.days()
+            )));
+        }
+
+        Ok(PeriodPacks { period, segments: built })
+    }
+
+    /// Whether this period draws on more than one set of parameters.
     pub fn straddles(&self) -> bool {
-        self.years.len() > 1
+        self.segments.len() > 1
     }
 
     /// The packs for the year the period ends in.
@@ -270,7 +352,11 @@ impl PeriodPacks {
     /// Amounts that are *not* apportioned — the ones the Act fixes by
     /// year-end rather than by days — resolve from here.
     pub fn at_year_end(&self) -> &PackSet {
-        &self.years.last().expect("a period touches at least one year").2
+        &self
+            .segments
+            .last()
+            .expect("a period has at least one segment")
+            .packs
     }
 
     /// Every unverified parameter across every year the period touches.
@@ -281,13 +367,15 @@ impl PeriodPacks {
     /// clean.
     pub fn unverified(&self) -> Vec<String> {
         let mut all: Vec<String> = self
-            .years
+            .segments
             .iter()
-            .flat_map(|(year, _, packs)| {
-                packs
+            .flat_map(|segment| {
+                let label = segment.label.clone();
+                segment
+                    .packs
                     .unverified()
                     .into_iter()
-                    .map(move |k| format!("{year} {k}"))
+                    .map(move |k| format!("{label} {k}"))
             })
             .collect();
 
@@ -310,8 +398,8 @@ impl PeriodPacks {
     pub fn blended(&self, key: &str) -> Result<Decimal, EngineError> {
         let mut weighted = Decimal::ZERO;
 
-        for (_, days, packs) in &self.years {
-            weighted += Decimal::from(*days) * packs.scalar(key)?;
+        for segment in &self.segments {
+            weighted += Decimal::from(segment.days) * segment.packs.scalar(key)?;
         }
 
         Ok(weighted / Decimal::from(self.period.days()))

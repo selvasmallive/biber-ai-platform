@@ -73,7 +73,7 @@
     {
       "id": "on_t2.tax",
       "label": "Ontario corporate income tax",
-      "note": "Two rates rather than a bracket table: corporate tax turns on the kind of income, not the amount of it. A bracket table would be the wrong shape entirely.",
+      "note": "Both rates blend, because a tax rate is in force on a day rather than fixed at a year end. Ontario's lower rate falls from 3.2% to 2.2% on 1 July 2026 and the Ontario Budget 2026 annex says the reduction is \"prorated for taxation years straddling July 1, 2026\". Read as `param` instead, a calendar 2026 year end would take the closing rate for all 365 days and understate the tax on the first half of the year.",
       "expr": {
         "op": "sum",
         "of": [
@@ -84,7 +84,7 @@
               "id": "on_t2.small_business_income"
             },
             "by": {
-              "op": "param",
+              "op": "blended_param",
               "key": "on:t2_small_business_rate"
             }
           },
@@ -95,7 +95,7 @@
               "id": "on_t2.general_income"
             },
             "by": {
-              "op": "param",
+              "op": "blended_param",
               "key": "on:t2_general_rate"
             }
           }

@@ -41,7 +41,7 @@ use std::collections::BTreeMap;
 
 use axum::extract::State;
 use axum::Json;
-use freshet_engine::{compute_across, compute_for_period, Date, FactSet, Period};
+use freshet_engine::{compute_across, Date, FactSet, Period};
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
@@ -124,15 +124,12 @@ fn assess(req: &FileRequest) -> Result<(freshet_engine::Assessment, Period), Str
         }
     }
 
-    let assessment = if period.straddles() {
-        let packs =
-            freshet_taxdata::t2_period_packs(period, &req.province).map_err(|e| e.to_string())?;
-        compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?
-    } else {
-        let packs = freshet_taxdata::t2_packs(period.end.year as u16, &req.province)
-            .map_err(|e| e.to_string())?;
-        compute_for_period(&forms, &packs, &facts, period).map_err(|e| e.to_string())?
-    };
+    // The same single path the browser takes. If the two picked their
+    // parameters differently they would disagree on every return that crossed
+    // a rate change, and the comparison below would report it as tampering.
+    let packs =
+        freshet_taxdata::t2_period_packs(period, &req.province).map_err(|e| e.to_string())?;
+    let assessment = compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?;
 
     Ok((assessment, period))
 }

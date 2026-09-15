@@ -238,8 +238,26 @@ pub const T2_ON: &str = include_str!("../data/t2-on.json");
 
 const T2_PACKS: &[(u16, &str, &str)] = &[
     (2025, include_str!("../data/t2-fed-2025.json"), include_str!("../data/t2-on-2025.json")),
-    (2026, include_str!("../data/t2-fed-2026.json"), include_str!("../data/t2-on-2026.json")),
+    (2026, include_str!("../data/t2-fed-2026.json"), include_str!("../data/t2-on-2026-h1.json")),
 ];
+
+/// Parameters that change part-way through a calendar year.
+///
+/// Rates normally change on 1 January, which is why a parameter pack is keyed
+/// by year. Ontario's lower corporate rate does not: it falls from 3.2% to
+/// 2.2% on 1 July 2026, prorated for a taxation year straddling that date.
+///
+/// A corporation with a December year end is affected as surely as one whose
+/// year crosses into 2027, so this cannot be handled by the straddling-year
+/// path alone. Each entry names the province, the first day the new pack
+/// applies, and that pack.
+const T2_MID_YEAR: &[(&str, u16, u32, u32, &str)] = &[(
+    "on",
+    2026,
+    7,
+    1,
+    include_str!("../data/t2-on-2026-h2.json"),
+)];
 
 /// Provinces with a T2 supplement. Ontario only, so far.
 pub const T2_PROVINCES: &[&str] = &["on"];
@@ -269,17 +287,83 @@ pub fn t2_forms(province: &str) -> Result<FormSet, EngineError> {
 ///
 /// A corporation with an off-calendar year-end needs both, so a rate that moved
 /// between them can be apportioned by days.
+/// The parameters in force over a fiscal period, cut wherever they change.
+///
+/// This is the only way corporate parameters should be fetched. It used to be
+/// reserved for a period crossing a calendar year, with a single pack used
+/// otherwise — a distinction that stopped being safe when Ontario moved a rate
+/// on 1 July. A corporation with a December 2026 year end sits inside one
+/// calendar year and still spans two rates.
+///
+/// Asking every caller to work out whether its period crosses something is how
+/// that gets missed, so no caller is asked: the cut happens here, and a period
+/// that crosses nothing simply comes back as one segment.
 pub fn t2_period_packs(
     period: freshet_engine::Period,
     province: &str,
 ) -> Result<freshet_engine::PeriodPacks, EngineError> {
-    let years = period
-        .days_by_year()
-        .into_iter()
-        .map(|(year, _)| Ok((year, t2_packs(year as u16, province)?)))
-        .collect::<Result<Vec<_>, EngineError>>()?;
+    use freshet_engine::{Date, Period};
 
-    freshet_engine::PeriodPacks::new(period, years)
+    let mut segments = Vec::new();
+
+    for (year, _) in period.days_by_year() {
+        let packs = t2_packs(year as u16, province)?;
+
+        // Where this calendar year's slice of the period begins and ends.
+        let from = Date::new(year, 1, 1)?.to_days().max(period.start.to_days());
+        let to = Date::new(year, 12, 31)?.to_days().min(period.end.to_days());
+
+        let change = T2_MID_YEAR
+            .iter()
+            .find(|(p, y, _, _, _)| *p == province && *y as i32 == year)
+            .map(|(_, _, month, day, json)| {
+                Ok::<_, EngineError>((Date::new(year, *month, *day)?.to_days(), *json))
+            })
+            .transpose()?;
+
+        match change {
+            // The change falls inside this slice, so the year is cut in two.
+            Some((at, json)) if at > from && at <= to => {
+                segments.push((
+                    year.to_string(),
+                    Period::new(Date::from_days(from), Date::from_days(at - 1))?,
+                    packs,
+                ));
+
+                let after = PackSet {
+                    federal: t2_packs(year as u16, province)?.federal,
+                    provincial: ParamPack::from_json(json)?,
+                };
+
+                segments.push((
+                    format!("{year} from {}", Date::from_days(at)),
+                    Period::new(Date::from_days(at), Date::from_days(to))?,
+                    after,
+                ));
+            }
+
+            // Entirely on one side of it, or no change this year.
+            Some((at, json)) if at <= from => {
+                let after = PackSet {
+                    federal: packs.federal,
+                    provincial: ParamPack::from_json(json)?,
+                };
+                segments.push((
+                    format!("{year} from {}", Date::from_days(at)),
+                    Period::new(Date::from_days(from), Date::from_days(to))?,
+                    after,
+                ));
+            }
+
+            _ => segments.push((
+                year.to_string(),
+                Period::new(Date::from_days(from), Date::from_days(to))?,
+                packs,
+            )),
+        }
+    }
+
+    freshet_engine::PeriodPacks::segmented(period, segments)
 }
 
 pub fn t2_packs(year: u16, province: &str) -> Result<PackSet, EngineError> {

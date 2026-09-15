@@ -504,14 +504,14 @@ async fn an_invented_key_cannot_claim_a_filing() {
 
 /// A return the browser reported honestly, and which is refused anyway.
 ///
-/// This pins the answer a real customer gets today, and today the binding
-/// reason is the unverified figures rather than the missing certification —
-/// the corporate parameter packs still carry unchecked amounts. When
-/// verification finishes, this test should start failing and the expected
-/// reason should move on to certification. That is the point of asserting on
-/// the reason instead of only on `allowed`.
+/// The binding reason has moved, exactly as this test was written to detect.
+/// It used to be the unverified corporate rates; those are now cited, so the
+/// provenance gate is silent and **certification** is what refuses. That is
+/// the gate that was unreachable through this endpoint a day ago, and it is
+/// reachable now — which is why the reason is asserted rather than just
+/// `allowed`.
 #[tokio::test]
-async fn a_web_return_is_refused_for_its_unverified_figures() {
+async fn a_web_return_is_refused_for_want_of_certification() {
     let h = harness(vec![]);
 
     let body = serde_json::json!({
@@ -529,7 +529,7 @@ async fn a_web_return_is_refused_for_its_unverified_figures() {
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["allowed"], false);
     assert!(
-        v["reason"].as_str().unwrap().contains("not been checked"),
+        v["reason"].as_str().unwrap().contains("not yet certified"),
         "got: {}",
         v["reason"]
     );

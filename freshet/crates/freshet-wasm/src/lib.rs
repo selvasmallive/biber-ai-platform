@@ -34,7 +34,7 @@
 //! them out is the point rather than an omission — this crate computes, and
 //! nothing else.
 
-use freshet_engine::{compute, compute_across, compute_for_period, Date, FactSet, Period};
+use freshet_engine::{compute, compute_across, Date, FactSet, Period};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -178,16 +178,11 @@ fn t2(
     let forms = freshet_taxdata::t2_forms(province).map_err(|e| e.to_string())?;
     let facts = facts_from(facts_json)?;
 
-    let a = if period.straddles() {
-        let packs =
-            freshet_taxdata::t2_period_packs(period, province).map_err(|e| e.to_string())?;
-        compute_across(&forms, &packs, &facts)
-    } else {
-        let packs = freshet_taxdata::t2_packs(period.end.year as u16, province)
-            .map_err(|e| e.to_string())?;
-        compute_for_period(&forms, &packs, &facts, period)
-    }
-    .map_err(|e| e.to_string())?;
+    // One path, whatever the period. `t2_period_packs` cuts it wherever the
+    // parameters change — at a calendar year, or at Ontario's 1 July 2026 rate
+    // change — and returns a single segment when nothing changes at all.
+    let packs = freshet_taxdata::t2_period_packs(period, province).map_err(|e| e.to_string())?;
+    let a = compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?;
 
     to_json(&present(&a))
 }
@@ -255,13 +250,15 @@ mod tests {
     /// The gate travels with the calculation. A browser build that computed a
     /// return and forgot it could not be filed would be worse than useless.
     ///
-    /// 2026 rather than 2025: every 2025 corporate rate is now cited, so the
-    /// provenance gate is properly silent there. Ontario's lower rate changes
-    /// part-way through 2026 and cannot be expressed as one value for the
-    /// year, so that is where the gate still bites.
+    /// Anchored to a structure-first province rather than to a corporate
+    /// return. This assertion has been moved twice already as the T2 data was
+    /// verified underneath it — first off 2025, then off 2026 — and a test
+    /// that has to be rehomed every time the product improves is testing the
+    /// data rather than the gate. Alberta's personal parameters are
+    /// deliberately placeholders and will be for a while.
     #[test]
     fn the_web_build_still_refuses_to_call_a_return_filable() {
-        let out = t2("2026-01-01", "2026-12-31", "on", "{}").unwrap();
+        let out = t1(2026, "ab", r#"{"t4.employment_income":"85000"}"#).unwrap();
 
         assert!(out.contains("\"filable\":false"), "got: {out}");
         assert!(out.contains("unverified"));

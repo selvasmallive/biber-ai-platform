@@ -84,16 +84,15 @@ sent would be the worst version of this. Counting reuses the desktop's
 `claim_filing` path, with a reference derived from the return so a retry after a
 dropped connection does not consume a second slot.
 
-The relationship between 4 and 5 changed on 2026-09-15, when the federal
-corporate rates were verified. For a **2025** Ontario period nothing is
-unverified any more, so 4 falls silent and 5 is now the gate that actually
-refuses — reachable through the endpoint, as it should be. For a **2026**
-period 4 still fires first, because Ontario's lower rate changes mid-year and
-no single value for the year is right.
+Which of these actually fires has moved once already, and the movement is the
+point. When this endpoint was written, 4 always fired first — every corporate
+parameter was a placeholder — and 5 was unreachable. The corporate rates are
+now cited, so 4 is silent and **5 is what refuses**: Freshet is not certified,
+and that is the honest reason a customer hears.
 
-The gate is still split into `refuse()` and unit-tested directly. That was
-worth doing when 5 was unreachable, and it is worth keeping now that which gate
-fires depends on the year in front of it.
+That is why the gate is split into `refuse()` and unit-tested directly rather
+than only through the endpoint. The branch that could not be reached is now the
+branch that runs, and it had to be right on the day it started running.
 
 ## Storage
 

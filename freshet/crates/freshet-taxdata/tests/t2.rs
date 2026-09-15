@@ -22,21 +22,21 @@ fn period(a: (i32, u32, u32), b: (i32, u32, u32)) -> Period {
 }
 
 fn assess(p: Period, facts: &[(&str, &str)]) -> Assessment {
-    let forms = freshet_taxdata::t2_forms("on").unwrap();
-    // Parameters come from the year the fiscal period ends.
-    let packs = freshet_taxdata::t2_packs(p.end.year as u16, "on").unwrap();
-    let facts: FactSet = facts.iter().map(|(k, v)| (*k, d(v))).collect();
-
-    compute_for_period(&forms, &packs, &facts, p).unwrap()
-}
-
-/// A period crossing a calendar boundary, computed from both years.
-fn assess_across(p: Period, facts: &[(&str, &str)]) -> Assessment {
+    // The same call the desktop, the browser and the filing service all make.
+    // This used to fetch one year's pack and call `compute_for_period`, which
+    // no caller does any more — and which would have quietly skipped the
+    // 1 July 2026 rate change that half these tests now turn on.
     let forms = freshet_taxdata::t2_forms("on").unwrap();
     let packs = freshet_taxdata::t2_period_packs(p, "on").unwrap();
     let facts: FactSet = facts.iter().map(|(k, v)| (*k, d(v))).collect();
 
     compute_across(&forms, &packs, &facts).unwrap()
+}
+
+/// Retained as a name for periods that cross a calendar boundary. It does
+/// exactly what `assess` does now, which is the point: there is one path.
+fn assess_across(p: Period, facts: &[(&str, &str)]) -> Assessment {
+    assess(p, facts)
 }
 
 fn fired(got: &Assessment) -> Vec<&str> {
@@ -170,31 +170,28 @@ fn identical_rates_across_the_boundary_change_nothing() {
     assert_eq!(straddling.get("t2.700"), inside.get("t2.700"));
 }
 
-/// A straddling return is only as trustworthy as the worse of its two years.
+/// A straddling return draws cleanly on both years now that both are cited.
 ///
-/// This used to hold trivially, when every corporate rate in both years was a
-/// placeholder. It is a sharper test now that 2025 is fully cited: a period
-/// running from mid-2025 into 2026 is unfilable on the strength of a single
-/// 2026 Ontario parameter, even though everything it draws from 2025 is
-/// verified. The union is what matters, not the opening year.
+/// This test has changed its meaning twice, which is worth recording. It began
+/// as "both years are placeholders", became "the 2026 rate holds the gate
+/// shut", and is now "neither does" — each time because the data underneath it
+/// improved, never because the assertion was wrong. What survives across all
+/// three is the property actually being protected: the unverified set is the
+/// union over everything the period touches, so it is empty only when every
+/// segment is clean.
 #[test]
-fn a_straddling_return_is_unfilable_on_its_worse_year_alone() {
+fn a_straddling_return_reports_the_union_of_its_segments() {
     let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
         &[("gifi.8000", "300000")],
     );
 
-    assert!(!got.is_filable());
     assert!(
-        got.warnings.iter().any(|w| w.contains("2026")),
-        "the closing year was not reported: {:?}",
+        got.warnings.is_empty(),
+        "every segment is cited, so nothing should be reported: {:?}",
         got.warnings
     );
-    assert!(
-        !got.warnings.iter().any(|w| w.contains("2025")),
-        "2025 is fully verified and should contribute nothing: {:?}",
-        got.warnings
-    );
+    assert!(got.is_filable());
 }
 
 // -- the shape of corporate tax -------------------------------------------
@@ -304,19 +301,82 @@ fn a_fully_verified_return_is_still_not_certified() {
     );
 }
 
-/// The gate still bites where a figure is genuinely unsettled.
-#[test]
-fn an_ontario_2026_return_is_refused_on_its_unsettled_rate() {
-    let got = assess(Period::calendar(2026), &[("gifi.8000", "300000")]);
+// -- Ontario's rate change on 1 July 2026 ---------------------------------
+//
+// The lower rate falls from 3.2% to 2.2%, prorated for a taxation year
+// straddling the date. A calendar 2026 year end does not straddle a *calendar*
+// boundary and is affected all the same, which is why the parameters are cut
+// by date rather than by year.
 
-    assert!(!got.is_filable());
-    assert!(
-        got.warnings
-            .iter()
-            .any(|w| w.contains("t2_small_business_rate")),
-        "expected Ontario's mid-2026 rate change to hold the gate shut: {:?}",
-        got.warnings
+/// A tax year wholly before the change is taxed at the old rate, exactly.
+#[test]
+fn a_year_ending_before_july_2026_pays_the_old_ontario_rate() {
+    let got = assess(
+        period((2025, 7, 1), (2026, 6, 30)),
+        &[("gifi.8000", "400000"), ("t2.active_business_income", "400000")],
     );
+
+    // 400,000 of active business income, all within the business limit.
+    assert_eq!(got.get("prov.tax").unwrap(), d("12800.00"));
+}
+
+/// A tax year wholly after it is taxed at the new rate, exactly.
+///
+/// A half year, because 2027 parameters do not exist yet — which is the right
+/// answer for a build targeting 2026 and is why the income here stays under
+/// the prorated business limit of 500,000 × 184 ÷ 365.
+#[test]
+fn a_year_beginning_after_july_2026_pays_the_new_ontario_rate() {
+    let got = assess(
+        period((2026, 7, 1), (2026, 12, 31)),
+        &[("gifi.8000", "200000"), ("t2.active_business_income", "200000")],
+    );
+
+    assert_eq!(got.get("prov.tax").unwrap(), d("4400.00"));
+}
+
+/// A tax year straddling it pays both, apportioned by day.
+///
+/// Calendar 2026 is 181 days at 3.2% and 184 at 2.2%, so the rate is
+/// (181 × 0.032 + 184 × 0.022) ÷ 365 = 9.84 ÷ 365. On 400,000 that is
+/// 10,783.56, and the important part is that it lies strictly between the two
+/// flat answers — a build that ignored the change would return one of them.
+#[test]
+fn a_year_straddling_july_2026_pays_a_blend_of_both_ontario_rates() {
+    let got = assess(
+        Period::calendar(2026),
+        &[("gifi.8000", "400000"), ("t2.active_business_income", "400000")],
+    );
+
+    let tax = got.get("prov.tax").unwrap();
+
+    assert!(
+        tax > d("8800.00") && tax < d("12800.00"),
+        "expected a blend of the two Ontario rates, got {tax}"
+    );
+    assert_eq!(tax, d("10783.56"));
+}
+
+/// The change reaches a corporation that never crosses a calendar year.
+///
+/// This is the case the old code got wrong. A December 2026 year end sits
+/// inside one calendar year, so the "does this period straddle?" test said no
+/// and a single pack was used for the whole year.
+#[test]
+fn the_mid_year_change_reaches_a_period_inside_one_calendar_year() {
+    let packs = freshet_taxdata::t2_period_packs(Period::calendar(2026), "on").unwrap();
+
+    assert!(
+        packs.straddles(),
+        "calendar 2026 crosses Ontario's rate change and must be segmented"
+    );
+}
+
+/// And 2025, which crosses nothing, is still a single segment.
+#[test]
+fn a_year_crossing_nothing_is_one_segment() {
+    let packs = freshet_taxdata::t2_period_packs(Period::calendar(2025), "on").unwrap();
+    assert!(!packs.straddles());
 }
 
 #[test]

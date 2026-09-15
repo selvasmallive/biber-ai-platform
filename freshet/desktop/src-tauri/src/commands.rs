@@ -1598,16 +1598,14 @@ fn assess_t2(input: &T2Input) -> Result<(Assessment, Period), String> {
     // that moved between them can be apportioned by days. The engine refuses
     // to guess from one year, which is why this branches rather than always
     // taking the closing year.
-    let assessment = if period.straddles() {
-        let packs = freshet_taxdata::t2_period_packs(period, &input.province)
-            .map_err(|e| e.to_string())?;
-        freshet_engine::compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?
-    } else {
-        let packs = freshet_taxdata::t2_packs(period.end.year as u16, &input.province)
-            .map_err(|e| e.to_string())?;
-        freshet_engine::compute_for_period(&forms, &packs, &facts, period)
-            .map_err(|e| e.to_string())?
-    };
+    // One path, whatever the period. Deciding here whether the period crossed
+    // something was safe only while parameters moved on 1 January alone;
+    // Ontario's lower rate falls on 1 July 2026, which a December year end
+    // crosses without straddling a calendar year at all.
+    let packs =
+        freshet_taxdata::t2_period_packs(period, &input.province).map_err(|e| e.to_string())?;
+    let assessment =
+        freshet_engine::compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?;
 
     Ok((assessment, period))
 }

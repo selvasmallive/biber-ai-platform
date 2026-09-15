@@ -1,0 +1,18 @@
+{
+  "jurisdiction": "on",
+  "tax_year": 2026,
+  "_comment": "Ontario corporate rates for the part of 2026 before 1 July, when the lower rate fell from 3.2% to 2.2%. A corporation whose tax year crosses that date is taxed at both, apportioned by day.",
+  "scalars": {
+    "t2_general_rate": {
+      "value": "0.115",
+      "source": "Ontario general corporate income tax rate, 11.5%. Ontario Budget 2026, Annex; confirmed against CRA, Ontario basic income tax. Checked 2026-09-15.",
+      "verified": true
+    },
+    "t2_small_business_rate": {
+      "value": "0.032",
+      "source": "Ontario lower corporate income tax rate, 3.2%, for days before 1 July 2026. CRA, Ontario small business deduction: a deduction rate of 8.3% produces a lower tax rate of 3.2%. The reduction to 2.2% takes effect 1 July 2026 and is prorated for a taxation year straddling that date (Ontario Budget 2026, Annex). Checked 2026-09-15.",
+      "verified": true
+    }
+  },
+  "brackets": {}
+}

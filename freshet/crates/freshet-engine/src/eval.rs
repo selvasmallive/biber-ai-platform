@@ -395,7 +395,9 @@ pub fn compute_for_period(
     // the whole period, which is wrong by however much the rate moved.
     if period.straddles() {
         return Err(EngineError::BadPeriod(format!(
-            "{period} crosses a calendar year, so one year of parameters              cannot express a rate change inside it. Use compute_across with              both years."
+            "{period} crosses a calendar year, so one year of parameters cannot \
+             express a rate change inside it. Use compute_across, which takes \
+             the parameters for every stretch the period covers."
         )));
     }
 
