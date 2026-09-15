@@ -16,11 +16,14 @@ to the placeholder.
 The private half is at **`C:\Users\vselv\.freshet\freshet-signing-key.hex`** —
 deliberately outside OneDrive, so it is not being synced to a cloud folder.
 
-**It exists in exactly one place right now.** Lose that file and you can never
-issue another licence for any build already shipped. Two things to do:
+**It exists in exactly one place right now**, and still did as of
+2026-09-15. Lose that file and you can never issue another licence for any
+build already shipped.
+
+Billing is now linked (confirmed in the console on 2026-09-15), so the first
+command below is done. The other two are not:
 
 ```bash
-gcloud billing projects link freshet-licence --billing-account=01F0D8-B8411A-5C8A3E
 gcloud services enable secretmanager.googleapis.com --project=freshet-licence
 gcloud secrets create freshet-signing-key --project=freshet-licence \
   --data-file="$HOME/.freshet/freshet-signing-key.hex"
@@ -43,18 +46,51 @@ The service refuses to start if the key it holds does not match the key the app
 trusts, so a mismatch is a failed deploy rather than a month of customers who
 paid and cannot file.
 
-### 2. Sign in as the right account
+### 2. Sign in, and check which project is selected
 
-The gcloud CLI on this machine is currently authenticated as
-`selva@kani.network`, not `selva@freshettax.ca`.
+As of 2026-09-15 the active account is `selva@freshettax.ca`, which is right,
+but the token has expired and cannot be refreshed non-interactively:
 
 ```bash
 gcloud auth login
-gcloud config set project <PROJECT_ID>
 ```
 
-Billing must be enabled on that project. That is a spend decision and a terms
-acceptance, so it is yours.
+**Then set the project, and check it.** This is the step most likely to go
+wrong quietly. `deploy.sh` takes its project from `gcloud config get-value
+project`, and on this machine that is currently **`biber-499407`** — a
+different product entirely. Running the deploy without changing it would put
+the licence service, its database and its secrets into the BIBER project, all
+billable and all in the wrong place.
+
+```bash
+gcloud config set project freshet-licence
+gcloud config get-value project     # must print freshet-licence
+```
+
+**There are two licence-shaped projects on the billing account**, and only one
+is the right one:
+
+| Project name | Project ID | |
+| --- | --- | --- |
+| Freshet Licence | `freshet-licence` | the one every command here names |
+| freshet-licence | `freshet-licence-508706` | a duplicate, created second |
+
+Nothing has been deployed to either, so the duplicate is empty and costs
+nothing — but leaving it linked to billing means a stray command can spend in
+it. Confirm which is which before deleting anything:
+
+```bash
+gcloud projects describe freshet-licence --format='value(projectId,createTime)'
+gcloud projects describe freshet-licence-508706 --format='value(projectId,createTime)'
+gcloud services list --project=freshet-licence-508706   # expect: nothing enabled
+```
+
+If the second is empty, unlink it from billing and shut it down. That is a
+decision about your account rather than about this code, so it is yours to
+make.
+
+Billing is enabled on the account. Enabling any further paid API is a spend
+decision and a terms acceptance, so those stay yours too.
 
 ### 3. Deploy
 
