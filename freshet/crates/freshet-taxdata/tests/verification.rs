@@ -755,15 +755,9 @@ fn t2_fed_2025_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    let expected: Vec<&str> = vec![
-        "scalars.t2_abatement_rate",
-        "scalars.t2_base_rate",
-        "scalars.t2_business_limit",
-        "scalars.t2_donation_limit_rate",
-        "scalars.t2_general_reduction_rate",
-        "scalars.t2_meals_deductible_rate",
-        "scalars.t2_sbd_rate",
-    ];
+    // Empty, as of 2026-09-15: every federal corporate rate has been read
+    // from the Act or the T2 guide and cited in the pack.
+    let expected: Vec<&str> = vec![];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
     assert_eq!(actual, want, "the T2 residual moved without being recorded");
@@ -779,15 +773,9 @@ fn t2_fed_2026_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    let expected: Vec<&str> = vec![
-        "scalars.t2_abatement_rate",
-        "scalars.t2_base_rate",
-        "scalars.t2_business_limit",
-        "scalars.t2_donation_limit_rate",
-        "scalars.t2_general_reduction_rate",
-        "scalars.t2_meals_deductible_rate",
-        "scalars.t2_sbd_rate",
-    ];
+    // Empty, as of 2026-09-15: every federal corporate rate has been read
+    // from the Act or the T2 guide and cited in the pack.
+    let expected: Vec<&str> = vec![];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
     assert_eq!(actual, want, "the T2 residual moved without being recorded");
@@ -803,10 +791,9 @@ fn t2_on_2025_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    let expected: Vec<&str> = vec![
-        "scalars.t2_general_rate",
-        "scalars.t2_small_business_rate",
-    ];
+    // Empty: both Ontario rates are settled for a 2025 tax year. The lower
+    // rate falls on 1 July 2026, which cannot reach one.
+    let expected: Vec<&str> = vec![];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
     assert_eq!(actual, want, "the T2 residual moved without being recorded");
@@ -822,10 +809,13 @@ fn t2_on_2026_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    let expected: Vec<&str> = vec![
-        "scalars.t2_general_rate",
-        "scalars.t2_small_business_rate",
-    ];
+    // Ontario's lower rate is 3.2% until 30 June 2026 and 2.2% from 1 July
+    // 2026, prorated across a year straddling the date. A pack holds one
+    // value per calendar year, so there is no single correct number to put
+    // here — see the source note in the pack. This stays unverified until the
+    // parameters can be bounded by date rather than by year, which keeps the
+    // filing gate shut for exactly the right reason.
+    let expected: Vec<&str> = vec!["scalars.t2_small_business_rate"];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
     assert_eq!(actual, want, "the T2 residual moved without being recorded");

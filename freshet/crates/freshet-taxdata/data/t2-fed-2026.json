@@ -5,38 +5,38 @@
   "scalars": {
     "t2_base_rate": {
       "value": "0.38",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 123(1) base rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 123(1). CRA, Corporation tax rates: \"The basic rate of Part I tax is 38% of your taxable income\". Checked 2026-09-15 at https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/corporation-tax-rates.html",
+      "verified": true
     },
     "t2_abatement_rate": {
       "value": "0.10",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 124(1) provincial abatement. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 124(1). CRA, T4012 T2 guide, line 608: the federal tax abatement is 10% of taxable income earned in the year in a Canadian province or territory. Checked 2026-09-15.",
+      "verified": true
     },
     "t2_sbd_rate": {
       "value": "0.19",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 125(1) small business deduction rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 125(1.1). CRA, T4012 T2 guide, chapter 4, line 430: \"Multiply the least of lines 400, 405, 410, and 428 by 19%\". Checked 2026-09-15.",
+      "verified": true
     },
     "t2_general_reduction_rate": {
       "value": "0.13",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 123.4 general rate reduction. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 123.4. CRA, T4012 T2 guide, chapter 5 (page 5 of the return): \"A general tax reduction of 13% is available on qualifying income\". Checked 2026-09-15.",
+      "verified": true
     },
     "t2_business_limit": {
       "value": "500000",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 125(2) business limit. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 125(2). CRA, T4012 T2 guide, chapter 4: \"The maximum allowable business limit for a corporation that is not associated with any other corporation is $500,000\". Checked 2026-09-15. Note the *federal* limit; Nova Scotia and Prince Edward Island set different provincial limits, which do not affect an Ontario-only build.",
+      "verified": true
     },
     "t2_meals_deductible_rate": {
       "value": "0.50",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 67.1 deductible share of meals. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 67.1(1). CRA, Business expenses: \"The maximum amount you can claim for food, beverages and entertainment expenses is 50% of the lesser of the following amounts\". Checked 2026-09-15.",
+      "verified": true
     },
     "t2_donation_limit_rate": {
       "value": "0.75",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for ITA 110.1 donation limit as a share of net income. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "ITA 110.1(1)(a). The statutory limit is the formula 0.75A + 0.25(B + C + D), where A is the corporation's income and B, C and D arise only from gifts of appreciated capital property and the resulting recapture. This build models no gift of capital property, so B = C = D = 0 and the limit is exactly 0.75 of income for every return it can represent. Read from the Act 2026-09-15 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-110.1.html. LIMITATION: a corporation donating appreciated capital property is entitled to more than this, and would be understated here.",
+      "verified": true
     }
   },
   "brackets": {}

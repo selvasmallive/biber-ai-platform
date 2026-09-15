@@ -254,12 +254,30 @@ mod tests {
 
     /// The gate travels with the calculation. A browser build that computed a
     /// return and forgot it could not be filed would be worse than useless.
+    ///
+    /// 2026 rather than 2025: every 2025 corporate rate is now cited, so the
+    /// provenance gate is properly silent there. Ontario's lower rate changes
+    /// part-way through 2026 and cannot be expressed as one value for the
+    /// year, so that is where the gate still bites.
     #[test]
     fn the_web_build_still_refuses_to_call_a_return_filable() {
-        let out = t2("2025-01-01", "2025-12-31", "on", "{}").unwrap();
+        let out = t2("2026-01-01", "2026-12-31", "on", "{}").unwrap();
 
-        assert!(out.contains("\"filable\":false"));
+        assert!(out.contains("\"filable\":false"), "got: {out}");
         assert!(out.contains("unverified"));
+    }
+
+    /// And the browser is not the place that decides it may be transmitted.
+    ///
+    /// A fully verified year computes clean here, which is exactly why the
+    /// page must not read `filable` as permission to file: nothing is
+    /// certified, and only the server knows that.
+    #[test]
+    fn a_clean_year_still_carries_no_certification() {
+        let out = t2("2025-01-01", "2025-12-31", "on", "{}").unwrap();
+        assert!(out.contains("\"filable\":true"), "got: {out}");
+
+        assert!(describe().unwrap().contains("\"certified_years\":[]"));
     }
 
     #[test]

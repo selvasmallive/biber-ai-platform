@@ -84,11 +84,16 @@ sent would be the worst version of this. Counting reuses the desktop's
 `claim_filing` path, with a reference derived from the return so a retry after a
 dropped connection does not consume a second slot.
 
-Today, 4 always fires before 5 — every corporate parameter pack still carries
-unverified figures. That makes 5 unreachable through the endpoint, which is how
-code quietly stops being right. The gate is therefore split into `refuse()` and
-unit-tested directly, so the certification branch stays honest until the data
-catches up.
+The relationship between 4 and 5 changed on 2026-09-15, when the federal
+corporate rates were verified. For a **2025** Ontario period nothing is
+unverified any more, so 4 falls silent and 5 is now the gate that actually
+refuses — reachable through the endpoint, as it should be. For a **2026**
+period 4 still fires first, because Ontario's lower rate changes mid-year and
+no single value for the year is right.
+
+The gate is still split into `refuse()` and unit-tested directly. That was
+worth doing when 5 was unreachable, and it is worth keeping now that which gate
+fires depends on the year in front of it.
 
 ## Storage
 

@@ -5,12 +5,12 @@
   "scalars": {
     "t2_general_rate": {
       "value": "0.115",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for Ontario general corporate rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
-      "verified": false
+      "source": "Ontario general corporate income tax rate, 11.5%. Ontario Budget 2026, Annex; confirmed against CRA, Ontario basic income tax. Checked 2026-09-15.",
+      "verified": true
     },
     "t2_small_business_rate": {
       "value": "0.032",
-      "source": "STRUCTURE-FIRST PLACEHOLDER for Ontario small business rate. Not checked against a published source. The T2 return cannot be filed while this stands.",
+      "source": "UNVERIFIED, AND KNOWN TO BE WRONG FOR PART OF 2026. Ontario's lower rate is 3.2% until 30 June 2026 and 2.2% from 1 July 2026, prorated for a taxation year straddling that date (Ontario Budget 2026, Annex, checked 2026-09-15). This pack holds one rate per calendar year and cannot express a change part-way through one, so no single value here is right. Fixing it needs date-bounded parameter segments, not a new number. The T2 return must not be filed for an Ontario period touching 1 July 2026 or later while this stands.",
       "verified": false
     }
   },

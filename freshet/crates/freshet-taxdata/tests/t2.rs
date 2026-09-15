@@ -163,17 +163,22 @@ fn identical_rates_across_the_boundary_change_nothing() {
     let straddling = assess_across(period((2025, 7, 1), (2026, 6, 30)), &facts);
     let inside = assess(Period::calendar(2025), &facts);
 
-    // Both periods are 365 days and the packs carry the same placeholder
-    // rates, so every apportioned line must agree exactly.
+    // Both periods are 365 days and the federal rates did not move between
+    // 2025 and 2026, so every apportioned line must agree exactly.
     assert_eq!(straddling.get("t2.550"), inside.get("t2.550"));
     assert_eq!(straddling.get("t2.430"), inside.get("t2.430"));
     assert_eq!(straddling.get("t2.700"), inside.get("t2.700"));
 }
 
-/// A straddling return is only as trustworthy as the worse of its two years, so
-/// the unverified set is the union rather than one year's.
+/// A straddling return is only as trustworthy as the worse of its two years.
+///
+/// This used to hold trivially, when every corporate rate in both years was a
+/// placeholder. It is a sharper test now that 2025 is fully cited: a period
+/// running from mid-2025 into 2026 is unfilable on the strength of a single
+/// 2026 Ontario parameter, even though everything it draws from 2025 is
+/// verified. The union is what matters, not the opening year.
 #[test]
-fn a_straddling_return_reports_both_years_as_unverified() {
+fn a_straddling_return_is_unfilable_on_its_worse_year_alone() {
     let got = assess_across(
         period((2025, 7, 1), (2026, 6, 30)),
         &[("gifi.8000", "300000")],
@@ -181,13 +186,13 @@ fn a_straddling_return_reports_both_years_as_unverified() {
 
     assert!(!got.is_filable());
     assert!(
-        got.warnings.iter().any(|w| w.contains("2025")),
-        "the opening year was not reported: {:?}",
+        got.warnings.iter().any(|w| w.contains("2026")),
+        "the closing year was not reported: {:?}",
         got.warnings
     );
     assert!(
-        got.warnings.iter().any(|w| w.contains("2026")),
-        "the closing year was not reported: {:?}",
+        !got.warnings.iter().any(|w| w.contains("2025")),
+        "2025 is fully verified and should contribute nothing: {:?}",
         got.warnings
     );
 }
@@ -274,12 +279,44 @@ fn tax_never_goes_negative() {
 
 // -- and the thing that must stay true ------------------------------------
 
+/// Computing a year is not permission to transmit it.
+///
+/// Every parameter behind a 2025 Ontario corporate return has now been read
+/// from the Act or the T2 guide, so the engine no longer objects to it — which
+/// is the point of the provenance gate, and also the moment it stops being the
+/// thing that protects a customer. Nothing is certified, and certification is
+/// a separate gate that this test exists to keep separate.
 #[test]
-fn no_t2_return_can_be_filed_on_placeholder_rates() {
+fn a_fully_verified_return_is_still_not_certified() {
     let got = assess(Period::calendar(2025), &[("gifi.8000", "300000")]);
 
-    assert!(!got.is_filable(), "T2 claims to be filable on placeholder rates");
-    assert!(got.warnings.iter().all(|w| w.contains("unverified")));
+    assert!(
+        got.warnings.is_empty(),
+        "2025 is fully cited and should raise nothing: {:?}",
+        got.warnings
+    );
+    assert!(got.is_filable(), "the data gate should be open for 2025");
+
+    // And the transmission gate is shut regardless.
+    assert!(
+        !freshet_taxdata::is_certified(2025, "on"),
+        "nothing may be transmitted until CRA certifies this build"
+    );
+}
+
+/// The gate still bites where a figure is genuinely unsettled.
+#[test]
+fn an_ontario_2026_return_is_refused_on_its_unsettled_rate() {
+    let got = assess(Period::calendar(2026), &[("gifi.8000", "300000")]);
+
+    assert!(!got.is_filable());
+    assert!(
+        got.warnings
+            .iter()
+            .any(|w| w.contains("t2_small_business_rate")),
+        "expected Ontario's mid-2026 rate change to hold the gate shut: {:?}",
+        got.warnings
+    );
 }
 
 #[test]

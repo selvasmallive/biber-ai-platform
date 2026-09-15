@@ -31,6 +31,7 @@ interface Verdict {
 export function Transmit({ result, period, province, facts }: Props) {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [asking, setAsking] = useState(false);
+  const [key, setKey] = useState("");
 
   const blockedHere = !result.filable;
 
@@ -46,6 +47,10 @@ export function Transmit({ result, period, province, facts }: Props) {
           period_end: period.end,
           province,
           facts,
+          // Sent only at transmission, and only then. Nothing about the
+          // licence gates the calculation: a person is entitled to work out
+          // what they owe before deciding whether to buy anything.
+          key: key.trim() || null,
           // What the browser computed, so the server can check its own work
           // against it rather than simply replacing it.
           computed: Object.fromEntries(
@@ -91,6 +96,22 @@ export function Transmit({ result, period, province, facts }: Props) {
           </p>
         </div>
       )}
+
+      <label className="field">
+        <span className="label">Licence key</span>
+        <input
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+        />
+        <span className="hint">
+          Needed to file, not to calculate. The key is checked when the return
+          is sent, and a return that fails to send does not use one up.
+        </span>
+      </label>
 
       <button onClick={ask} disabled={asking || blockedHere}>
         {asking ? "Checking…" : "File this return"}
