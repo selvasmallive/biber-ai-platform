@@ -1222,3 +1222,34 @@ fn ontario_grants_no_tuition_credit_because_it_abolished_one() {
         "tuition changed Ontario tax"
     );
 }
+
+/// Ontario raised the tax reduction per dependant for 2026 rather than
+/// indexing it, and the pack now says so.
+///
+/// This is the one figure in the Ontario 2026 pack that an estimate got wrong.
+/// The other fifteen were the verified 2025 amounts indexed at Ontario's 1.9%
+/// factor, and every one of them that can now be checked against a published
+/// figure proved right. 544 indexed is 554; Ontario legislated 575.
+///
+/// Pinned here rather than only in the pack so that a future re-index cannot
+/// quietly walk it back to the arithmetic answer.
+#[test]
+fn the_2026_dependant_reduction_is_the_legislated_amount_not_the_indexed_one() {
+    let with_kids = assess_2026(&[
+        ("t4.employment_income", "30000"),
+        ("dependants.count_minor", "2"),
+    ]);
+
+    // $300 basic plus $575 for each of two children.
+    assert_eq!(
+        with_kids.get("on.tax_reduction_amounts").unwrap(),
+        d("1450.00")
+    );
+
+    // Had it been indexed from 544 it would have been 300 + 2 x 554 = 1408.
+    assert_ne!(
+        with_kids.get("on.tax_reduction_amounts").unwrap(),
+        d("1408.00"),
+        "this is the indexed figure, not the one Ontario legislated"
+    );
+}

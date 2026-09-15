@@ -293,3 +293,52 @@ nothing technically and the verification work becomes urgent for November. If
 it tracks scope, narrowing is exactly right. That question is in the follow-up
 email in [CRA-EMAILS.md](CRA-EMAILS.md), and it is worth an answer *before* the
 November distribution rather than after.
+
+## T1 data audit, 2026-09-15
+
+Prompted by the GIFI audit, which found four of thirty codes wrong. The
+question that raised was whether `verified: true` meant anything, since those
+codes had been checked once too.
+
+**The federal 2026 pack held up.** Every high-traffic parameter was re-checked
+against CRA and all were correct: the five bracket rates and four thresholds,
+the basic personal amount and both phase-out points, CPP (YMPE, exemption,
+rate, maximum) and the CPP2 maximum, the EI maximum premium, the RRSP limit,
+and ten indexed credit amounts — age, Canada employment, disability, medical
+threshold, the four Canada workers benefit figures, and the caregiver amount
+and threshold. Two of them corroborate independently: (85,000 − 74,600) × 4%
+is exactly the $416.00 CPP2 maximum, and 68,900 × 1.63% is exactly the
+$1,123.07 EI maximum.
+
+That is a real difference from GIFI, and the reason is worth naming. The
+federal figures were taken from CRA's indexation table, which publishes them as
+a list. The GIFI codes were taken from an understanding of what the codes meant.
+
+**Ontario 2026 had one wrong figure out of sixteen.** Those sixteen were
+estimates: the verified 2025 amounts indexed forward, because Ontario had not
+published 2026 amounts when the pack was written. Five can now be checked, and
+four were exactly right — the basic personal amount, both surtax thresholds,
+and the tax reduction basic amount. Ontario's 2026 indexing factor is 1.9%,
+which is precisely what the estimates assumed.
+
+The fifth was wrong. The tax reduction **per dependant** is $575, where
+indexing 2025's $544 gives $554. Ontario raised it by 5.7% rather than indexing
+it. A family with two children claiming the reduction was being credited $42
+less than they were entitled to.
+
+This is the argument for the `verified` flag in a single example. The method was
+sound, the arithmetic was right, and the answer was still wrong, because a
+legislature is under no obligation to index anything. The remaining eleven
+Ontario estimates stay `verified: false` for exactly that reason, even though
+every one of them that could be checked proved correct.
+
+**The 2025 Ontario figures could not be checked directly** — those payroll
+tables are archived and the tax package does not reproduce the charts. They are
+corroborated rather than verified: reverse-indexing the confirmed 2026 figures
+by 1.9% lands on 12,747.8, 5,709.5, 7,307.2 and 294.4 against stored values of
+12,747, 5,710, 7,307 and 294. Notably $575 reverse-indexes to $564 and not to
+$544, which is consistent with a discretionary increase rather than an error in
+the 2025 figure.
+
+Residual: 463 unverified, down from 468. All but eleven are the structure-first
+provinces, which are outside the Ontario-only certification scope.

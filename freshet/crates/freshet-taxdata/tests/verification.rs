@@ -515,10 +515,16 @@ fn on_2025_residual_is_exactly_this() {
 
 #[test]
 fn on_2026_residual_is_exactly_this() {
+    // Down from sixteen on 2026-09-15. Ontario published its 2026 amounts and
+    // five could be checked: the basic personal amount, both surtax
+    // thresholds, and the two tax reduction amounts. The eleven below are
+    // still the verified 2025 figures indexed at Ontario's confirmed 1.9%
+    // factor, and stay unverified because indexing is a method rather than a
+    // source — which the tax reduction per dependant proved, coming in at
+    // 575 against an indexed 554.
     let expected: Vec<&str> = vec![
         "scalars.age_amount_max",
         "scalars.age_amount_threshold",
-        "scalars.bpa",
         "scalars.caregiver_base",
         "scalars.caregiver_max",
         "scalars.disability_amount",
@@ -528,10 +534,6 @@ fn on_2026_residual_is_exactly_this() {
         "scalars.pension_income_max",
         "scalars.spouse_base",
         "scalars.spouse_max",
-        "scalars.surtax_threshold_1",
-        "scalars.surtax_threshold_2",
-        "scalars.tax_reduction_basic",
-        "scalars.tax_reduction_per_dependant",
     ];
 
     assert_residual(2026, "on", &expected);

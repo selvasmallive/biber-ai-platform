@@ -47,8 +47,8 @@
     },
     "bpa": {
       "value": "12989",
-      "source": "ESTIMATED: the 2025 figure of 12747, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
-      "verified": false
+      "source": "Ontario basic personal amount for 2026. CRA, T4032-ON Payroll Deductions Tables, January 2026 (https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables/t4032on-jan/t4032on-january-general-information.html). Checked 2026-09-15.",
+      "verified": true
     },
     "care_rate_base_tier1": {
       "value": "0.75",
@@ -112,12 +112,12 @@
     },
     "age_amount_max": {
       "value": "6341",
-      "source": "DERIVED, NOT PUBLISHED. Ontario age amount: the verified 2025 figure of $6,223 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $6,223 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 6341.)",
       "verified": false
     },
     "age_amount_threshold": {
       "value": "47210",
-      "source": "DERIVED, NOT PUBLISHED. Ontario age amount income threshold: the verified 2025 figure of $46,330 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $46,330 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 47210.)",
       "verified": false
     },
     "age_amount_clawback_rate": {
@@ -127,12 +127,12 @@
     },
     "pension_income_max": {
       "value": "1795",
-      "source": "ESTIMATED: the 2025 figure of 1762, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 1795.)",
       "verified": false
     },
     "disability_amount": {
       "value": "10494",
-      "source": "DERIVED, NOT PUBLISHED. Ontario disability amount: the verified 2025 figure of $10,298 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $10,298 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 10494.)",
       "verified": false
     },
     "tuition_transfer_max": {
@@ -147,7 +147,7 @@
     },
     "medical_threshold_cap": {
       "value": "2940",
-      "source": "ESTIMATED: the 2025 figure of 2885, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 2940.)",
       "verified": false
     },
     "donation_first_tier": {
@@ -167,8 +167,8 @@
     },
     "surtax_threshold_1": {
       "value": "5818",
-      "source": "Ontario surtax threshold. Secondary sources quote this exact figure for 2026, so it is very likely right — but they are commercial tax blogs and calculators, not a primary source. Confirm against the CRA ON428 form for 2026 before filing.",
-      "verified": false
+      "source": "Ontario surtax: 20% of basic Ontario tax above this. CRA, T4032-ON Payroll Deductions Tables, January 2026 (https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables/t4032on-jan/t4032on-january-general-information.html). Checked 2026-09-15.",
+      "verified": true
     },
     "surtax_rate_1": {
       "value": "0.20",
@@ -177,8 +177,8 @@
     },
     "surtax_threshold_2": {
       "value": "7446",
-      "source": "Ontario surtax threshold. Secondary sources quote this exact figure for 2026, so it is very likely right — but they are commercial tax blogs and calculators, not a primary source. Confirm against the CRA ON428 form for 2026 before filing.",
-      "verified": false
+      "source": "Ontario surtax: a further 16% of basic Ontario tax above this, on top of the 20% above the first threshold. CRA, T4032-ON Payroll Deductions Tables, January 2026 (https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables/t4032on-jan/t4032on-january-general-information.html). Checked 2026-09-15.",
+      "verified": true
     },
     "surtax_rate_2": {
       "value": "0.36",
@@ -187,32 +187,32 @@
     },
     "spouse_base": {
       "value": "12131",
-      "source": "ESTIMATED: the 2025 figure of 11905, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 12131.)",
       "verified": false
     },
     "spouse_max": {
       "value": "11029",
-      "source": "DERIVED, NOT PUBLISHED. Ontario spouse or common-law partner amount: the verified 2025 figure of $10,823 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $10,823 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 11029.)",
       "verified": false
     },
     "eligible_dependant_base": {
       "value": "12131",
-      "source": "ESTIMATED: the 2025 figure of 11905, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 12131.)",
       "verified": false
     },
     "eligible_dependant_max": {
       "value": "11029",
-      "source": "ESTIMATED: the 2025 figure of 10823, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 11029.)",
       "verified": false
     },
     "caregiver_base": {
       "value": "27067",
-      "source": "ESTIMATED: the 2025 figure of 26562, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 27067.)",
       "verified": false
     },
     "caregiver_max": {
       "value": "6122",
-      "source": "ESTIMATED: the 2025 figure of 6008, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "ESTIMATED, NOT PUBLISHED. The verified 2025 figure indexed at Ontario's 2026 factor of 1.9%, which is itself now confirmed against CRA's T4032-ON (checked 2026-09-15). Every estimate in this pack that could be checked against a published 2026 figure proved correct, with one exception — the tax reduction per dependant, which Ontario raised rather than indexed. That is why this stays unverified: the method is sound and a legislature is still free to do something else. A T1 return must not be filed on it. (Amount: 6122.)",
       "verified": false
     },
     "health_premium_ramp1_start": {
@@ -292,13 +292,13 @@
     },
     "tax_reduction_basic": {
       "value": "300",
-      "verified": false,
-      "source": "ESTIMATED: the 2025 figure of 294, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C), indexed at Ontario's own 1.9% factor. Ontario has not published its 2026 package."
+      "verified": true,
+      "source": "Ontario tax reduction, basic amount for 2026. CRA, T4032-ON Payroll Deductions Tables, January 2026 (https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables/t4032on-jan/t4032on-january-general-information.html). Checked 2026-09-15."
     },
     "tax_reduction_per_dependant": {
-      "value": "554",
-      "verified": false,
-      "source": "ESTIMATED: the 2025 figure of 544, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C), indexed at Ontario's own 1.9% factor. Ontario has not published its 2026 package."
+      "value": "575",
+      "verified": true,
+      "source": "Ontario tax reduction, amount for each dependant under 18 and for each dependant with a disability, for 2026. CRA, T4032-ON Payroll Deductions Tables, January 2026 (https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4032-payroll-deductions-tables/t4032on-jan/t4032on-january-general-information.html). Checked 2026-09-15. CORRECTED 2026-09-15 from an estimated 554: the 2025 figure of 544 indexed at Ontario's 1.9% factor gives 554, but Ontario raised this amount by 5.7% rather than indexing it."
     }
   }
 }
