@@ -245,3 +245,33 @@ export interface SaveInput {
   province: string;
   facts: Record<string, string>;
 }
+
+/// A corporate return, keyed by fiscal period rather than tax year.
+///
+/// A corporation does not have a tax year the way a person does — it has
+/// whatever falls between one year end and the next, which is why these are
+/// dates and not a number.
+export interface T2Input {
+  period_start: string;
+  period_end: string;
+  province: string;
+  facts: Record<string, string>;
+}
+
+export interface T2View {
+  period_days: number;
+  is_short_year: boolean;
+  straddles: boolean;
+  accounting_income: string;
+  net_income_for_tax: string;
+  taxable_income: string;
+  small_business_deduction: string;
+  federal_tax: string;
+  provincial_tax: string;
+  total_tax: string;
+  balance: string;
+  lines: LineView[];
+  diagnostics: DiagnosticView[];
+  has_errors: boolean;
+  filable: boolean;
+}

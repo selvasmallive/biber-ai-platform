@@ -12,6 +12,7 @@ import {
   supported,
 } from "./api";
 import Advisor from "./components/Advisor";
+import Corporate from "./components/Corporate";
 import Import from "./components/Import";
 import Interview from "./components/Interview";
 import SavedReturns from "./components/SavedReturns";
@@ -26,13 +27,32 @@ import type {
   StorageStatus,
 } from "./types";
 
-type Tab = "summary" | "import" | "spouse" | "advisor" | "saved" | "settings";
+type Tab =
+  | "summary"
+  | "corporate"
+  | "import"
+  | "spouse"
+  | "advisor"
+  | "saved"
+  | "settings";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-const TABS: Tab[] = ["summary", "import", "spouse", "advisor", "saved", "settings"];
+// Corporate sits beside the personal return rather than inside it. A T2 and a
+// T1 share an engine and almost nothing else: different filer, different
+// period, different forms. Nesting one in the other would suggest otherwise.
+const TABS: Tab[] = [
+  "summary",
+  "corporate",
+  "import",
+  "spouse",
+  "advisor",
+  "saved",
+  "settings",
+];
 
 const TAB_LABELS: Record<Tab, string> = {
   summary: "Your return",
+  corporate: "Corporation",
   import: "Import",
   spouse: "Spouse",
   advisor: "Advisor",
@@ -48,7 +68,11 @@ export default function App() {
   const [province, setProvince] = useState("on");
   const [facts, setFacts] = useState<Record<string, string>>({});
   const [label, setLabel] = useState("Untitled return");
-  const [options, setOptions] = useState({ years: [2026], provinces: ["on"] });
+  const [options, setOptions] = useState({
+    years: [2026],
+    provinces: ["on"],
+    t2_provinces: ["on"],
+  });
   const [result, setResult] = useState<ReturnView | null>(null);
   const [settings, setSettings] = useState<SettingsView | null>(null);
   const [tab, setTab] = useState<Tab>("summary");
@@ -178,17 +202,27 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          Freshet <small>T1 · {year} · {province.toUpperCase()}</small>
+          Freshet{" "}
+          <small>
+            {tab === "corporate"
+              ? "T2 · corporate"
+              : `T1 · ${year} · ${province.toUpperCase()}`}
+          </small>
         </div>
 
-        <input
-          className="label-input"
-          value={label}
-          aria-label="Return name"
-          onChange={(e) => setLabel(e.target.value)}
-        />
+        {/* The name, the save state and the headline all describe the personal
+            return. None of them is true of a T2, and a corporate return
+            labelled with a personal refund would be worse than a bare bar. */}
+        {tab !== "corporate" && (
+          <input
+            className="label-input"
+            value={label}
+            aria-label="Return name"
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        )}
 
-        {saveLabel && (
+        {saveLabel && tab !== "corporate" && (
           <span className={`save-state ${saveState}`} title={saveError ?? undefined}>
             {saveLabel}
           </span>
@@ -196,7 +230,7 @@ export default function App() {
 
         <div className="spacer" />
 
-        {summary && (
+        {summary && tab !== "corporate" && (
           <div className={`headline ${summary.is_refund ? "refund" : "owing"}`}>
             <span className="caption">
               {summary.is_refund ? "Refund" : "Balance owing"}
@@ -208,7 +242,12 @@ export default function App() {
         )}
       </header>
 
-      <div className="columns">
+      <div className={`columns ${tab === "corporate" ? "single" : ""}`}>
+        {/* The personal interview has no place beside a corporate return —
+            different filer, different period, different questions. Hidden
+            rather than disabled, and the grid collapses to one column so the
+            T2 gets the width. */}
+        {tab !== "corporate" && (
         <section className="pane">
           <Interview
             year={year}
@@ -221,6 +260,7 @@ export default function App() {
             onFacts={applyFacts}
           />
         </section>
+        )}
 
         <section className="pane">
           <nav className="tabs">
@@ -244,7 +284,7 @@ export default function App() {
             })}
           </nav>
 
-          {error && (
+          {error && tab !== "corporate" && (
             <div style={{ padding: "16px 20px 0" }}>
               <div className="notice danger">
                 <strong>Could not compute this return</strong>
@@ -254,6 +294,8 @@ export default function App() {
           )}
 
           {tab === "summary" && <Summary result={result} input={input} />}
+
+          {tab === "corporate" && <Corporate provinces={options.t2_provinces} />}
 
           {tab === "import" && (
             <Import

@@ -231,6 +231,11 @@ pub fn supported() -> serde_json::Value {
     serde_json::json!({
         "years": freshet_taxdata::SUPPORTED_YEARS,
         "provinces": freshet_taxdata::supported_provinces(),
+        // Separate, and shorter. A T2 supplement exists for Ontario alone, so
+        // offering the personal list on a corporate return would invite a
+        // user to enter a full set of financial statements before being told
+        // we do not file their province.
+        "t2_provinces": freshet_taxdata::T2_PROVINCES,
     })
 }
 
@@ -2491,5 +2496,41 @@ mod tests {
         assert!(view.lines.len() > 15, "only {} lines", view.lines.len());
         assert!(view.lines.iter().all(|l| !l.label.is_empty()));
         assert!(view.lines.iter().any(|l| l.id == "fed.30000"));
+    }
+
+    /// The province list the corporate screen offers is the one the engine
+    /// will actually accept.
+    ///
+    /// These were briefly the same list, which would have let someone pick
+    /// British Columbia, enter a full set of financial statements, and only
+    /// then be told we do not file it. The personal list is thirteen long and
+    /// the corporate one is Ontario.
+    #[test]
+    fn the_corporate_province_list_is_the_one_the_engine_accepts() {
+        let listed = supported();
+        let offered: Vec<String> = listed["t2_provinces"]
+            .as_array()
+            .expect("t2_provinces")
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+
+        assert!(!offered.is_empty());
+
+        for province in &offered {
+            assert!(
+                freshet_taxdata::t2_forms(province).is_ok(),
+                "{province} is offered on the corporate screen but has no T2 forms"
+            );
+        }
+
+        // And it is genuinely narrower than the personal list, or there would
+        // be no reason for it to exist.
+        let personal = listed["provinces"].as_array().unwrap().len();
+        assert!(
+            offered.len() < personal,
+            "T2 offers {} of {personal} provinces",
+            offered.len()
+        );
     }
 }

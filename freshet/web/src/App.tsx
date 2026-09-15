@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { capabilities, computeT2 } from "./engine";
 import type { Capabilities, Computed } from "./types";
-import { SECTIONS } from "./fields";
+import { SECTIONS } from "../../shared/t2-interview";
 import { Interview } from "./components/Interview";
 import { Summary } from "./components/Summary";
 import { Transmit } from "./components/Transmit";

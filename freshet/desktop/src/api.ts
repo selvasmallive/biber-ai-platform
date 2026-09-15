@@ -15,6 +15,8 @@ import type {
   RrspPlan,
   SaveInput,
   SettingsView,
+  T2Input,
+  T2View,
   StorageStatus,
   StoredReturnView,
   Turn,
@@ -23,8 +25,11 @@ import type {
 export const computeReturn = (input: ComputeInput): Promise<ReturnView> =>
   invoke("compute_return", { input });
 
-export const supported = (): Promise<{ years: number[]; provinces: string[] }> =>
-  invoke("supported");
+export const supported = (): Promise<{
+  years: number[];
+  provinces: string[];
+  t2_provinces: string[];
+}> => invoke("supported");
 
 export const getSettings = (): Promise<SettingsView> => invoke("get_settings");
 
@@ -121,3 +126,9 @@ export const money = (raw: string): string => CAD.format(Number(raw) || 0);
 /** Tauri command errors arrive as plain strings; anything else is a real bug. */
 export const errorText = (e: unknown): string =>
   typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
+
+export const computeT2 = (input: T2Input): Promise<T2View> =>
+  invoke("compute_t2", { input });
+
+export const t2FilingGate = (input: T2Input): Promise<FilingGate> =>
+  invoke("t2_filing_gate", { input });

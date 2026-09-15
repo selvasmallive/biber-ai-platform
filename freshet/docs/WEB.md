@@ -46,6 +46,7 @@ Stating this plainly is the point of the document.
 | `freshet-wasm` | `crates/freshet-wasm` | The engine's browser binding. Computes; does nothing else. |
 | `scripts/build-web.sh` | `scripts/` | Builds the module and the JavaScript that loads it. |
 | The page | `web/` | React, Vite, no runtime dependencies beyond React. |
+| The questions | `shared/t2-interview.ts` | The T2 interview, shared with the desktop app. |
 | `/api/web/file` | `site/src/routes/web.rs` | The transmission gate. |
 
 `freshet-wasm` deliberately excludes `freshet-store` and `freshet-license`. The
@@ -116,14 +117,18 @@ amount, and that the salt and nonce are fresh on every save.
 
 ## The interview
 
-`web/src/fields.ts` declares the questions. The fact keys in it are not
-presentation — they are the join between a text box and a line on the return,
-and a wrong key is the worst kind of defect this product can have. Nothing
-errors: the engine finds no fact under `gifi.800`, reads zero, and computes a
-return that is internally consistent, professionally formatted, and wrong.
+`shared/t2-interview.ts` declares the questions, and is shared with the
+desktop app rather than copied into it. The labels and hints are presentation
+and could reasonably differ between channels; the fact keys cannot. They are
+the join between a text box and a line on the return, and a wrong key is the
+worst kind of defect this product can have. Nothing errors: the engine finds no
+fact under `gifi.800`, reads zero, and computes a return that is internally
+consistent, professionally formatted, and wrong.
 
-`crates/freshet-taxdata/tests/web_interview.rs` therefore reads the TypeScript
-from Rust and checks the join in both directions. It found nine missing fields
+`crates/freshet-taxdata/tests/t2_interview.rs` therefore reads the TypeScript
+from Rust and checks the join in both directions. A second copy for the desktop
+would sit outside that check and be free to drift, which is how the nine got
+missed in the first place. It found nine missing fields
 the first time it ran, including three CCA disposition amounts and every
 terminal-loss flag. It also caught a field labelled as an amount that the form
 reads as a flag, which would have turned "claim 50,000 of CCA" into "claim

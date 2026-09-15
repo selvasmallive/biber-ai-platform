@@ -342,6 +342,14 @@ impl PeriodPacks {
         Ok(PeriodPacks { period, segments: built })
     }
 
+    /// How many stretches the period was cut into.
+    ///
+    /// One when nothing changes across it. More when it crosses a calendar
+    /// year, *or* a date on which a rate moves part-way through one.
+    pub fn segment_count(&self) -> usize {
+        self.segments.len()
+    }
+
     /// Whether this period draws on more than one set of parameters.
     pub fn straddles(&self) -> bool {
         self.segments.len() > 1

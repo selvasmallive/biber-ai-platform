@@ -1,4 +1,4 @@
-import type { Section } from "../fields";
+import type { Section } from "../../../shared/t2-interview";
 
 interface Props {
   section: Section;

@@ -790,3 +790,43 @@ fn entering_active_business_income_silences_the_warning() {
     assert!(!fired(&got).contains(&"t2.no_active_business_income"));
     assert!(got.get("t2.430").unwrap() > d("0"));
 }
+
+/// A corporation whose rates were blended is told so.
+///
+/// The disclosure used to fire on `period.straddles` — crossing a calendar
+/// year — because that was once the only reason rates got apportioned. A
+/// calendar 2026 Ontario year end crosses no calendar boundary and is blended
+/// all the same, and was being told nothing. A notice hung on a proxy for the
+/// thing goes quiet the moment the proxy stops holding.
+#[test]
+fn a_year_blended_inside_one_calendar_year_still_says_so() {
+    let got = assess(
+        Period::calendar(2026),
+        &[("gifi.8000", "400000"), ("t2.active_business_income", "400000")],
+    );
+
+    assert!(
+        fired(&got).contains(&"t2.rates_apportioned"),
+        "the rate change was applied but not disclosed: {:?}",
+        fired(&got)
+    );
+}
+
+/// And a year whose rates did not move is not told they were.
+#[test]
+fn a_year_with_no_rate_change_is_not_told_anything_was_apportioned() {
+    let got = assess(Period::calendar(2025), &[("gifi.8000", "400000")]);
+
+    assert!(!fired(&got).contains(&"t2.rates_apportioned"));
+}
+
+/// Crossing a calendar year still triggers it, which is the original case.
+#[test]
+fn a_year_crossing_a_calendar_boundary_still_says_so() {
+    let got = assess_across(
+        period((2025, 7, 1), (2026, 6, 30)),
+        &[("gifi.8000", "400000")],
+    );
+
+    assert!(fired(&got).contains(&"t2.rates_apportioned"));
+}

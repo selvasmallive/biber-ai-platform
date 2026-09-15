@@ -796,3 +796,53 @@ button.danger-text:hover:not(:disabled) {
   line-height: 1.55;
   user-select: text;
 }
+
+/* The corporate tab uses the full width: there is no second pane to sit
+   beside it, because the personal interview is hidden while it is open. */
+.columns.single {
+  grid-template-columns: 1fr;
+}
+
+.corporate { overflow-y: auto; padding: 16px 20px 20px; }
+.corporate .card {
+  border: 1px solid var(--line, #dfe5e1);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.corporate .disclosure {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+}
+.corporate .disclosure::before { content: "▸ "; }
+.corporate .disclosure[aria-expanded="true"]::before { content: "▾ "; }
+.corporate .fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px 18px;
+  margin-top: 12px;
+}
+.corporate .field { display: flex; flex-direction: column; gap: 4px; }
+.corporate .field .hint { font-size: 12px; opacity: 0.7; }
+.corporate .field.flag .label { display: flex; align-items: center; gap: 8px; }
+.corporate .field input[inputmode="decimal"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.corporate .row { display: flex; gap: 14px; flex-wrap: wrap; }
+.corporate .row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.corporate .blurb { font-size: 13px; opacity: 0.75; margin: 4px 0 10px; max-width: 70ch; }
+.corporate .note { font-size: 13px; opacity: 0.7; }
+.corporate .summary .line {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line, #dfe5e1);
+}
+.corporate .summary dd { margin: 0; font-variant-numeric: tabular-nums; }
+.corporate .diagnostics li span { display: block; opacity: 0.75; font-weight: 400; }
+.corporate .gate ul { margin: 6px 0; padding-left: 18px; font-size: 13px; }

@@ -87,6 +87,16 @@ pub enum Parameters<'a> {
 }
 
 impl Parameters<'_> {
+    /// How many stretches of constant parameters the period was cut into.
+    ///
+    /// One for a single pack, by definition: there is nothing to cut.
+    fn segment_count(&self) -> usize {
+        match self {
+            Parameters::Single(_) => 1,
+            Parameters::OverPeriod(p) => p.segment_count(),
+        }
+    }
+
     fn packs(&self) -> &PackSet {
         match self {
             // Amounts the Act fixes at year-end resolve from the closing year,
@@ -353,7 +363,7 @@ pub const PERIOD_FACT_PREFIX: &str = "period.";
 /// for a period inside one calendar year, so a blend written as
 /// `(first × rate_a + second × rate_b) ÷ days` gives `rate_a` unchanged when
 /// there is nothing to blend, and needs no special case in the form.
-fn period_facts(period: &Period) -> Vec<(&'static str, Decimal)> {
+fn period_facts(period: &Period, segments: usize) -> Vec<(&'static str, Decimal)> {
     let split = period.days_by_year();
 
     let (first_year, first_days) = split[0];
@@ -367,6 +377,16 @@ fn period_facts(period: &Period) -> Vec<(&'static str, Decimal)> {
         ("period.second_year", Decimal::from(second_year)),
         ("period.days_in_first_year", Decimal::from(first_days)),
         ("period.days_in_second_year", Decimal::from(second_days)),
+        // How many stretches of constant parameters the period covers, and
+        // therefore whether anything was blended at all.
+        //
+        // Distinct from `period.straddles`, which asks only about the calendar.
+        // They used to answer the same question and no longer do: Ontario's
+        // lower corporate rate moves on 1 July 2026, so a calendar 2026 year
+        // end is blended without straddling anything. A disclosure hung on the
+        // calendar would have stayed silent for exactly those corporations.
+        ("period.parameter_segments", Decimal::from(segments as i64)),
+        ("period.rates_apportioned", bit(segments > 1)),
     ]
 }
 
@@ -429,12 +449,14 @@ fn compute_over_period(
         .find(|k| k.starts_with(PERIOD_FACT_PREFIX))
     {
         return Err(EngineError::BadPeriod(format!(
-            "`{key}` is derived from the reporting period, not entered. A caller              setting it would override the real period without anything saying so."
+            "`{key}` is derived from the reporting period, not entered. A caller \
+             setting it would override the real period without anything \
+             saying so."
         )));
     }
 
     let mut derived = facts.clone();
-    for (key, value) in period_facts(&period) {
+    for (key, value) in period_facts(&period, packs.segment_count()) {
         derived.set(key, value);
     }
 

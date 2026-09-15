@@ -1,9 +1,18 @@
-//! What the T2 interview asks for.
+//! What the T2 interview asks for, in every channel that has one.
 //!
-//! Declared rather than laid out by hand, because the list is long and mostly
-//! uniform, and because the fact keys have to match the form definitions
-//! exactly — a typo here is a figure silently read as zero. `engine.test.ts`
-//! checks every key below against the engine's own list for that reason.
+//! Shared between the desktop app and the browser build rather than copied
+//! into each. The labels and hints are presentation and could reasonably
+//! differ; the **fact keys** cannot. They are the join between a text box and
+//! a line on the return, and a wrong one is the worst defect this product can
+//! have — nothing errors, the engine finds no fact under `gifi.800`, reads
+//! zero, and computes a return that is internally consistent, professionally
+//! formatted, and wrong.
+//!
+//! `crates/freshet-taxdata/tests/t2_interview.rs` reads this file from Rust
+//! and checks the keys against the form definitions in both directions. It
+//! caught nine missing fields the first time it ran. A second copy for the
+//! desktop would be outside that check and free to drift, which is how the
+//! nine got missed in the first place.
 
 export interface Field {
   fact: string;

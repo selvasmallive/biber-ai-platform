@@ -33,13 +33,13 @@
     {
       "id": "t2.rates_apportioned",
       "severity": "info",
-      "message": "This tax year falls in two calendar years, so the rates have been apportioned by days.",
-      "help": "A fiscal period crossing a calendar boundary is taxed at each year's rates in proportion to the days falling in it, rather than at whichever year the period mostly occupies.",
+      "message": "The rates for this tax year have been apportioned by day.",
+      "help": "A tax year that spans a rate change is taxed at each rate in proportion to the days falling under it, rather than at whichever rate happens to apply at the year end. That happens when the year crosses a calendar boundary, and also when a rate moves part-way through a year — Ontario's lower corporate rate falls from 3.2% to 2.2% on 1 July 2026.",
       "when": {
         "cmp": "gt",
         "left": {
           "op": "fact",
-          "key": "period.straddles"
+          "key": "period.rates_apportioned"
         },
         "right": {
           "op": "const",

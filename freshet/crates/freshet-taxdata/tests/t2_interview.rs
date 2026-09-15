@@ -1,7 +1,7 @@
-//! The browser interview against the forms it is meant to fill in.
+//! The T2 interview against the forms it is meant to fill in.
 //!
-//! The web channel's questions live in `web/src/fields.ts`, because that is
-//! where the labels and hints belong. The fact keys in that file are not
+//! The questions live in `shared/t2-interview.ts`, shared by the desktop app
+//! and the browser build, because that is where the labels and hints belong. The fact keys in that file are not
 //! presentation, though — they are the join between a text box and a line on
 //! the return, and nothing at runtime checks them.
 //!
@@ -18,9 +18,9 @@
 use std::collections::BTreeSet;
 
 fn interview_facts() -> BTreeSet<String> {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../web/src/fields.ts");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shared/t2-interview.ts");
     let source = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("cannot read the web interview at {path}: {e}"));
+        .unwrap_or_else(|e| panic!("cannot read the T2 interview at {path}: {e}"));
 
     let mut out = BTreeSet::new();
     for (index, _) in source.match_indices("fact: \"") {
@@ -54,7 +54,7 @@ fn the_interview_does_not_ask_for_facts_the_form_never_reads() {
 
     assert!(
         stray.is_empty(),
-        "the web interview asks for facts no T2 line reads, so whatever is \
+        "the T2 interview asks for facts no line reads, so whatever is \
          typed into them is silently discarded: {stray:?}"
     );
 }
@@ -73,7 +73,7 @@ fn the_interview_asks_for_every_fact_the_form_reads() {
 
     assert!(
         missing.is_empty(),
-        "the T2 reads facts the web interview never asks for, so they are \
+        "the T2 reads facts the interview never asks for, so they are \
          always zero: {missing:?}"
     );
 }
