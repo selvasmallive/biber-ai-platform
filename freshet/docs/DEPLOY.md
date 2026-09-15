@@ -46,51 +46,71 @@ The service refuses to start if the key it holds does not match the key the app
 trusts, so a mismatch is a failed deploy rather than a month of customers who
 paid and cannot file.
 
-### 2. Sign in, and check which project is selected
+### 2. Sign in — and know which failure you are looking at
 
-As of 2026-09-15 the active account is `selva@freshettax.ca`, which is right,
-but the token has expired and cannot be refreshed non-interactively:
+Checked on 2026-09-15: **authentication works.** `gcloud projects list` returns
+`freshet-licence` against `selva@freshettax.ca`. If you are staring at this
+after running `gcloud auth login`, read the next paragraph before running it a
+fourth time.
 
-```bash
-gcloud auth login
+`gcloud auth login` completes the browser flow, saves the credential, and
+*then* fails with:
+
+```
+ERROR: (gcloud.auth.login) Error saving Application Default Credentials:
+Unable to create private file [...\legacy_credentials\selva@freshettax.ca\adc.json]:
+[Errno 13] Permission denied
 ```
 
-**Then set the project, and check it.** This is the step most likely to go
-wrong quietly. `deploy.sh` takes its project from `gcloud config get-value
-project`, and on this machine that is currently **`biber-499407`** — a
-different product entirely. Running the deploy without changing it would put
-the licence service, its database and its secrets into the BIBER project, all
-billable and all in the wrong place.
+This is a local filesystem problem, not an authentication one, and **it does
+not block anything in this runbook.** Application Default Credentials are what
+client *libraries* read; `deploy.sh` and every command here use the gcloud CLI,
+which reads a different store that saved fine. The sign-in you just did
+worked — the error at the end is about a file written afterwards.
+
+The cause is a broken ACL on one directory. Its parent grants
+`SELVA-DESKT-W11\vselv:(I)(OI)(CI)(F)`, but the account subdirectory denies
+even reading its own ACL, and the parent's ACL carries a
+`Selva-Deskt-W11\CodexSandboxUsers` entry — something running sandboxed
+appears to have created it. `vselv` is not a local administrator, so repairing
+the ACL in place needs elevation.
+
+Fix it only if you need ADC (Terraform, or running the service locally against
+Cloud SQL). Deleting the directory is enough, because it holds a derived cache
+rather than the authoritative credential, and the parent grants you the rights
+to remove it:
+
+```powershell
+Remove-Item -Recurse -Force "$env:APPDATA\gcloud\legacy_credentials\selva@freshettax.ca"
+gcloud auth application-default login
+```
+
+### 2a. Use the freshet configuration, not the default
+
+`deploy.sh` takes its project from `gcloud config get-value project`, and the
+**default** configuration on this machine points at `biber-499407` — a
+different product. Running the deploy under it would put the licence service,
+its database and its secrets in the wrong project, all billable.
+
+A separate configuration now exists so the two cannot be confused, and the
+default is left alone:
 
 ```bash
-gcloud config set project freshet-licence
+gcloud config configurations activate freshet
 gcloud config get-value project     # must print freshet-licence
 ```
 
-**There are two licence-shaped projects on the billing account**, and only one
-is the right one:
+It holds project `freshet-licence`, account `selva@freshettax.ca`, and region
+`northamerica-northeast1`. Switch back with `gcloud config configurations
+activate default`.
 
-| Project name | Project ID | |
-| --- | --- | --- |
-| Freshet Licence | `freshet-licence` | the one every command here names |
-| freshet-licence | `freshet-licence-508706` | a duplicate, created second |
-
-Nothing has been deployed to either, so the duplicate is empty and costs
-nothing — but leaving it linked to billing means a stray command can spend in
-it. Confirm which is which before deleting anything:
-
-```bash
-gcloud projects describe freshet-licence --format='value(projectId,createTime)'
-gcloud projects describe freshet-licence-508706 --format='value(projectId,createTime)'
-gcloud services list --project=freshet-licence-508706   # expect: nothing enabled
-```
-
-If the second is empty, unlink it from billing and shut it down. That is a
-decision about your account rather than about this code, so it is yours to
-make.
+**On the duplicate project.** The billing console showed two licence-shaped
+projects. `freshet-licence-508706` is already `DELETE_REQUESTED` (created
+2026-09-15 06:14) and will fall off the billing account on its own. The live
+one is `freshet-licence`, created 2026-08-16, `ACTIVE`. Nothing to do.
 
 Billing is enabled on the account. Enabling any further paid API is a spend
-decision and a terms acceptance, so those stay yours too.
+decision and a terms acceptance, so those stay yours.
 
 ### 3. Deploy
 
