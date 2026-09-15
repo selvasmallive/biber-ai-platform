@@ -14,6 +14,14 @@ license = "UNLICENSED"
 # same code the app verifies with, so the two cannot drift apart.
 freshet-license = { path = "../crates/freshet-license" }
 
+# The same engine the browser runs, and the reason the web channel can be
+# trusted at all. The page computes for privacy and for speed; the server
+# recomputes at transmission, because a page is editable by whoever is looking
+# at it and a filing is not the place to take a client at their word.
+freshet-engine = { path = "../crates/freshet-engine" }
+freshet-taxdata = { path = "../crates/freshet-taxdata" }
+rust_decimal = "1"
+
 axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
 tower-http = { version = "0.6", features = ["trace", "limit"] }

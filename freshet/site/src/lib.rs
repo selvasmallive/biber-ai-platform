@@ -63,6 +63,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/recover-form", post(routes::recover::recover_form))
         .route("/api/webhook/stripe", post(routes::checkout::stripe_webhook))
         .route("/api/filings/claim", post(routes::filing::claim))
+        .route("/api/web/file", post(routes::web::file))
         .route("/admin/licences", get(routes::admin::licences))
         .route("/admin/licences/{key}/revoke", post(routes::admin::revoke))
         .route("/admin/customers/{email}/forget", post(routes::admin::forget))

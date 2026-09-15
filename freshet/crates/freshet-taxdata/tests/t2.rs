@@ -654,3 +654,42 @@ fn a_return_with_no_statements_at_all_says_so() {
     assert!(fired(&empty).contains(&"gifi.no_statements"));
     assert!(!fired(&with_figures).contains(&"gifi.no_statements"));
 }
+
+/// Active business income is a fact, and a fact nobody enters is nil.
+///
+/// Nil means no small business deduction, which for a CCPC at the business
+/// limit is the most valuable figure on the return. Nothing errors: the return
+/// simply comes out with thousands of dollars more tax than it should, looking
+/// complete. The form cannot know whether a corporation is a CCPC, so this is
+/// a warning rather than an error — but it must not be silent.
+#[test]
+fn a_profitable_return_claiming_no_small_business_deduction_says_so() {
+    let got = assess(
+        period((2026, 1, 1), (2026, 12, 31)),
+        &[("gifi.8000", "500000"), ("gifi.9060", "200000")],
+    );
+
+    assert!(
+        fired(&got).contains(&"t2.no_active_business_income"),
+        "a corporation with taxable income and no active business income \
+         should be told it is claiming no deduction, got {:?}",
+        fired(&got)
+    );
+}
+
+/// And it stays quiet once the income is entered, or it would be noise on
+/// every correctly prepared return.
+#[test]
+fn entering_active_business_income_silences_the_warning() {
+    let got = assess(
+        period((2026, 1, 1), (2026, 12, 31)),
+        &[
+            ("gifi.8000", "500000"),
+            ("gifi.9060", "200000"),
+            ("t2.active_business_income", "300000"),
+        ],
+    );
+
+    assert!(!fired(&got).contains(&"t2.no_active_business_income"));
+    assert!(got.get("t2.430").unwrap() > d("0"));
+}

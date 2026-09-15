@@ -104,6 +104,39 @@
           "value": "0"
         }
       }
+    },
+    {
+      "id": "t2.no_active_business_income",
+      "severity": "warning",
+      "message": "No small business deduction has been claimed.",
+      "help": "Active business income has been left at nil, so the small business deduction is nil and this income is taxed at the general rate. That is right for a corporation whose income is investment income, and wrong for most others: a CCPC carrying on an active business should enter that income to claim the deduction.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "t2.360"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "lte",
+            "left": {
+              "op": "line",
+              "id": "t2.active_business_income"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
     }
   ],
   "lines": [

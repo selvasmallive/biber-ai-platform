@@ -101,3 +101,86 @@ pub enum Cond {
     Or { any: Vec<Cond> },
     Not { of: Box<Cond> },
 }
+
+impl Expr {
+    /// Every fact key this expression reads, in no particular order.
+    ///
+    /// A form is data, so the set of questions it needs answered is a property
+    /// of the data rather than something a developer maintains by hand beside
+    /// it. An interview screen that asks for `gifi.8000` when the form reads
+    /// `gifi.800` is not a visible bug: the amount is simply read as zero and
+    /// the return comes out wrong and plausible. Being able to enumerate this
+    /// turns that into a test.
+    pub fn facts(&self, out: &mut std::collections::BTreeSet<String>) {
+        match self {
+            Expr::Fact { key } => {
+                out.insert(key.clone());
+            }
+
+            Expr::Const { .. }
+            | Expr::Line { .. }
+            | Expr::Param { .. }
+            | Expr::BlendedParam { .. } => {}
+
+            Expr::Sum { of } | Expr::Min { of } | Expr::Max { of } => {
+                for e in of {
+                    e.facts(out);
+                }
+            }
+
+            Expr::Sub { from, minus } => {
+                from.facts(out);
+                minus.facts(out);
+            }
+
+            Expr::Mul { of, by } | Expr::Div { of, by } => {
+                of.facts(out);
+                by.facts(out);
+            }
+
+            Expr::FloorZero { of }
+            | Expr::Round { of, .. }
+            | Expr::Ceil { of }
+            | Expr::Floor { of } => of.facts(out),
+
+            Expr::Clamp { value, lo, hi } => {
+                value.facts(out);
+                lo.facts(out);
+                hi.facts(out);
+            }
+
+            Expr::Bracket { base, .. } => base.facts(out),
+
+            Expr::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                cond.facts(out);
+                then.facts(out);
+                otherwise.facts(out);
+            }
+        }
+    }
+}
+
+impl Cond {
+    pub fn facts(&self, out: &mut std::collections::BTreeSet<String>) {
+        match self {
+            Cond::Gt { left, right }
+            | Cond::Gte { left, right }
+            | Cond::Lt { left, right }
+            | Cond::Lte { left, right }
+            | Cond::Eq { left, right } => {
+                left.facts(out);
+                right.facts(out);
+            }
+            Cond::And { all: of } | Cond::Or { any: of } => {
+                for c in of {
+                    c.facts(out);
+                }
+            }
+            Cond::Not { of } => of.facts(out),
+        }
+    }
+}

@@ -45,6 +45,57 @@ jobs:
         working-directory: freshet/site
         run: cargo test --locked
 
+  # The browser channel: the engine compiled to WebAssembly, and the page that
+  # loads it.
+  #
+  # On Linux only, and on every push. There is nothing operating-system
+  # specific about a wasm module — it is the same artifact wherever it is
+  # built, which is the whole point of the target — so paying for a matrix here
+  # would buy nothing.
+  web:
+    name: Web channel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: freshet/crates/freshet-wasm
+
+      # Pinned to the crate's own wasm-bindgen version. The CLI refuses to
+      # generate bindings for any other, and the error it gives does not
+      # mention versions, so it is worth being explicit.
+      - name: Install wasm-bindgen
+        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+
+      # The logic that the browser bindings wrap, tested on the host where a
+      # failure is a failing test rather than a trap in a function that cannot
+      # unwind.
+      - name: Test the browser engine
+        working-directory: freshet/crates/freshet-wasm
+        run: cargo test --locked
+
+      - name: Build the engine for the browser
+        working-directory: freshet
+        run: bash scripts/build-web.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: freshet/web/package-lock.json
+
+      - name: Build and test the page
+        working-directory: freshet/web
+        run: |
+          npm ci
+          npm run build
+          npm test
+
   # The desktop app, on both operating systems CRA certifies separately.
   #
   # Deliberately not run on pull requests. GitHub bills macOS minutes at ten

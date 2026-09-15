@@ -1,0 +1,39 @@
+[package]
+name = "freshet-wasm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "UNLICENSED"
+
+# Its own workspace: the engine's `cargo test` should not have to think about a
+# wasm target, and this crate is only ever built for one.
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+freshet-engine = { path = "../freshet-engine" }
+freshet-taxdata = { path = "../freshet-taxdata" }
+
+# Pinned exactly, and it has to be. `wasm-bindgen` generates the JavaScript
+# glue from a schema the proc-macro emits into the module, and the CLI refuses
+# any version but its own. An unpinned "0.2" resolves forward on its own and
+# breaks the build against whatever CLI is installed, which is a confusing
+# failure to meet. `scripts/build-web.sh` installs this same version.
+wasm-bindgen = "=0.2.100"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+wasm-bindgen-test = "=0.3.50"
+
+[profile.release]
+# The browser downloads this. Optimise for size rather than speed: the engine
+# resolves a few hundred lines, which is nothing, and every kilobyte is a real
+# cost on a first visit.
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,3 +1,8 @@
 /target
 **/node_modules
 .DS_Store
+
+# Generated from the Rust crate by scripts/build-web.sh, not edited by hand.
+web/public/engine/
+web/dist/
+crates/freshet-wasm/target/

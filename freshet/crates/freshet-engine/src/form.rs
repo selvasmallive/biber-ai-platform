@@ -165,3 +165,19 @@ impl FormSet {
             .ok_or_else(|| EngineError::UnknownLine(id.to_string()))
     }
 }
+
+impl FormSet {
+    /// Every fact this form set reads.
+    ///
+    /// The authoritative list of what an interview has to ask for. Facts
+    /// beginning `period.` are excluded: they are supplied by the engine from
+    /// the fiscal period rather than typed by anyone.
+    pub fn input_facts(&self) -> std::collections::BTreeSet<String> {
+        let mut out = std::collections::BTreeSet::new();
+        for line in &self.lines {
+            line.expr.facts(&mut out);
+        }
+        out.retain(|f| !f.starts_with("period."));
+        out
+    }
+}

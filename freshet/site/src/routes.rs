@@ -4,3 +4,4 @@ pub mod checkout;
 pub mod filing;
 pub mod pages;
 pub mod recover;
+pub mod web;

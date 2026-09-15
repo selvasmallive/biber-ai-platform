@@ -495,3 +495,185 @@ async fn an_invented_key_cannot_claim_a_filing() {
     let (status, _) = post(&h.state, "/api/filings/claim", &body).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// -- the web channel -------------------------------------------------------
+//
+// The endpoint the browser posts to at transmission. Its whole reason to exist
+// is that it does not trust the page, so these tests are mostly about what it
+// refuses.
+
+/// A return the browser reported honestly, and which is refused anyway.
+///
+/// This pins the answer a real customer gets today, and today the binding
+/// reason is the unverified figures rather than the missing certification —
+/// the corporate parameter packs still carry unchecked amounts. When
+/// verification finishes, this test should start failing and the expected
+/// reason should move on to certification. That is the point of asserting on
+/// the reason instead of only on `allowed`.
+#[tokio::test]
+async fn a_web_return_is_refused_for_its_unverified_figures() {
+    let h = harness(vec![]);
+
+    let body = serde_json::json!({
+        "period_start": "2026-01-01",
+        "period_end": "2026-12-31",
+        "province": "on",
+        "facts": { "gifi.8000": "500000" },
+        "computed": { "gifi.8000": "500000.00" },
+    })
+    .to_string();
+
+    let (status, out) = post(&h.state, "/api/web/file", &body).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["allowed"], false);
+    assert!(
+        v["reason"].as_str().unwrap().contains("not been checked"),
+        "got: {}",
+        v["reason"]
+    );
+}
+
+/// The point of the endpoint.
+///
+/// A browser that reports figures the server does not agree with is not filing
+/// anything. The tampered line here is the one that would matter — tax payable
+/// reported as nil.
+#[tokio::test]
+async fn a_browser_that_reports_the_wrong_figures_is_refused_and_told_which() {
+    let h = harness(vec![]);
+
+    let body = serde_json::json!({
+        "period_start": "2026-01-01",
+        "period_end": "2026-12-31",
+        "province": "on",
+        "facts": { "gifi.8000": "500000" },
+        "computed": {
+            "gifi.8000": "500000.00",
+            "summary.total_tax": "0.00",
+        },
+    })
+    .to_string();
+
+    let (_, out) = post(&h.state, "/api/web/file", &body).await;
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+
+    assert_eq!(v["allowed"], false);
+    let lines: Vec<&str> = v["disagreement"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["line"].as_str().unwrap())
+        .collect();
+
+    assert!(
+        lines.contains(&"summary.total_tax"),
+        "the tampered line should be named, got {lines:?}"
+    );
+    // The untouched line agreed, so it has no business in the report.
+    assert!(!lines.contains(&"gifi.8000"));
+}
+
+/// Sending no figures is not the same as agreeing with the server.
+///
+/// A client that simply omits `computed` would otherwise skip the comparison
+/// entirely, which would make the whole check optional at the caller's choice.
+#[tokio::test]
+async fn a_browser_that_reports_nothing_does_not_thereby_agree() {
+    let h = harness(vec![]);
+
+    let body = serde_json::json!({
+        "period_start": "2026-01-01",
+        "period_end": "2026-12-31",
+        "province": "on",
+        "facts": { "gifi.8000": "500000" },
+    })
+    .to_string();
+
+    let (_, out) = post(&h.state, "/api/web/file", &body).await;
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+
+    assert_eq!(v["allowed"], false);
+    assert!(v["reason"].as_str().unwrap().contains("could not check"));
+}
+
+/// The server has to read money the way the browser does.
+///
+/// If it did not, every user who typed a dollar sign or a comma would be told
+/// their browser disagreed with the server, which is the most alarming
+/// possible way to report a formatting difference.
+#[tokio::test]
+async fn an_amount_typed_with_a_dollar_sign_is_not_a_disagreement() {
+    let h = harness(vec![]);
+
+    let body = serde_json::json!({
+        "period_start": "2026-01-01",
+        "period_end": "2026-12-31",
+        "province": "on",
+        "facts": { "gifi.8000": "$500,000.00" },
+        "computed": { "gifi.8000": "500000.00" },
+    })
+    .to_string();
+
+    let (_, out) = post(&h.state, "/api/web/file", &body).await;
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+
+    assert!(
+        v["disagreement"].is_null() || v["disagreement"].as_array().unwrap().is_empty(),
+        "formatting is not a disagreement: {out}"
+    );
+}
+
+/// A period no corporation can have is refused before anything else happens.
+#[tokio::test]
+async fn an_impossible_fiscal_period_is_refused() {
+    let h = harness(vec![]);
+
+    let body = serde_json::json!({
+        "period_start": "2025-01-01",
+        "period_end": "2027-01-01",
+        "province": "on",
+        "facts": {},
+        "computed": { "gifi.8000": "0" },
+    })
+    .to_string();
+
+    let (_, out) = post(&h.state, "/api/web/file", &body).await;
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+
+    assert_eq!(v["allowed"], false);
+    let reason = v["reason"].as_str().unwrap();
+    assert!(
+        reason.contains("53 weeks") || reason.contains("longer"),
+        "the period itself should be the complaint, got: {reason}"
+    );
+}
+
+/// A jurisdiction we do not file gets a sentence written for a person.
+///
+/// It used to get the engine's own words — "no T2 data for bc; this build
+/// supports [\"on\"]" — which tells a customer about our data directory
+/// rather than about what they can buy.
+#[tokio::test]
+async fn a_province_outside_the_certification_is_told_it_is_out_of_scope() {
+    let h = harness(vec![]);
+
+    let body = serde_json::json!({
+        "period_start": "2026-01-01",
+        "period_end": "2026-12-31",
+        "province": "bc",
+        "facts": { "gifi.8000": "500000" },
+        "computed": { "gifi.8000": "500000.00" },
+    })
+    .to_string();
+
+    let (_, out) = post(&h.state, "/api/web/file", &body).await;
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+
+    assert_eq!(v["allowed"], false);
+    let reason = v["reason"].as_str().unwrap();
+    assert!(reason.contains("does not file BC"), "got: {reason}");
+    assert!(!reason.contains("no T2 data"), "internal wording leaked: {reason}");
+}
+
