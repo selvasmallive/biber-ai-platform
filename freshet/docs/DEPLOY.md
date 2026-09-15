@@ -7,40 +7,31 @@ service, or spend are deliberately not automated.
 
 The signing key comes first and is the one irreversible step.
 
-### 1. The signing key — DONE, but not yet backed up
+### 1. The signing key — generated and in Secret Manager
 
-Generated on 2026-08-16. Its public half is already in
-`crates/freshet-license/src/sign.rs`, and a test now fails if it ever reverts
-to the placeholder.
+Generated 2026-08-16. Its public half is in `crates/freshet-license/src/sign.rs`
+and a test fails if it ever reverts to the placeholder.
 
-The private half is at **`C:\Users\vselv\.freshet\freshet-signing-key.hex`** —
-deliberately outside OneDrive, so it is not being synced to a cloud folder.
+Checked 2026-09-15: secret `freshet-signing-key` exists in `freshet-licence`,
+version 1, enabled, created 2026-08-16T17:14:27 — about half an hour after the
+local file was written. Billing is linked and `secretmanager.googleapis.com` is
+enabled. **Nothing further to run here.**
 
-**It exists in exactly one place right now**, and still did as of
-2026-09-15. Lose that file and you can never issue another licence for any
-build already shipped.
+The private half is also still at
+**`C:\Users\vselv\.freshet\freshet-signing-key.hex`** — deliberately outside
+OneDrive, so it is not being synced to a cloud folder.
 
-Billing is now linked (confirmed in the console on 2026-09-15), so the first
-command below is done. The other two are not:
+**The one thing still outstanding is a copy that is not Google.** Secret
+Manager is where the *service* reads the key from; it is not a backup, because
+losing access to the project loses the key with it. Put a second copy in a
+password manager, or print it and file it.
 
-```bash
-gcloud services enable secretmanager.googleapis.com --project=freshet-licence
-gcloud secrets create freshet-signing-key --project=freshet-licence \
-  --data-file="$HOME/.freshet/freshet-signing-key.hex"
-```
-
-Then put a second copy somewhere offline that is not Google — a password
-manager entry, or printed and filed. Secret Manager is where the *service*
-reads it from; it is not a backup, because losing access to the project loses
-the key with it.
-
-Only once both copies exist should you delete the local file.
+Only once that exists should the local file be deleted.
 
 **This key cannot be rotated cheaply.** Its public half is compiled into every
 installed copy of Freshet, so replacing it invalidates every licence already in
-customers' hands. Lose it and you can never issue another licence for the
-builds already shipped. Back it up somewhere that is not this repository — the
-keygen refuses to write inside a git working tree for exactly that reason.
+customers' hands. The keygen refuses to write inside a git working tree for
+that reason, and the key has never been committed.
 
 The service refuses to start if the key it holds does not match the key the app
 trusts, so a mismatch is a failed deploy rather than a month of customers who
@@ -113,6 +104,11 @@ Billing is enabled on the account. Enabling any further paid API is a spend
 decision and a terms acceptance, so those stay yours.
 
 ### 3. Deploy
+
+Nothing is deployed yet, and the APIs a deploy needs are off: as of 2026-09-15
+`run.googleapis.com` and `sqladmin.googleapis.com` are both disabled on
+`freshet-licence`. `deploy.sh` will offer to enable them. That is the point
+where this stops being free, so read the script before answering yes.
 
 ```bash
 cd freshet/site/deploy && ./deploy.sh
