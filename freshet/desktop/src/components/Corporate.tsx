@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { computeT2, errorText, money, t2FilingGate } from "../api";
-import type { FilingGate, T2Input, T2View } from "../types";
+import {
+  computeT2,
+  errorText,
+  loadReturn,
+  money,
+  saveT2,
+  t2FilingGate,
+  whenLocal,
+} from "../api";
+import type { FilingGate, ReturnSummary, T2Input, T2View } from "../types";
 import { SECTIONS } from "../../../shared/t2-interview";
 
 /// The corporate return.
@@ -28,9 +36,13 @@ function defaultPeriod(): { start: string; end: string } {
 
 interface Props {
   provinces: string[];
+  /// Every saved return, personal and corporate. Filtered here rather than by
+  /// the caller so the two lists cannot disagree about which is which.
+  saved: ReturnSummary[];
+  onSaved: (summary: ReturnSummary) => void;
 }
 
-export default function Corporate({ provinces }: Props) {
+export default function Corporate({ provinces, saved, onSaved }: Props) {
   const [period, setPeriod] = useState(defaultPeriod);
   const [province, setProvince] = useState("on");
   const [facts, setFacts] = useState<Record<string, string>>({});
@@ -38,6 +50,15 @@ export default function Corporate({ provinces }: Props) {
   const [gate, setGate] = useState<FilingGate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string>(SECTIONS[0].id);
+  const [label, setLabel] = useState("Untitled corporation");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Only corporate entries. A T2's facts are GIFI codes and a T1's are slip
+  // boxes; loading one into the other would fill the screen with zeroes and
+  // look like a working return.
+  const corporate = saved.filter((r) => r.period !== null);
 
   const input: T2Input = useMemo(
     () => ({
@@ -94,6 +115,48 @@ export default function Corporate({ provinces }: Props) {
       cancelled = true;
     };
   }, [input, result]);
+
+  const store = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const summary = await saveT2({
+        id: openId,
+        label,
+        province,
+        period_start: period.start,
+        period_end: period.end,
+        facts,
+      });
+      setOpenId(summary.id);
+      onSaved(summary);
+    } catch (e) {
+      setSaveError(errorText(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reopen = async (id: string) => {
+    setSaveError(null);
+    try {
+      const stored = await loadReturn(id);
+      if (!stored.period) {
+        // Defensive: the list is already filtered, so reaching this means the
+        // vault and the filter disagree, and filling the corporate screen with
+        // personal facts would be worse than refusing.
+        setSaveError("That saved return is a personal return, not a corporate one.");
+        return;
+      }
+      setLabel(stored.label);
+      setProvince(stored.province);
+      setPeriod({ start: stored.period.start, end: stored.period.end });
+      setFacts(stored.facts);
+      setOpenId(stored.id);
+    } catch (e) {
+      setSaveError(errorText(e));
+    }
+  };
 
   return (
     <div className="corporate">
@@ -206,6 +269,52 @@ export default function Corporate({ provinces }: Props) {
           )}
         </section>
       ))}
+
+      <section className="card">
+        <h2>Saving</h2>
+        <div className="row">
+          <label style={{ flex: 1 }}>
+            Name
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </label>
+          <button type="button" onClick={store} disabled={saving}>
+            {saving ? "Saving…" : openId ? "Save" : "Save a copy"}
+          </button>
+        </div>
+
+        <p className="note">
+          Encrypted on this machine. A corporate return is a whole set of
+          financial statements, so it is worth saving before you close the app.
+        </p>
+
+        {saveError && (
+          <p className="note" role="alert" style={{ color: "var(--bad, #9b2c28)" }}>
+            {saveError}
+          </p>
+        )}
+
+        {corporate.length > 0 && (
+          <>
+            <h3>Saved corporate returns</h3>
+            <ul className="saved-list">
+              {corporate.map((r) => (
+                <li key={r.id}>
+                  <button type="button" onClick={() => reopen(r.id)}>
+                    {r.label}
+                  </button>
+                  <span className="note">
+                    {r.period?.start} to {r.period?.end} · {whenLocal(r.updated_unix)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
 
       {result && (
         <section className="card summary">

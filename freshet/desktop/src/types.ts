@@ -215,12 +215,19 @@ export interface ComputeInput {
   facts: Record<string, string>;
 }
 
+export interface PeriodView {
+  start: string;
+  end: string;
+}
+
 export interface ReturnSummary {
   id: string;
   label: string;
   tax_year: number;
   province: string;
   updated_unix: number;
+  /// Present for a corporate return.
+  period: PeriodView | null;
 }
 
 export interface StoredReturnView {
@@ -229,6 +236,7 @@ export interface StoredReturnView {
   tax_year: number;
   province: string;
   facts: Record<string, string>;
+  period: PeriodView | null;
 }
 
 export interface StorageStatus {
@@ -274,4 +282,13 @@ export interface T2View {
   diagnostics: DiagnosticView[];
   has_errors: boolean;
   filable: boolean;
+}
+
+export interface SaveT2Input {
+  id: string | null;
+  label: string;
+  province: string;
+  period_start: string;
+  period_end: string;
+  facts: Record<string, string>;
 }

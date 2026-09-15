@@ -279,3 +279,116 @@ fn removing_a_return_reports_whether_anything_was_removed() {
     assert!(!vault.remove(&id));
     assert!(vault.returns.is_empty());
 }
+
+// -- corporate returns -----------------------------------------------------
+
+fn period() -> freshet_store::StoredPeriod {
+    freshet_store::StoredPeriod {
+        start: "2026-01-01".into(),
+        end: "2026-12-31".into(),
+    }
+}
+
+/// A vault written before corporate returns existed still opens.
+///
+/// This is the one that matters. The store has no recovery and no escrow: a
+/// schema change that locked someone out of their own returns would be the
+/// worst thing it could possibly do, and it would do it silently, on upgrade,
+/// to people who had done nothing wrong.
+#[test]
+fn a_vault_written_without_the_period_field_still_reads() {
+    // Exactly the shape the previous release wrote — no `period` key at all.
+    let older = r#"{
+      "returns": [{
+        "id": "abc123",
+        "label": "2025 — me",
+        "tax_year": 2025,
+        "province": "on",
+        "facts": { "t4.employment_income": "85000" },
+        "created_unix": 1760000000,
+        "updated_unix": 1760000000
+      }]
+    }"#;
+
+    let vault: Vault = serde_json::from_str(older).expect("an older vault must still open");
+
+    assert_eq!(vault.returns.len(), 1);
+    assert_eq!(vault.returns[0].label, "2025 — me");
+    assert!(
+        !vault.returns[0].is_corporate(),
+        "a return with no period is a T1"
+    );
+}
+
+#[test]
+fn a_corporate_return_round_trips_through_the_vault() {
+    let path = scratch("corporate");
+    let key = DataKey::generate();
+
+    let mut vault = Vault::default();
+    let id = vault.upsert_corporate(
+        None,
+        "Acme Inc — 2026".into(),
+        "on".into(),
+        period(),
+        facts(),
+    );
+
+    let (store, _) = Store::open(&path, key.clone(), KeySource::Keychain).unwrap();
+    store.save(&vault).unwrap();
+
+    let (_, read) = Store::open(&path, key, KeySource::Keychain).unwrap();
+
+    let got = read.get(&id).expect("the corporate return");
+    assert!(got.is_corporate());
+    assert_eq!(got.period.as_ref().unwrap(), &period());
+}
+
+/// The tax year is taken from the period rather than asked for.
+///
+/// A corporation's parameters come from the year its period ends in. Letting a
+/// caller pass that separately would let the two disagree, and the return
+/// would be listed under one year and computed under another.
+#[test]
+fn a_corporate_return_takes_its_year_from_the_period_end() {
+    let mut vault = Vault::default();
+
+    // Straddles: opens in 2025, closes in 2026.
+    let id = vault.upsert_corporate(
+        None,
+        "Acme Inc".into(),
+        "on".into(),
+        freshet_store::StoredPeriod {
+            start: "2025-07-01".into(),
+            end: "2026-06-30".into(),
+        },
+        facts(),
+    );
+
+    assert_eq!(vault.get(&id).unwrap().tax_year, 2026);
+}
+
+/// Saving over a personal return with a corporate one replaces the period too.
+///
+/// `put` writes every field rather than merging, so a stale period cannot
+/// survive an update and turn a T1 into a T2 nobody asked for.
+#[test]
+fn updating_a_return_replaces_its_period_rather_than_keeping_the_old_one() {
+    let mut vault = Vault::default();
+
+    let id = vault.upsert_corporate(
+        None,
+        "Acme Inc".into(),
+        "on".into(),
+        period(),
+        facts(),
+    );
+
+    vault.upsert(Some(id.clone()), "now personal".into(), 2025, "on".into(), facts());
+
+    let got = vault.get(&id).unwrap();
+    assert!(
+        !got.is_corporate(),
+        "the period survived a personal save and the return is still corporate"
+    );
+}

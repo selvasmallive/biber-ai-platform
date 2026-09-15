@@ -43,11 +43,47 @@ pub struct StoredReturn {
     pub id: String,
     /// A user-chosen nickname such as "2025 — me". Not an identity field.
     pub label: String,
+    /// For a corporate return this is the year the fiscal period **ends** in,
+    /// which is the year its parameters come from.
     pub tax_year: u16,
     pub province: String,
     pub facts: BTreeMap<String, String>,
     pub created_unix: i64,
     pub updated_unix: i64,
+
+    /// Set for a corporate return only.
+    ///
+    /// A corporation has no tax year in the way a person does — it has whatever
+    /// falls between one year end and the next — so the dates have to be stored
+    /// rather than inferred from `tax_year`.
+    ///
+    /// Optional with a serde default, so a vault written before corporate
+    /// returns existed still opens. There is no recovery on this store: a
+    /// schema change that locked someone out of their own returns would be the
+    /// worst thing it could do.
+    #[serde(default)]
+    pub period: Option<StoredPeriod>,
+}
+
+/// A fiscal period, as `YYYY-MM-DD`.
+///
+/// Strings rather than a date type: this crate deliberately does not depend on
+/// the engine, and the value is round-tripped to the engine's parser on load
+/// anyway, which is the thing that decides whether it is a period at all.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredPeriod {
+    pub start: String,
+    pub end: String,
+}
+
+impl StoredReturn {
+    /// Whether this is a T2.
+    ///
+    /// Derived from the period rather than stored beside it. A separate flag
+    /// could contradict the dates; this cannot.
+    pub fn is_corporate(&self) -> bool {
+        self.period.is_some()
+    }
 }
 
 /// Everything in the vault.
@@ -62,7 +98,7 @@ impl Vault {
         self.returns.iter().find(|r| r.id == id)
     }
 
-    /// Insert or replace, stamping `updated_unix`. Returns the id.
+    /// Insert or replace a personal return, stamping `updated_unix`.
     pub fn upsert(
         &mut self,
         id: Option<String>,
@@ -70,6 +106,42 @@ impl Vault {
         tax_year: u16,
         province: String,
         facts: BTreeMap<String, String>,
+    ) -> String {
+        self.put(id, label, tax_year, province, facts, None)
+    }
+
+    /// Insert or replace a corporate return.
+    ///
+    /// `tax_year` is taken from the period's closing year rather than asked
+    /// for, because those are the parameters the return is computed under and
+    /// letting a caller pass a third, independent value would let them
+    /// disagree.
+    pub fn upsert_corporate(
+        &mut self,
+        id: Option<String>,
+        label: String,
+        province: String,
+        period: StoredPeriod,
+        facts: BTreeMap<String, String>,
+    ) -> String {
+        let closing_year = period
+            .end
+            .split('-')
+            .next()
+            .and_then(|y| y.parse().ok())
+            .unwrap_or(0);
+
+        self.put(id, label, closing_year, province, facts, Some(period))
+    }
+
+    fn put(
+        &mut self,
+        id: Option<String>,
+        label: String,
+        tax_year: u16,
+        province: String,
+        facts: BTreeMap<String, String>,
+        period: Option<StoredPeriod>,
     ) -> String {
         let now = now_unix();
 
@@ -79,6 +151,7 @@ impl Vault {
                 existing.tax_year = tax_year;
                 existing.province = province;
                 existing.facts = facts;
+                existing.period = period;
                 existing.updated_unix = now;
                 return existing.id.clone();
             }
@@ -88,6 +161,7 @@ impl Vault {
             id: id.unwrap_or_else(crypto::random_id),
             label,
             tax_year,
+            period,
             province,
             facts,
             created_unix: now,

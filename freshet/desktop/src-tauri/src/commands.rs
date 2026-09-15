@@ -1409,6 +1409,25 @@ pub struct ReturnSummary {
     pub tax_year: u16,
     pub province: String,
     pub updated_unix: i64,
+    /// Present for a corporate return. The saved-returns list shows the period
+    /// instead of the year for these, because a corporation with two short
+    /// years in one calendar year would otherwise show two identical rows.
+    pub period: Option<PeriodView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeriodView {
+    pub start: String,
+    pub end: String,
+}
+
+impl From<&freshet_store::StoredPeriod> for PeriodView {
+    fn from(p: &freshet_store::StoredPeriod) -> Self {
+        PeriodView {
+            start: p.start.clone(),
+            end: p.end.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1418,6 +1437,7 @@ pub struct StoredReturnView {
     pub tax_year: u16,
     pub province: String,
     pub facts: BTreeMap<String, String>,
+    pub period: Option<PeriodView>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1434,6 +1454,22 @@ pub struct SaveInput {
     pub label: String,
     pub tax_year: u16,
     pub province: String,
+    pub facts: BTreeMap<String, String>,
+}
+
+/// Saving a corporate return.
+///
+/// Separate from [`SaveInput`] rather than adding an optional period to it: a
+/// T2 has no tax year to supply, and a single struct where half the fields are
+/// ignored depending on the other half is a shape that invites getting it
+/// wrong. The closing year is derived from the period by the vault.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SaveT2Input {
+    pub id: Option<String>,
+    pub label: String,
+    pub province: String,
+    pub period_start: String,
+    pub period_end: String,
     pub facts: BTreeMap<String, String>,
 }
 
@@ -1458,13 +1494,7 @@ fn summarize(vault: &VaultState) -> Vec<ReturnSummary> {
         .vault
         .by_recency()
         .into_iter()
-        .map(|r| ReturnSummary {
-            id: r.id.clone(),
-            label: r.label.clone(),
-            tax_year: r.tax_year,
-            province: r.province.clone(),
-            updated_unix: r.updated_unix,
-        })
+        .map(summary_of)
         .collect()
 }
 
@@ -1506,14 +1536,49 @@ pub fn save_return(
         v.flush()?;
 
         let saved = v.vault.get(&id).ok_or("the return vanished after saving")?;
-        Ok(ReturnSummary {
-            id: saved.id.clone(),
-            label: saved.label.clone(),
-            tax_year: saved.tax_year,
-            province: saved.province.clone(),
-            updated_unix: saved.updated_unix,
-        })
+        Ok(summary_of(saved))
     })
+}
+
+#[tauri::command]
+pub fn save_t2(
+    state: State<'_, AppState>,
+    input: SaveT2Input,
+) -> Result<ReturnSummary, String> {
+    // Parsed before it is stored, so an impossible period is refused here
+    // rather than on the next open. A vault entry that cannot be reloaded is
+    // the kind of thing nobody finds until they need it.
+    Period::new(parse_date(&input.period_start)?, parse_date(&input.period_end)?)
+        .map_err(|e| e.to_string())?;
+
+    with_vault(&state, |v| {
+        let id = v.vault.upsert_corporate(
+            input.id,
+            input.label,
+            input.province,
+            freshet_store::StoredPeriod {
+                start: input.period_start,
+                end: input.period_end,
+            },
+            input.facts,
+        );
+
+        v.flush()?;
+
+        let saved = v.vault.get(&id).ok_or("the return vanished after saving")?;
+        Ok(summary_of(saved))
+    })
+}
+
+fn summary_of(r: &freshet_store::StoredReturn) -> ReturnSummary {
+    ReturnSummary {
+        id: r.id.clone(),
+        label: r.label.clone(),
+        tax_year: r.tax_year,
+        province: r.province.clone(),
+        updated_unix: r.updated_unix,
+        period: r.period.as_ref().map(PeriodView::from),
+    }
 }
 
 #[tauri::command]
@@ -1527,6 +1592,7 @@ pub fn load_return(state: State<'_, AppState>, id: String) -> Result<StoredRetur
         Ok(StoredReturnView {
             id: r.id.clone(),
             label: r.label.clone(),
+            period: r.period.as_ref().map(PeriodView::from),
             tax_year: r.tax_year,
             province: r.province.clone(),
             facts: r.facts.clone(),

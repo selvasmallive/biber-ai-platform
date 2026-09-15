@@ -22,6 +22,7 @@ pub fn run() {
             commands::storage_status,
             commands::list_returns,
             commands::save_return,
+            commands::save_t2,
             commands::load_return,
             commands::delete_return,
             commands::autofill_import,

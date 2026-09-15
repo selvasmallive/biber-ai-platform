@@ -295,7 +295,18 @@ export default function App() {
 
           {tab === "summary" && <Summary result={result} input={input} />}
 
-          {tab === "corporate" && <Corporate provinces={options.t2_provinces} />}
+          {tab === "corporate" && (
+            <Corporate
+              provinces={options.t2_provinces}
+              saved={saved}
+              onSaved={(summary) =>
+                setSaved((list) => [
+                  summary,
+                  ...list.filter((r) => r.id !== summary.id),
+                ])
+              }
+            />
+          )}
 
           {tab === "import" && (
             <Import
@@ -321,7 +332,10 @@ export default function App() {
           {tab === "saved" && (
             <SavedReturns
               storage={storage}
-              returns={saved}
+              // Personal returns only. A T2's facts are GIFI codes; loading
+              // one here would fill the slip boxes with nothing and look
+              // like a return that simply had no income.
+              returns={saved.filter((r) => r.period === null)}
               openId={openId.current}
               saveError={saveError}
               onOpen={openReturn}

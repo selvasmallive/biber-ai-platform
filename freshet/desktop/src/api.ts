@@ -14,6 +14,7 @@ import type {
   ReturnView,
   RrspPlan,
   SaveInput,
+  SaveT2Input,
   SettingsView,
   T2Input,
   T2View,
@@ -132,3 +133,6 @@ export const computeT2 = (input: T2Input): Promise<T2View> =>
 
 export const t2FilingGate = (input: T2Input): Promise<FilingGate> =>
   invoke("t2_filing_gate", { input });
+
+export const saveT2 = (input: SaveT2Input): Promise<ReturnSummary> =>
+  invoke("save_t2", { input });
