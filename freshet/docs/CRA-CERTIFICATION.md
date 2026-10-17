@@ -342,3 +342,267 @@ the 2025 figure.
 
 Residual: 463 unverified, down from 468. All but eleven are the structure-first
 provinces, which are outside the Ontario-only certification scope.
+
+## Reconciliation: the application against the build, 2026-10-17
+
+Thirty days before CRA distributes certification test returns. This section is
+the audit of what was declared on the 2 September 2026 T2 developer application
+against what the repository does today. Everything below was checked against the
+code, not against the prose above.
+
+### What is true in code right now
+
+```
+SUPPORTED_YEARS            [2025, 2026]
+CERTIFICATION_TARGET_YEAR  2027
+CERTIFIED_YEARS            []
+CERTIFICATION_SCOPE        ["on"]
+CERTIFIED_PROVINCES        []
+T2_PROVINCES               ["on"]
+```
+
+Measured behaviour of the engine, not inferred:
+
+| Return | Unverified parameters | `is_filable()` |
+|---|---|---|
+| T2 ON 2025 | 0 | true |
+| T2 ON 2026 | 0 | true |
+| T1 ON 2025 | 0 | true |
+| T1 ON 2026 | 11 | false |
+| T1 AB 2025 / 2026 | 21 each | false |
+
+So the provenance gate is silent on **every corporate return the product can
+compute**, and on the Ontario 2025 personal return as well. Certification is the
+only gate still closed on those, which is the shift this document predicted.
+
+### Channels
+
+| Declared | Built | What it still cannot do |
+|---|---|---|
+| Freshet T2 for Windows | **Yes.** `Corporate` tab, `compute_t2`, `t2_filing_gate`, print via `shared/return-document`, `save_t2` into the vault. Installer builds in CI. | Installer is **unsigned**; SmartScreen warns on every install. No transmission. |
+| Freshet T2 for MAC | **Code yes, product no.** Same source; `.github/workflows/freshet.yml` builds a `macos-latest` matrix leg and uploads a bundle. | **Unsigned and un-notarized**, so Gatekeeper refuses it outright rather than warning. There is no macOS build a customer can install. No Apple Developer ID purchased. |
+| Freshet T2 Online | **Partly.** `crates/freshet-wasm` computes in the page, `web/` is a complete T2 interview with print and encrypted local backup, `/api/web/file` is registered and recomputes server-side. | **Nothing serves it.** `site::router()` has no static-file layer, so neither `web/dist` nor `/engine/freshet_wasm.js` is reachable from any deployment; `web/public/engine/` and `web/dist/` are gitignored build output. `docs/DEPLOY.md` has no web channel. The channel exists only under `npm run dev`. It also has **no free nil path**, and no account or session. |
+
+### Commitments
+
+| Declared | State |
+|---|---|
+| Free for nil or inactive accounts | **Desktop only.** `evaluate_gate` sets `nil_return` when the return is a T2 and `summary.total_tax` is zero, opens the licence lock, and four tests in `commands.rs` pin it (dormant, loss year, tax-owing, and a T1 excluded). Reachable through the `t2_filing_gate` command. **Absent from the web channel**: `site/src/routes/web.rs::file` demands a key unconditionally, with no nil exemption. Latent today only because the certification refusal fires first. |
+| A full commercial product, not a limited subset | **No.** The federal T2 is 22 computed lines plus a 9-line Schedule 1. See the form gap below. |
+| Small, medium **and large** businesses | **No.** GIFI is GIFI-Short's 69 items, which is CRA's subset for corporations under $1M revenue and assets. There is no Schedule 5 provincial allocation, so anything operating outside Ontario cannot be represented. |
+| Price $0 to $799 | **Not sellable.** `Offer::corporate_single` and `Offer::corporate_professional` exist and are tested, but the Stripe webhook issues `Offer::season(state.sale_year)` unconditionally, product `freshet-t1`. A T2 buyer would receive a T1 licence and `check()` would answer `WrongProduct`. `sale_year` also defaults to 2027, a year the engine has no pack for. |
+| Website https://bumi.ca | **Wrong product.** bumi.ca serves a client-rendered SPA for a web-accessibility scanning tool; its bundle contains WCAG and batch-scan copy and no mention of Freshet or tax. `freshettax.ca`, the domain in every piece of CRA correspondence and in the product's own privacy text, is a **parked Namecheap page** with no TLS on the apex. The site in `site/src/routes/pages.rs` is deployed nowhere. |
+
+### Form gap on the T2 itself
+
+The whole federal return is `t2.sch1.*` (nine lines), `t2.300`, `t2.311`,
+`t2.360`, `t2.active_business_income`, `t2.business_limit`, `t2.430`, `t2.550`,
+`t2.608`, `t2.638`, `t2.700` and three `summary.*` lines. Ontario adds five.
+Absent, and each of these is ordinary CCPC arithmetic that a test return is
+likely to touch:
+
+- **Capital gains**: no line anywhere on the T2 (Schedule 6).
+- **Part IV tax** on taxable dividends received, and the dividend refund
+  (Schedule 3). Common for any corporation holding shares.
+- **Aggregate investment income**, the additional refundable tax, and
+  RDTOH/ERDTOH (Schedule 7).
+- **Business-limit reductions**: neither the taxable-capital grind nor the
+  adjusted-aggregate-investment-income grind. Both are mandatory on the SBD, so
+  `t2.430` is currently overstated for any corporation they apply to.
+- **Associated-corporation allocation** of the business limit (Schedules 23/49).
+- **Loss continuity** (Schedule 4). Taxable income floors at nil but nothing
+  carries forward or back.
+- **Schedule 5** provincial allocation, **Schedule 50** shareholders,
+  **Schedule 53** GRIP, **Schedule 141** notes checklist.
+- The **full Schedules 100/125** GIFI code set, as opposed to GIFI-Short's
+  subset.
+- The **T2 bar code return**, and the Corporation Internet Filing adapter. The
+  latter is correctly absent, being NDA'd material behind the boundary this
+  document describes, but it is still absent.
+- Ontario credits are one entered figure, `prov.refundable_credits`.
+
+### Refusal messages: what a user actually sees
+
+Checked against the code paths rather than against the comments.
+
+**T2 Ontario 2025, web.** Warnings are empty, so the provenance branch does not
+fire; `is_certified(2025, "on")` is false and `in_certification_scope("on")` is
+true, so the message is "Freshet is not yet certified by the CRA to transmit a
+2025 ON return." The gate is the binding one. **The wording is not.** 2025 can
+never be certified: the first year that can enter `CERTIFIED_YEARS` is
+`CERTIFICATION_TARGET_YEAR`, 2027. "Not yet" is the wrong half of the
+distinction this product was careful to draw for provinces, and it is drawn
+nowhere for years. Both years in `SUPPORTED_YEARS` are in the "not ever, in this
+release" bucket, so **every return a user can prepare today gets the wrong one
+of the two messages.** `refuse()` needs a `year < CERTIFICATION_TARGET_YEAR`
+branch to match the `in_certification_scope` branch beside it.
+
+**T2 Ontario 2026, web.** Identical, and identically mis-worded.
+
+**T1 in a structure-first province (Alberta), desktop.** `blocked_by` carries
+both locks and the UI lists all of them, so the user sees the 21 unverified
+parameters first and the out-of-scope line second. The out-of-scope line is the
+binding one; the unverified line reads as the fixable one and is printed above
+it. Not wrong, but the order inverts which objection is permanent.
+
+**The more serious finding is about Ontario.** For a 2025 Ontario T1 the
+warnings are empty, so the only substantive lock is certification, and
+`Summary.tsx` renders it as "CRA certified for 2025" with the help text "CRA
+issues the confirmation letter after the certification tests pass." There is no
+T1 application in flight. The live application is T2 only, the T1 target is
+2027, and the 2026 T1 window closed. That string tells an Ontario user a
+confirmation letter is pending for a year nothing was ever applied for.
+
+### Three places where `is_certified` has the wrong shape
+
+1. **No return type.** `is_certified(year, province)` takes two of the three
+   dimensions CRA certifies on. CRA certifies a product on a channel, for a tax
+   year, for a **return type**, which is this document's own opening sentence. A
+   T2 Ontario 2027 letter, recorded as `CERTIFIED_YEARS = [2027]` and
+   `CERTIFIED_PROVINCES = ["on"]`, would open T1 Ontario 2027 filing in the same
+   commit. This is precisely the failure the year-and-province split was made to
+   prevent, one axis along.
+2. **No channel.** Windows, macOS and web are separately certified, which the
+   `T2Express (Windows)` and `T2Express (Macintosh)` rows are the evidence for,
+   and nothing in the code knows which channel it is running in.
+3. **`CERTIFICATION_SCOPE` does not know what it scopes.** It is consulted by
+   both the T1 and the T2 gate and reads as a T1 jurisdiction scope above, while
+   the live application is a T2. The declared T2 tax year is recorded nowhere;
+   `CERTIFICATION_TARGET_YEAR`'s own doc comment explains itself in terms of the
+   2026 **T1** window.
+
+### Claims we are not entitled to make
+
+Nothing is certified. `CERTIFIED_YEARS` and `CERTIFIED_PROVINCES` are both
+empty. Against that, in descending order of seriousness:
+
+1. **`desktop/src/components/Summary.tsx:191`**: "This release **is certified**
+   for Ontario only. Returns for other provinces can be prepared, checked and
+   printed, but not filed." A flat assertion of a certification that does not
+   exist, shown to every user outside Ontario. This is the one to fix first.
+2. **`site/src/routes/pages.rs`**: "Certification for the **2026 tax year** is
+   in progress." False twice over, since the 2026 window closed before this
+   product applied and the target is 2027. The same page sells a **T1** product
+   ("Freshet prepares your Canadian T1 return") when the only live application
+   is the T2, and never mentions Ontario-only scope or the free nil tier.
+3. **`desktop/src/components/Summary.tsx:190`**: "CRA issues the confirmation
+   letter after the certification tests pass," attached to a 2025 or 2026 tax
+   year that will never be tested.
+4. **"Not yet certified ... a 2025 ON return"** in `web.rs::refuse` and
+   `commands.rs::evaluate_gate`, per the section above. "Not yet" is a claim
+   about the future that is false for every year the build supports.
+5. **`site/src/routes/pages.rs` and `docs/WEBSITE.md`**: "Not in our cloud,
+   because there isn't one", "none of that is ever sent to us, because the
+   software has nowhere to send it", and "no return data, and there is no path
+   by which any could arrive here." `/api/web/file` takes the taxpayer's
+   complete fact set by POST. `docs/WEB.md` states the limit correctly ("At
+   transmission, the return does leave"); the privacy copy and `WEBSITE.md` were
+   written before the web channel and now contradict it. The `WEBSITE.md` route
+   table omits `/api/web/file` entirely.
+6. **`web/src/components/Transmit.tsx:122`**: "Disabled because this build has
+   not been certified for the period entered." `blockedHere` is
+   `!result.filable`, and `filable` no longer tracks certification, so for
+   Ontario it is true, the button is enabled, and this text never renders. The
+   pre-warning the component's own doc comment describes, "what stops a user
+   filling in a whole return before discovering it cannot be sent", has
+   silently lapsed. `compute_t2` returns `filable: a.is_filable()` while
+   `compute_return` returns `a.is_filable() && certified`; the asymmetry is the
+   cause.
+
+Nothing published on the live web makes a certification claim, for the simple
+reason that nothing about Freshet is published on the live web at all.
+
+### Stale documentation found during this pass
+
+- `site/src/routes/web.rs`, the `refuse()` doc comment: "today every T2
+  parameter pack still carries unverified figures, so the unverified check below
+  always fires first and the certification check underneath it is unreachable."
+  Both halves are now false. `docs/WEB.md` records the shift correctly; the code
+  comment does not.
+- `web.rs`'s module-level refusal list has five entries and omits the province
+  check that `file()` performs first. `docs/WEB.md` lists six. The six are
+  right.
+- `docs/CRA-EMAILS.md` and `docs/outbox/cra-jurisdiction-scope.txt` are both
+  written for a **2026 T1** application. The application that actually went in
+  was the T2, on 2 September 2026, and neither its text nor any reply or
+  acknowledgement is recorded anywhere in this repository.
+
+### The gap to mid-November, ordered by what blocks a submission
+
+Today is 2026-10-17. Test returns are distributed in mid-November, roughly four
+weeks away.
+
+**Blocks a submission outright**
+
+1. **Confirm we are in the November 2026 T2 distribution at all.** The single
+   unresolved fact. Question 3 of email 2 in `docs/CRA-EMAILS.md` asks the T2
+   schedule and has no recorded answer, and nothing in the repository records a
+   CRA reply to the 2 September application. If the answer is that the T2 cycle
+   for 2026 closed too, every engineering item below moves out a year and the
+   real deadline is November 2027. **Nothing else should be sequenced before
+   knowing this.** Escalated, not drafted.
+2. **The confidentiality agreement, and access to the controlled site.** Test
+   returns go only to developers who have signed. No record exists that this has
+   happened. It cannot be compressed and it gates item 3.
+3. **The Corporation Internet Filing adapter.** Does not exist, by design, since
+   schemas and endpoints arrive under the agreement. Zero days of work are
+   possible on it until item 2 completes, and it is the difference between
+   computing a return and submitting one.
+4. **The missing T2 arithmetic.** Capital gains, Part IV tax and the dividend
+   refund, aggregate investment income and the refundable tax, both
+   business-limit grinds, loss continuity, Schedule 5. CRA's criterion is
+   "calculate the tax-related fields correctly" across the fields the test
+   returns exercise, and a 22-line return will not reproduce a test return that
+   holds portfolio dividends or an associated corporation. **This is the largest
+   body of work and the one that must be feature-complete, not started, by
+   mid-November.**
+5. **Record the declared T2 tax year.** Not written down anywhere, and it
+   determines which pack the certification gate is measured against.
+
+**Does not block a submission, but blocks shipping or honesty**
+
+6. **The false certification claim in `Summary.tsx:191`**, and the "2026 in
+   progress" claim on the landing page. One-line fixes, and the only items here
+   that are purely a liability rather than a cost. Do them this week.
+7. **A `year < CERTIFICATION_TARGET_YEAR` branch in both refusal paths**, so the
+   "not yet" versus "not ever" distinction holds on years as it already does on
+   provinces. Half a day, including tests.
+8. **`is_certified` needs the return-type dimension**, and preferably the
+   channel. Cheap now while both certified lists are empty; a latent mis-filing
+   the day a letter arrives.
+9. **Decide the web channel.** Either serve it, which means a static-file layer
+   on `site::router()`, the engine build in the deploy pipeline, and a hosting
+   entry in `DEPLOY.md`, or tell CRA that Freshet T2 Online is deferred. It was
+   declared as one of three products and today it is a dev server. This is a
+   scope decision and belongs upstream. **Escalated, not decided.**
+10. **The free nil path in the web channel.** The commitment was made for the
+    product, not for one channel. Fix before certification, because the day the
+    letter arrives the web channel starts breaking a declaration.
+11. **Code signing.** A Windows OV or EV certificate, and an Apple Developer ID
+    plus notarization. Until these are bought there is no macOS product at all,
+    because Gatekeeper refuses rather than warns, and macOS is a separately
+    certified channel that was declared. Costs money; **escalated, not
+    decided.**
+12. **Wire the T2 offers to checkout.** The webhook issues a `freshet-t1`
+    licence for every payment. A T2 purchase today produces a licence the
+    product rejects.
+13. **A public web presence for the declared products.** bumi.ca, the website
+    given to CRA, serves an unrelated accessibility tool. freshettax.ca is
+    parked. `pages.rs` is deployed nowhere.
+14. **Reconcile the privacy copy** on `pages.rs` and in `WEBSITE.md` with the
+    existence of the web channel, and add `/api/web/file` to the route table.
+
+**Genuinely at risk**
+
+Item 4 is the one that cannot be bought, delegated or compressed. Four weeks for
+capital gains, Part IV, investment income, both SBD grinds, loss continuity and
+Schedule 5, each with cited parameters and a verified flag, under the discipline
+that found four wrong GIFI codes in thirty, is not a four-week job at the
+quality this repository has been held to. If item 1 answers "yes, November
+2026", the honest position is that the engine will meet the test returns
+incomplete.
+
+Items 1 and 2 are not at risk for engineering reasons. They are at risk because
+they are waiting on CRA and nothing in the repository shows either has moved
+since 2 September. They are also the two that make items 3 and 4 either urgent
+or irrelevant.

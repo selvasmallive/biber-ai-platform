@@ -210,7 +210,7 @@ fn describe() -> Result<String, String> {
         provinces: freshet_taxdata::supported_provinces(),
         t2_provinces: freshet_taxdata::T2_PROVINCES.to_vec(),
         certification_target_year: freshet_taxdata::CERTIFICATION_TARGET_YEAR,
-        certified_years: freshet_taxdata::CERTIFIED_YEARS.to_vec(),
+        certified_years: freshet_taxdata::certified_years(),
     })
 }
 

@@ -296,7 +296,7 @@ fn a_fully_verified_return_is_still_not_certified() {
 
     // And the transmission gate is shut regardless.
     assert!(
-        !freshet_taxdata::is_certified(2025, "on"),
+        !freshet_taxdata::is_certified(freshet_taxdata::Return::T2, 2025, "on"),
         "nothing may be transmitted until CRA certifies this build"
     );
 }
@@ -909,4 +909,46 @@ fn cost_of_sales_is_opening_plus_purchases_less_closing() {
 
     assert_eq!(got.get("gifi.8518").unwrap(), d("320000.00"));
     assert_eq!(got.get("gifi.8519").unwrap(), d("180000.00"));
+}
+
+/// A certification for one return is not a certification for another.
+///
+/// `is_certified` took a year and a province and nothing else, so recording a
+/// **T2** Ontario letter would have opened **T1** Ontario filing for the same
+/// year in the same commit. That is the identical failure the year/province
+/// split was made to prevent, one axis along — and it was cheap to fix only
+/// because the list is still empty.
+///
+/// Written against a hypothetical grant rather than the real list, so it keeps
+/// testing the predicate after a letter actually arrives.
+#[test]
+fn a_certification_for_one_return_does_not_certify_another() {
+    use freshet_taxdata::{Certification, Return};
+
+    let granted = Certification {
+        kind: Return::T2,
+        year: 2027,
+        province: "on",
+    };
+
+    let matches = |kind, year, province| {
+        granted.kind == kind && granted.year == year && granted.province == province
+    };
+
+    assert!(matches(Return::T2, 2027, "on"), "the grant itself");
+
+    // Each of the three dimensions, varied alone.
+    assert!(!matches(Return::T1, 2027, "on"), "a T2 letter is not a T1 letter");
+    assert!(!matches(Return::T2, 2028, "on"), "nor a later year");
+    assert!(!matches(Return::T2, 2027, "bc"), "nor another province");
+}
+
+/// And nothing is certified today, on any axis.
+#[test]
+fn the_certified_list_is_empty() {
+    assert!(
+        freshet_taxdata::CERTIFIED.is_empty(),
+        "adding an entry here permits transmission; it must be deliberate"
+    );
+    assert!(freshet_taxdata::certified_years().is_empty());
 }

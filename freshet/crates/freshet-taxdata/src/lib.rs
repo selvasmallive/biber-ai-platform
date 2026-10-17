@@ -146,15 +146,64 @@ pub const CERTIFICATION_SCOPE: &[&str] = &["on"];
 /// for. Empty until a confirmation letter exists.
 pub const CERTIFIED_PROVINCES: &[&str] = &[];
 
+/// The years appearing in [`CERTIFIED`], for display.
+///
+/// Derived rather than declared. A second hand-maintained list would be free
+/// to disagree with the one that actually permits transmission, and the
+/// disagreement would surface as a page telling a customer they are certified
+/// for a year the gate refuses — or worse, the other way round.
+pub fn certified_years() -> Vec<u16> {
+    let mut years: Vec<u16> = CERTIFIED.iter().map(|c| c.year).collect();
+    years.sort_unstable();
+    years.dedup();
+    years
+}
+
 /// Whether a return for this year and jurisdiction may be transmitted to CRA.
 ///
-/// Both halves must hold. CRA certifies per tax year, and the product declares
-/// which jurisdictions it supports — so a 2026 certification covering Ontario
-/// says nothing about filing an Alberta return, and the gate must not treat it
-/// as though it did.
-pub fn is_certified(year: u16, province: &str) -> bool {
-    CERTIFIED_YEARS.contains(&year) && CERTIFIED_PROVINCES.contains(&province)
+/// All three must hold. CRA certifies **per tax year, per jurisdiction, and
+/// per return type** — a letter covering the T2 in Ontario for 2027 says
+/// nothing about a T1, an Alberta return, or 2028.
+///
+/// The return type was missing until 2026-10-17, and its absence was the same
+/// defect the year/province split was made to prevent, one axis along: with
+/// two lists and no kind, recording a **T2** certification as
+/// `CERTIFIED_YEARS = [2027]` and `CERTIFIED_PROVINCES = ["on"]` would have
+/// opened **T1** Ontario 2027 filing in the same commit. Both lists are empty
+/// today, so this costs nothing to fix now and would have been very expensive
+/// to discover later.
+pub fn is_certified(kind: Return, year: u16, province: &str) -> bool {
+    CERTIFIED.iter().any(|c| {
+        c.kind == kind && c.year == year && c.province == province
+    })
 }
+
+/// Which return a certification, or a filing, is about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Return {
+    T1,
+    T2,
+}
+
+/// One certification CRA has actually granted.
+///
+/// A list of triples rather than three independent lists, because the
+/// dimensions are not independent: a certification is a specific permission
+/// for one return, in one jurisdiction, for one year. Three lists would
+/// multiply out into permissions nobody granted, which is precisely what the
+/// two-list version did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Certification {
+    pub kind: Return,
+    pub year: u16,
+    pub province: &'static str,
+}
+
+/// **Empty, and it stays empty until a letter arrives.**
+///
+/// Adding an entry here is the single change that permits transmission. It
+/// should be as deliberate as signing something, because it is.
+pub const CERTIFIED: &[Certification] = &[];
 
 /// Whether a jurisdiction is inside the scope being applied for.
 ///
@@ -479,7 +528,8 @@ mod tests {
         );
 
         // And nothing is certified for it, or for anything else.
-        assert!(!is_certified(CERTIFICATION_TARGET_YEAR, "on"));
+        assert!(!is_certified(Return::T2, CERTIFICATION_TARGET_YEAR, "on"));
+        assert!(!is_certified(Return::T1, CERTIFICATION_TARGET_YEAR, "on"));
     }
 
     #[test]

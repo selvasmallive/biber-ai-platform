@@ -11,11 +11,37 @@
     "",
     "What remains unverified is mostly statutory rather than indexed: CPP and EI",
     "figures, CCA rates, and the fixed statutory thresholds. Each needs a primary",
-    "source of its own; the indexation table does not cover them."
+    "source of its own; the indexation table does not cover them.",
+    "",
+    "Exhaustive audit of 2026-10-17: all 60 parameters re-read against primary",
+    "sources, not against the source strings below. No value was found wrong.",
+    "Documents re-read: CRA indexation adjustment table (2025 column); CRA Last",
+    "year tax rates and income brackets 2025; the 2025 T1 return (5000-R) and",
+    "Federal Worksheet (5000-D1); 2025 Schedules 5, 6, 9 and 11; Form T778 (2025);",
+    "CRA release of 2024-11-01 on 2025 pensionable earnings; CEIC release of",
+    "2024-09-12 on the 2025 EI premium rate; CRA MP/RRSP/DPSP/TFSA limits table;",
+    "Finance Canada automobile deduction limit releases of 2024-12-30 and",
+    "2026-01-14; CPP Act ss.10, 11.1, 11.2, 20 and Schedules 1 and 2; ITA ss.60.03,",
+    "63, 117, 118, 118.1, 118.2, 118.81, 122.7, 146; Income Tax Regulations 1100",
+    "and 7307 and Schedule II.",
+    "",
+    "Three things that audit found are NOT numbers in this pack and so are not",
+    "fixed here. They are escalations against freshet-tax-logic and against the",
+    "parameter list itself:",
+    "1. The 2025 T1 carries line 34990, the Top-Up Tax Credit, which this pack has",
+    "   no parameters for and the form model does not compute. Per the 2025 Federal",
+    "   Worksheet it is 3.45% of (line 33800 plus Schedule 9 line 22) in excess of",
+    "   8,319.38. Omitting it understates credits for anyone whose credit base",
+    "   exceeds the first bracket threshold.",
+    "2. Schedule 9 line 20 credits donations at 33% to the extent taxable income",
+    "   exceeds 253,414. The pack has no 33% donation parameter and the form model",
+    "   has only the 14.5% and 29% tiers.",
+    "3. Schedule 6 has a 16,386 secondary earner exemption and a 49,389 family",
+    "   phase-out base for the disability supplement. Neither is in this pack."
   ],
   "brackets": {
     "income_tax": {
-      "source": "VERIFIED 2026-08-16 against CRA, Last year tax rates and income brackets 2025 (canada.ca/en/revenue-agency/services/tax/individuals/tax-rates-brackets/last-year.html). Thresholds and rates both confirmed.",
+      "source": "VERIFIED 2026-08-16, re-read 2026-10-17 against CRA, Last year tax rates and income brackets 2025 (canada.ca/en/revenue-agency/services/tax/individuals/tax-rates-brackets/last-year.html): 0 to 57,375 at 14.5%, then 20.5%, 26%, 29%, 33%. The lowest rate is 14.5% because it is a BLENDED annual rate, not a rate anyone paid: Bill C-4 cut the lowest rate from 15% to 14% effective 1 July 2025, and CRA states the resulting 2025 rate as 14.5%. ITA 117(2) as consolidated now prints 14% because that is the 2026-onward text; do not read the consolidated Act for the 2025 rate. The top threshold 253,414 is corroborated by 2025 Schedule 9 line 18.",
       "verified": true,
       "bands": [
         {
@@ -44,7 +70,7 @@
   "scalars": {
     "credit_rate": {
       "value": "0.145",
-      "source": "Lowest federal personal rate, which sets the non-refundable credit rate under ITA s.118.1 and related. Reduced from 15% to 14% effective 1 July 2025, giving a blended 14.5% for 2025 and a full 14% from 2026. Confirmed against Finance Canada's report on the impact of reducing the lowest marginal rate on non-refundable credits.",
+      "source": "VERIFIED 2026-10-17 by reading the figure printed on the form: 2025 T1 return (5000-R), line 114 in the federal non-refundable tax credits step, multiplies line 33500 by 14.5% to give line 33800. Corroborated by 2025 Schedule 9 line 22, also 14.5%. This is the appropriate percentage under ITA 248(1), being the lowest rate in ITA 117(2), blended for 2025 because Bill C-4 cut it from 15% to 14% effective 1 July 2025. The earlier citation here was Finance Canada's report on the impact of reducing the lowest marginal rate on non-refundable credits; that report states the 15/14.5/14 rate schedule but never states the credit rate itself, so it was not a citation anyone could check. LIMITATION: for 2025 to 2030 the T1 also carries line 34990, the Top-Up Tax Credit, which restores the 15% rate on credit amounts above the first bracket threshold. That credit is not modelled, so this 14.5% understates credits for a taxpayer whose credit base exceeds 57,375.",
       "verified": true
     },
     "bpa_max": {
@@ -109,7 +135,7 @@
     },
     "cwb_disability_phaseout": {
       "value": "37740",
-      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "source": "VERIFIED 2026-08-16, re-read 2026-10-17 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html), and corroborated by 2025 Schedule 6 line 36. LIMITATION: 37,740 is the figure for an individual with NO eligible spouse or eligible dependant. Schedule 6 line 36 gives 49,389 where there is one, and there is no parameter for it, while the form model applies this single scalar unconditionally. The basic CWB does split single and family phase-out bases; the disability supplement does not. A family claimant can lose the whole $843 supplement as a result.",
       "verified": true
     },
     "cwb_minimum_age": {
@@ -199,7 +225,7 @@
     },
     "pension_split_max_rate": {
       "value": "0.50",
-      "source": "ITA s.60.03: the elected split-pension amount may not exceed 50% of eligible pension income. Form T1032.",
+      "source": "VERIFIED 2026-10-17 against ITA s.60.03, definition of split-pension amount: the elected amount may not exceed 0.5A x B/C, where A is eligible pension income, B is the number of months of the marriage or common-law partnership in the year and C is the number of months in the year. Form T1032. LIMITATION: 0.50 is exact only where B equals C, a relationship lasting the whole year. This build does not model the B/C proration, so a couple who married or separated mid-year would be allowed too large an election.",
       "verified": true
     },
     "spouse_amount_max": {
@@ -224,17 +250,17 @@
     },
     "donation_first_tier": {
       "value": "200",
-      "source": "ITA s.118.1(3): the $200 boundary between the low and high donation credit rates. Statutory, not indexed.",
+      "source": "ITA s.118.1(3): the $200 boundary between the low and high donation credit rates. Statutory, not indexed. VERIFIED 2026-10-17 on the form: 2025 Schedule 9 line 13, enter whichever is less, amount from line 12 or $200.",
       "verified": true
     },
     "donation_rate_first": {
       "value": "0.145",
-      "source": "ITA s.118.1(3): the first $200 of donations is credited at the lowest personal rate, so it tracks credit_rate exactly — 14.5% blended in 2025, 14% from 2026.",
+      "source": "ITA s.118.1(3): the first $200 of donations is credited at the lowest personal rate, so it tracks credit_rate exactly — 14.5% blended in 2025, 14% from 2026. VERIFIED 2026-10-17 on the form: 2025 Schedule 9 line 22 multiplies the line 13 amount by 14.5%.",
       "verified": true
     },
     "donation_rate_rest": {
       "value": "0.29",
-      "source": "ITA s.118.1(3): 29% above $200, or 33% to the extent income is taxed in the top bracket.",
+      "source": "ITA s.118.1(3): 29% above $200. VERIFIED 2026-10-17 on the form: 2025 Schedule 9 line 21 multiplies amount G by 29%. LIMITATION: Schedule 9 line 20 credits at 33% the lesser of the over-200 donations and taxable income in excess of 253,414 (line 18), and there is no parameter for that 33% tier. A top-bracket donor is therefore credited 4 points too little on the portion that should reach line 20.",
       "verified": true
     },
     "canada_employment_amount": {
@@ -244,52 +270,52 @@
     },
     "cpp_rate_total": {
       "value": "0.0595",
-      "source": "CRA 2025 announcement: employee contribution rate 5.95%, being the 4.95% base plus the 1.00% first additional rate.",
+      "source": "VERIFIED 2026-10-17 against CRA, Canada Revenue Agency announces maximum pensionable earnings and contributions for 2025 (newsroom release of 2024-11-01): employee and employer contribution rate 5.95%. Decomposes as the 4.95% base rate in CPP Act Schedule 1 plus the 1.00% first additional rate in CPP Act Schedule 2, both read 2026-10-17.",
       "verified": true
     },
     "cpp_rate_enhanced": {
       "value": "0.01",
-      "source": "Canada Pension Plan Act s.11.2: the first additional (enhanced) employee contribution rate, fully phased in at 1.00% since 2023.",
+      "source": "VERIFIED 2026-10-17 against the Canada Pension Plan, Schedule 2 (First Additional Contribution Rates), the rate referred to by s.11.2: employees 1.0 for 2023, and 1.0 for 2024 and each subsequent year. Self-employed 2.0, which is the s.10 doubling.",
       "verified": true
     },
     "cpp_rate_base": {
       "value": "0.0495",
-      "source": "Canada Pension Plan Act s.11.1: the base employee contribution rate has been 4.95% since 2003 and is not indexed.",
+      "source": "VERIFIED 2026-10-17 against the Canada Pension Plan, Schedule 1 (Base Contribution Rates), the rate referred to by s.11.1: for 2003 and each subsequent year, employees 4.95, employers 4.95, self-employed 9.9. Not indexed.",
       "verified": true
     },
     "cpp_ympe": {
       "value": "71300",
-      "source": "CRA, 'Canada Revenue Agency announces maximum pensionable earnings and contributions for 2025': YMPE $71,300.",
+      "source": "VERIFIED 2026-10-17 against CRA, Canada Revenue Agency announces maximum pensionable earnings and contributions for 2025 (newsroom release of 2024-11-01): YMPE $71,300. Corroborated by CRA's MP, RRSP, DPSP, ALDA, TFSA and YMPE limits table, which gives 71,300 for 2025 and 74,600 for 2026.",
       "verified": true
     },
     "cpp_self_employed_multiple": {
       "value": "2",
-      "source": "Canada Pension Plan Act s.10: a self-employed contributor pays both the employee and employer share.",
+      "source": "Canada Pension Plan s.10: a self-employed contributor pays both the employee and employer share. VERIFIED 2026-10-17 arithmetically in the schedules: Schedule 1 gives 4.95 employee against 9.9 self-employed, Schedule 2 gives 1.0 against 2.0 and 4.0 against 8.0. Exactly double in every row.",
       "verified": true
     },
     "cpp_basic_exemption": {
       "value": "3500",
-      "source": "CPP Act s.20: the basic exemption is fixed at $3,500 and is not indexed.",
+      "source": "VERIFIED 2026-10-17 against the Canada Pension Plan s.20(2): for each year after 1997 the amount of a Year's Basic Exemption is $3,500. s.20(1) would otherwise give 10% of the YMPE rounded down to $100; s.20(2) overrides it, which is why this does not move with the YMPE.",
       "verified": true
     },
     "cpp_max_contribution": {
       "value": "4034.10",
-      "source": "CRA 2025 announcement: $4,034.10. Self-checks: (71300 - 3500) x 0.0595 = 4034.10 exactly.",
+      "source": "VERIFIED 2026-10-17 against CRA, Canada Revenue Agency announces maximum pensionable earnings and contributions for 2025 (newsroom release of 2024-11-01): maximum employee and employer contribution $4,034.10. Self-checks: (71300 - 3500) x 0.0595 = 4034.10 exactly. The release's self-employed maximum of $8,068.20 is exactly twice it.",
       "verified": true
     },
     "cpp2_max_contribution": {
       "value": "396.00",
-      "source": "CRA 2025 announcement: $396.00 on second additional earnings. Self-checks: (81200 - 71300) x 0.04 = 396.00 exactly.",
+      "source": "VERIFIED 2026-10-17 against CRA, Canada Revenue Agency announces maximum pensionable earnings and contributions for 2025 (newsroom release of 2024-11-01): maximum CPP2 employee contribution $396.00, YAMPE $81,200, CPP2 rate 4.00%. Self-checks: (81200 - 71300) x 0.04 = 396.00 exactly. LIMITATION: the YAMPE and the 4% rate are not stored as parameters, so the engine can only compare a reported CPP2 figure against this ceiling, not recompute it.",
       "verified": true
     },
     "ei_max_premium": {
       "value": "1077.48",
-      "source": "CRA/ESDC 2025: maximum insurable earnings $65,700 at 1.64%. Self-checks: 65700 x 0.0164 = 1077.48 exactly.",
+      "source": "VERIFIED 2026-10-17 against the Canada Employment Insurance Commission news release of 2024-09-12, Canada Employment Insurance Commission confirms 2025 Employment Insurance premium rate: employee rate $1.64 per $100 of insurable earnings, maximum insurable earnings $65,700, maximum annual employee premium $1,077.48. Self-checks: 65700 x 0.0164 = 1077.48 exactly. Outside Quebec; the Quebec employee maximum is $860.67 at $1.31 per $100 and is not modelled here.",
       "verified": true
     },
     "ei_min_insurable": {
       "value": "2000",
-      "source": "Not a CRA figure. A Freshet review threshold: below this, EI premiums are not worth querying. It never enters a calculation.",
+      "source": "NOT A PUBLISHED FIGURE, and so not verifiable. A Freshet review threshold: below this employment income, a blank T4 box 18 is not worth querying. Audit of 2026-10-17 found the previous wording here — that it never enters a calculation — to be untrue: it is read by the ei.missing diagnostic in t1-federal.json, so it decides whether a taxpayer is warned. It does not enter the tax computation. The verified flag on this parameter is a standing contradiction of the verification rule and is left as found pending a decision on whether review-only thresholds belong in the verified parameter namespace at all; see the escalation in the header comment.",
       "verified": true
     },
     "rrsp_rate": {
@@ -329,7 +355,7 @@
     },
     "vehicle_cost_limit": {
       "value": "38000",
-      "source": "Income Tax Regulations 7307(1): class 10.1 capital cost ceiling, before tax. $38,000 for vehicles acquired in 2025; raised to $39,000 for vehicles acquired on or after 1 January 2026, announced by Finance Canada on 14 January 2026.",
+      "source": "VERIFIED 2026-10-17 against Income Tax Regulations 7307(1)(b)(ix), as consolidated to 2026-09-30: after 2024, $38,000. Corroborated by Finance Canada, Government Announces the 2025 Automobile Deduction Limits and Expense Benefit Rates for Businesses (2024-12-30): the ceiling rose from $37,000 to $38,000 before tax, for vehicles acquired on or after 1 January 2025. Finance Canada's release of 2026-01-14 raises it to $39,000 for 2026, which the consolidated regulation has not yet caught up with — read the release, not Reg 7307, for 2026. LIMITATION: the prescribed amount in Reg 7307(1) is A + B, the $38,000 cap plus the sales tax that would have applied to it. The stored figure is A alone, so a build that adds no notional GST/PST understates the ceiling for a vehicle at or above the cap.",
       "verified": true
     },
     "cca_rate_class10_1": {

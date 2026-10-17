@@ -158,7 +158,11 @@ fn marginal_rate(input: &ComputeInput, base_tax: Decimal) -> Decimal {
 #[tauri::command]
 pub fn compute_return(input: ComputeInput) -> Result<ReturnView, String> {
     let a = assess(&input)?;
-    let certified = freshet_taxdata::is_certified(input.tax_year, &input.province);
+    let certified = freshet_taxdata::is_certified(
+        freshet_taxdata::Return::T1,
+        input.tax_year,
+        &input.province,
+    );
 
     let total_income = line(&a, "fed.15000");
     let total_tax = line(&a, "summary.total_tax");
@@ -1067,7 +1071,13 @@ fn evaluate_gate(
     let nil_return = matches!(filed, Filed::T2 { .. })
         && a.get("summary.total_tax").unwrap_or_default().is_zero();
     let in_scope = freshet_taxdata::in_certification_scope(province);
-    let year_certified = freshet_taxdata::is_certified(tax_year, province);
+    // Which return is being filed decides which certification applies. A
+    // T2 letter is not permission to transmit a T1.
+    let certifies = match filed {
+        Filed::T1 { .. } => freshet_taxdata::Return::T1,
+        Filed::T2 { .. } => freshet_taxdata::Return::T2,
+    };
+    let year_certified = freshet_taxdata::is_certified(certifies, tax_year, province);
 
     let (licensed, licence_reason) = match licence_token {
         // Nothing to pay for, so nothing to check.

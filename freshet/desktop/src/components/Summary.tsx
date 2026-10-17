@@ -187,9 +187,11 @@ function FilingStatus({ input, result }: { input: ComputeInput; result: ReturnVi
         ? `CRA certified for ${input.tax_year}`
         : `CRA certified for ${input.province.toUpperCase()}`,
       gate.in_scope
-        ? "CRA issues the confirmation letter after the certification tests pass."
-        : "This release is certified for Ontario only. Returns for other " +
-          "provinces can be prepared, checked and printed, but not filed.",
+        ? "Nothing is certified yet. CRA issues the confirmation letter after " +
+          "the certification tests pass, and no return can be filed before then."
+        : "Freshet is seeking certification for Ontario only. Returns for " +
+          "other provinces can be prepared, checked and printed, but will not " +
+          "be filed from this release.",
     ],
     [
       gate.licensed,
