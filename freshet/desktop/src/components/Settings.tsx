@@ -36,7 +36,10 @@ const PRESETS: Record<
     label: "Local model",
     model: "llama3.1",
     baseUrl: "http://127.0.0.1:11434/v1",
-    note: "Runs on this machine. Nothing leaves the device, so no consent is required and no key is needed.",
+    // Conditional, because the address below decides it. A "Local model"
+    // pointed at a public host is a remote provider, and the app now treats it
+    // as one — this note used to promise privacy the URL had not earned.
+    note: "Runs on this machine, if the address below is on it. No key is needed. Freshet checks the address: anything that is not this machine or your own network is treated as a remote provider and will ask for consent.",
   },
 };
 

@@ -44,8 +44,20 @@ impl PiiKind {
     }
 
     /// Whether finding this after redaction should hard-fail the request.
+    ///
+    /// **All of them.** A residual is not a false positive: every placeholder
+    /// is bracketed text with no digits, so re-running the detectors over
+    /// redacted output cannot match one. Anything still firing means a
+    /// replacement genuinely failed, which is a bug, and a bug in the redactor
+    /// is the one case where sending anything at all is indefensible.
+    ///
+    /// This was once SIN, business number and card only, so a surviving email,
+    /// phone number, postal code or date of birth would have been sent — while
+    /// the README promised "if a detector still fires on the redacted text,
+    /// nothing is sent". The code is now the stronger of the two, which is the
+    /// right direction to resolve that in.
     pub fn is_critical(self) -> bool {
-        matches!(self, PiiKind::Sin | PiiKind::BusinessNumber | PiiKind::CreditCard)
+        true
     }
 }
 
@@ -104,7 +116,13 @@ fn rules() -> &'static [Rule] {
                 },
                 Rule {
                     kind: PiiKind::Sin,
-                    re: Regex::new(r"\b\d{3}[- ]?\d{3}[- ]?\d{3}\b").unwrap(),
+                    // Dots as well as spaces and hyphens. `046.454.286` was
+                    // matched by neither this rule nor the phone rule, which
+                    // needs ten digits, so it reached the provider intact and
+                    // the critical-residual check never fired. A Luhn check
+                    // still guards against false positives, and a phone number
+                    // cannot collide: 3-3-4 fails the trailing word boundary.
+                    re: Regex::new(r"\b\d{3}[-. ]?\d{3}[-. ]?\d{3}\b").unwrap(),
                     priority: 2,
                     validate: Some(luhn),
                 },

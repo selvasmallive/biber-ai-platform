@@ -266,7 +266,7 @@ pub fn set_provider(
         let changed = settings
             .provider
             .as_ref()
-            .is_none_or(|c| c.provider.label() != provider.label());
+            .is_none_or(|c| c.provider.consent_key() != provider.consent_key());
         if changed {
             settings.consent = None;
         }

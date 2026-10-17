@@ -79,7 +79,9 @@ impl Advisor {
         consent: Option<&Consent>,
     ) -> Result<Prepared, AdvisorError> {
         let remote = self.config.provider.is_remote();
-        let current = self.config.provider.label();
+        // The recipient, not the display name. A gateway re-pointed at another
+        // host keeps its label and must not keep its consent.
+        let current = self.config.provider.consent_key();
 
         if remote {
             match consent {

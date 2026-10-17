@@ -272,3 +272,131 @@ fn anthropic_gets_a_top_level_system_field_and_an_x_api_key_header() {
     assert!(req.headers.iter().any(|(k, _)| k == "x-api-key"));
     assert!(req.headers.iter().any(|(k, _)| k == "anthropic-version"));
 }
+
+// -- the destination, not the label ---------------------------------------
+//
+// Found by an audit on 2026-10-17. Every test above passed while both of
+// these held, which is why they are here: the suite was checking the shape of
+// the configuration rather than where the data was going.
+
+fn local_provider(url: &str) -> Provider {
+    Provider::Local {
+        base_url: url.into(),
+        model: "llama-test".into(),
+    }
+}
+
+fn local_at(url: &str) -> Advisor {
+    Advisor::new(ProviderConfig {
+        provider: local_provider(url),
+        key_ref: None,
+        max_tokens: 1024,
+    })
+}
+
+/// A "Local model" pointed at a public host is a remote provider.
+///
+/// `is_remote()` answered from the enum variant, so this skipped the consent
+/// block entirely — while the settings screen told the user, in three places,
+/// that nothing was leaving the device. The whole return went to a stranger
+/// and the product reassured them while it happened.
+#[test]
+fn a_local_provider_pointed_at_the_internet_is_remote_and_needs_consent() {
+    let advisor = local_at("https://not-my-machine.example.com/v1");
+
+    assert!(local_provider("https://not-my-machine.example.com/v1").is_remote());
+
+    let err = advisor
+        .prepare(&assessment(), &[], "hello", None)
+        .unwrap_err();
+
+    assert!(
+        matches!(err, AdvisorError::ConsentRequired { .. }),
+        "expected consent to be required, got {err}"
+    );
+}
+
+/// And a genuinely local one still needs none, in every form a person writes.
+#[test]
+fn a_local_provider_on_this_machine_needs_no_consent() {
+    for url in [
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:11434/v1",
+        "http://[::1]:11434/v1",
+        "http://192.168.1.50:8080/v1",
+        "http://10.0.0.7:8080/v1",
+        "https://127.0.0.1/v1",
+    ] {
+        let advisor = local_at(url);
+        assert!(!local_provider(url).is_remote(), "{url} should be local");
+        advisor
+            .prepare(&assessment(), &[], "hello", None)
+            .unwrap_or_else(|e| panic!("{url} should need no consent, got {e}"));
+    }
+}
+
+/// A bare hostname is not trusted, even one that looks harmless.
+///
+/// Resolving it would mean a DNS lookup inside a policy decision, and a name
+/// that resolves to loopback today can resolve elsewhere tomorrow. Anything
+/// not confidently local is remote; a false "remote" costs a prompt, a false
+/// "local" costs a tax return.
+#[test]
+fn a_hostname_is_not_assumed_local() {
+    for url in [
+        "http://my-nas/v1",
+        "http://localhost.evil.example.com/v1",
+        "http://127.0.0.1.evil.example.com/v1",
+        "ftp://127.0.0.1/v1",
+        "127.0.0.1:11434",
+    ] {
+        assert!(
+            local_provider(url).is_remote(),
+            "{url} must not be treated as local"
+        );
+    }
+}
+
+/// Re-pointing a gateway at another company invalidates consent.
+///
+/// Consent identity was the display label, and the label omits `base_url`.
+/// Both of these are `Biber (biber-1)`, so consent survived a change of
+/// recipient — the most material provider change there is, and the one the
+/// key could not see.
+#[test]
+fn consent_does_not_survive_a_change_of_destination_host() {
+    let mine = Provider::Biber {
+        base_url: "https://gw.mycorp.internal/v1".into(),
+        model: "biber-1".into(),
+    };
+    let theirs = Provider::Biber {
+        base_url: "https://someone-else.example.com/v1".into(),
+        model: "biber-1".into(),
+    };
+
+    // The thing that made this invisible: the labels are identical.
+    assert_eq!(mine.label(), theirs.label());
+    assert_ne!(mine.consent_key(), theirs.consent_key());
+
+    let advisor = Advisor::new(ProviderConfig {
+        provider: theirs,
+        key_ref: Some(KeyRef {
+            keychain_entry: "test".into(),
+        }),
+        max_tokens: 1024,
+    });
+
+    let granted_for_mine = Consent {
+        provider_label: mine.consent_key(),
+        granted_at_unix: 1_760_000_000,
+    };
+
+    let err = advisor
+        .prepare(&assessment(), &[], "hello", Some(&granted_for_mine))
+        .unwrap_err();
+
+    assert!(
+        matches!(err, AdvisorError::ConsentStale { .. }),
+        "consent must not follow the data to a different host, got {err}"
+    );
+}

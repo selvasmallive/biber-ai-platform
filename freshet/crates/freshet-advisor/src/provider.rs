@@ -25,18 +25,100 @@ pub enum Provider {
         base_url: String,
         model: String,
     },
-    /// An OpenAI-compatible endpoint on the user's own machine or network.
-    /// Nothing leaves the device, so no egress consent is required.
+    /// An OpenAI-compatible endpoint on the user's own machine.
+    ///
+    /// Only genuinely local when the URL is: see [`Provider::is_remote`],
+    /// which asks the destination rather than the variant.
     Local {
         base_url: String,
         model: String,
     },
 }
 
+/// Whether a URL's host is this machine or a private network.
+///
+/// Deliberately conservative: anything it cannot confidently classify as local
+/// is treated as remote. A false "remote" costs a consent prompt; a false
+/// "local" sends a tax return to a stranger.
+///
+/// Hostname resolution is not attempted. A name could resolve anywhere, and
+/// resolving it here would mean a DNS lookup inside a policy decision — and a
+/// name that resolved to loopback today could resolve elsewhere tomorrow,
+/// which is a consent decision made on a value that does not hold still.
+/// `localhost` is accepted by name because it is the one name whose meaning is
+/// fixed by standard.
+pub fn host_is_local(base_url: &str) -> bool {
+    let rest = match base_url.split_once("://") {
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("http") => rest,
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("https") => rest,
+        // No scheme, or one we do not understand. Not confidently local.
+        _ => return false,
+    };
+
+    // Strip credentials, path, query, and then the port.
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host_port = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+
+    let host = if let Some(end) = host_port.strip_prefix('[') {
+        // IPv6 literal: [::1]:11434
+        match end.split_once(']') {
+            Some((inner, _)) => inner,
+            None => return false,
+        }
+    } else {
+        host_port.split(':').next().unwrap_or("")
+    };
+
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    match host.parse::<std::net::IpAddr>() {
+        Ok(std::net::IpAddr::V4(v4)) => {
+            v4.is_loopback() || v4.is_private() || v4.is_link_local()
+        }
+        Ok(std::net::IpAddr::V6(v6)) => {
+            // Unique-local (fc00::/7) and link-local (fe80::/10) alongside ::1.
+            let first = v6.octets()[0];
+            v6.is_loopback() || (first & 0xfe) == 0xfc || (first == 0xfe && (v6.octets()[1] & 0xc0) == 0x80)
+        }
+        // A bare hostname. See above: not resolved, so not trusted.
+        Err(_) => false,
+    }
+}
+
 impl Provider {
     /// Whether using this provider sends taxpayer data off the device.
+    ///
+    /// Asks the **destination**, not the variant. `Local` was once assumed
+    /// local by construction, which made "Local model" pointed at a public
+    /// host a silent, consentless egress of the whole return — with the UI
+    /// stating that nothing was leaving. The variant is a label the user
+    /// chose; the URL is where the data actually goes.
     pub fn is_remote(&self) -> bool {
-        !matches!(self, Provider::Local { .. })
+        match self {
+            Provider::Local { base_url, .. } => !host_is_local(base_url),
+            _ => true,
+        }
+    }
+
+    /// The identity consent is recorded against.
+    ///
+    /// Distinct from [`label`], which is for display. Consent is agreement to
+    /// disclose to a **recipient**, so the recipient's address belongs in the
+    /// key: re-pointing a gateway at a different company must invalidate it.
+    /// The label omits `base_url`, so using it here meant that exact change
+    /// was the one thing consent could not notice.
+    ///
+    /// [`label`]: Provider::label
+    pub fn consent_key(&self) -> String {
+        match self {
+            Provider::Biber { base_url, model } => format!("Biber ({model}) at {base_url}"),
+            Provider::Local { base_url, model } => {
+                format!("local model ({model}) at {base_url}")
+            }
+            other => other.label(),
+        }
     }
 
     pub fn label(&self) -> String {
