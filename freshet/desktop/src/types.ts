@@ -281,7 +281,9 @@ export interface T2View {
   lines: LineView[];
   diagnostics: DiagnosticView[];
   has_errors: boolean;
-  filable: boolean;
+  data_sound: boolean;
+  certified_to_file: boolean;
+  may_file: boolean;
 }
 
 export interface SaveT2Input {

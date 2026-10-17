@@ -102,7 +102,7 @@ export default function App() {
             `${result.warnings.length} figure(s) used here have not been checked against a published source.`,
           ]
         : []),
-      ...(caps && caps.certified_years.length === 0
+      ...(result && !result.certified_to_file
         ? [
             "Freshet is not yet certified by the CRA to transmit corporate returns.",
           ]

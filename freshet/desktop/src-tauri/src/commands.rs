@@ -1707,12 +1707,30 @@ pub struct T2View {
     pub lines: Vec<LineView>,
     pub diagnostics: Vec<DiagnosticView>,
     pub has_errors: bool,
-    pub filable: bool,
+    /// The figures behind this return are verified and it has no errors.
+    ///
+    /// **Not** permission to file. That needs certification as well, which is
+    /// `certified_to_file`. These were once a single `filable` field whose
+    /// meaning differed between this view and the personal one, and the
+    /// browser read the weaker of the two while displaying the stronger
+    /// claim.
+    pub data_sound: bool,
+    /// CRA has certified this build for this return, year and province.
+    pub certified_to_file: bool,
+    /// Both of the above. The only one a caller should gate on.
+    pub may_file: bool,
 }
 
 #[tauri::command]
 pub fn compute_t2(input: T2Input) -> Result<T2View, String> {
     let (a, period) = assess_t2(&input)?;
+
+    // A fiscal period is filed under the year it ends in.
+    let certified = freshet_taxdata::is_certified(
+        freshet_taxdata::Return::T2,
+        period.end.year as u16,
+        &input.province,
+    );
 
     Ok(T2View {
         period_days: period.days(),
@@ -1749,7 +1767,9 @@ pub fn compute_t2(input: T2Input) -> Result<T2View, String> {
             })
             .collect(),
         has_errors: a.has_errors(),
-        filable: a.is_filable(),
+        data_sound: a.is_filable(),
+        certified_to_file: certified,
+        may_file: a.is_filable() && certified,
     })
 }
 

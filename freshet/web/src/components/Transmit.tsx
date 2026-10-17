@@ -33,7 +33,13 @@ export function Transmit({ result, period, province, facts }: Props) {
   const [asking, setAsking] = useState(false);
   const [key, setKey] = useState("");
 
-  const blockedHere = !result.filable;
+  // Split, because these are different sentences to a user. An unverified
+  // figure is something that may yet be fixed; a missing certification is not.
+  // They were one field, so the certification message below was unreachable
+  // and the button was enabled when the text said it should not be.
+  const dataProblem = !result.data_sound;
+  const notCertified = !result.certified_to_file;
+  const blockedHere = dataProblem || notCertified;
 
   const ask = async () => {
     setAsking(true);
@@ -119,8 +125,9 @@ export function Transmit({ result, period, province, facts }: Props) {
 
       {blockedHere && (
         <p className="note">
-          Disabled because this build has not been certified for the period
-          entered. The service would refuse it in any case.
+          {dataProblem
+            ? "Disabled while a figure used here is unverified. The service would refuse it in any case."
+            : "Disabled because Freshet is not yet certified by the CRA for this return. The service would refuse it in any case."}
         </p>
       )}
 

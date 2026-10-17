@@ -63,7 +63,15 @@ pub struct Computed {
     /// the return must not be filed, whatever else is true of it.
     pub warnings: Vec<String>,
     pub has_errors: bool,
-    pub filable: bool,
+    /// The figures behind this return are verified and it has no errors.
+    ///
+    /// **Not** permission to file, and the page must not read it as such.
+    /// Nothing is certified, so `certified_to_file` is false for every return
+    /// this build can produce — and the server decides at transmission in any
+    /// case, because a page cannot be trusted to gate itself.
+    pub data_sound: bool,
+    pub certified_to_file: bool,
+    pub may_file: bool,
 }
 
 fn facts_from(json: &str) -> Result<FactSet, String> {
@@ -85,7 +93,7 @@ fn facts_from(json: &str) -> Result<FactSet, String> {
     Ok(facts)
 }
 
-fn present(a: &freshet_engine::Assessment) -> Computed {
+fn present(a: &freshet_engine::Assessment, certified: bool) -> Computed {
     Computed {
         lines: a
             .audit
@@ -109,7 +117,9 @@ fn present(a: &freshet_engine::Assessment) -> Computed {
             .collect(),
         warnings: a.warnings.clone(),
         has_errors: a.has_errors(),
-        filable: a.is_filable(),
+        data_sound: a.is_filable(),
+        certified_to_file: certified,
+        may_file: a.is_filable() && certified,
     }
 }
 
@@ -129,7 +139,8 @@ fn t1(tax_year: u16, province: &str, facts_json: &str) -> Result<String, String>
     let facts = facts_from(facts_json)?;
 
     let a = compute(&forms, &packs, &facts).map_err(|e| e.to_string())?;
-    to_json(&present(&a))
+    let certified = freshet_taxdata::is_certified(freshet_taxdata::Return::T1, tax_year, province);
+    to_json(&present(&a, certified))
 }
 
 /// Compute a personal return.
@@ -184,7 +195,13 @@ fn t2(
     let packs = freshet_taxdata::t2_period_packs(period, province).map_err(|e| e.to_string())?;
     let a = compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?;
 
-    to_json(&present(&a))
+    // A fiscal period is filed under the year it ends in.
+    let certified = freshet_taxdata::is_certified(
+        freshet_taxdata::Return::T2,
+        period.end.year as u16,
+        province,
+    );
+    to_json(&present(&a, certified))
 }
 
 /// What this build can compute, so the page does not have to be told twice.
@@ -260,7 +277,7 @@ mod tests {
     fn the_web_build_still_refuses_to_call_a_return_filable() {
         let out = t1(2026, "ab", r#"{"t4.employment_income":"85000"}"#).unwrap();
 
-        assert!(out.contains("\"filable\":false"), "got: {out}");
+        assert!(out.contains("\"may_file\":false"), "got: {out}");
         assert!(out.contains("unverified"));
     }
 
@@ -272,7 +289,7 @@ mod tests {
     #[test]
     fn a_clean_year_still_carries_no_certification() {
         let out = t2("2025-01-01", "2025-12-31", "on", "{}").unwrap();
-        assert!(out.contains("\"filable\":true"), "got: {out}");
+        assert!(out.contains("\"data_sound\":true"), "got: {out}");
 
         assert!(describe().unwrap().contains("\"certified_years\":[]"));
     }

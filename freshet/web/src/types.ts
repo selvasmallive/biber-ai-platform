@@ -18,9 +18,15 @@ export interface Computed {
   /// Parameters not yet checked against a published source.
   warnings: string[];
   has_errors: boolean;
-  /// Advisory here, and only here. The browser saying a return is filable is
-  /// the browser's opinion about itself; the server decides at transmission.
-  filable: boolean;
+  /// The figures are verified and the return has no errors.
+  data_sound: boolean;
+  /// CRA has certified this build for this return. False for everything this
+  /// build can produce today.
+  certified_to_file: boolean;
+  /// Both. Advisory here and only here — the browser saying a return may be
+  /// filed is the browser's opinion about itself, and the server decides at
+  /// transmission.
+  may_file: boolean;
 }
 
 export interface Capabilities {
