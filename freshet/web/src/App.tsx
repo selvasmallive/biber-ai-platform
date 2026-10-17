@@ -7,6 +7,12 @@ import { Interview } from "./components/Interview";
 import { Summary } from "./components/Summary";
 import { Transmit } from "./components/Transmit";
 import { Backup } from "./components/Backup";
+import {
+  PRINT_STYLES,
+  printDocument,
+  ReturnDocumentView,
+  type ReturnDocument,
+} from "../../shared/return-document";
 
 /// A fiscal year ending on the last day of last month is the common case and a
 /// harmless default: it is visibly wrong for anyone it does not fit, which is
@@ -76,8 +82,38 @@ export default function App() {
     return Math.round((b - a) / 86_400_000) + 1;
   }, [period]);
 
+  // The browser has no filing gate of its own — that lives on the server and
+  // is only consulted at transmission. So the paper states what the page
+  // actually knows: whether the data is sound, and that nothing is certified.
+  // Claiming more would put a document on someone's desk that implies a
+  // standing the product does not have.
+  const printable: ReturnDocument | null = result && {
+    kind: "T2",
+    label: "Corporate return",
+    province,
+    period: `${period.start} to ${period.end}`,
+    lines: result.lines,
+    diagnostics: result.diagnostics,
+    warnings: result.warnings,
+    canFile: false,
+    blockedBy: [
+      ...(result.warnings.length > 0
+        ? [
+            `${result.warnings.length} figure(s) used here have not been checked against a published source.`,
+          ]
+        : []),
+      ...(caps && caps.certified_years.length === 0
+        ? [
+            "Freshet is not yet certified by the CRA to transmit corporate returns.",
+          ]
+        : []),
+    ],
+    preparedAt: new Date(),
+  };
+
   return (
     <div className="app">
+      <style>{PRINT_STYLES}</style>
       <header>
         <h1>Freshet <span>T2</span></h1>
         <p className="posture">
@@ -161,6 +197,15 @@ export default function App() {
           }}
         />
         {result && (
+          <div className="card">
+            <h2>On paper</h2>
+            <p className="blurb">
+              A working copy for review. It is not a CRA form, and it says so.
+            </p>
+            <button onClick={printDocument}>Print this return</button>
+          </div>
+        )}
+        {result && (
           <Transmit
             result={result}
             period={period}
@@ -169,6 +214,8 @@ export default function App() {
           />
         )}
       </aside>
+
+      {printable && <ReturnDocumentView doc={printable} />}
     </div>
   );
 }

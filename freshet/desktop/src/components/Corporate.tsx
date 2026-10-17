@@ -11,6 +11,12 @@ import {
 } from "../api";
 import type { FilingGate, ReturnSummary, T2Input, T2View } from "../types";
 import { SECTIONS } from "../../../shared/t2-interview";
+import {
+  PRINT_STYLES,
+  printDocument,
+  ReturnDocumentView,
+  type ReturnDocument,
+} from "../../../shared/return-document";
 
 /// The corporate return.
 ///
@@ -158,8 +164,25 @@ export default function Corporate({ provinces, saved, onSaved }: Props) {
     }
   };
 
+  // The paper is built from the same result and the same gate the screen is
+  // showing. Nothing about the document is recomputed, so it cannot disagree
+  // with what the user just reviewed.
+  const document_: ReturnDocument | null = result && {
+    kind: "T2",
+    label,
+    province,
+    period: `${period.start} to ${period.end}`,
+    lines: result.lines,
+    diagnostics: result.diagnostics,
+    warnings: [],
+    canFile: gate?.can_file ?? false,
+    blockedBy: gate?.blocked_by ?? [],
+    preparedAt: new Date(),
+  };
+
   return (
     <div className="corporate">
+      <style>{PRINT_STYLES}</style>
       <section className="card">
         <h2>Fiscal period</h2>
         <p className="blurb">
@@ -284,6 +307,14 @@ export default function Corporate({ provinces, saved, onSaved }: Props) {
           <button type="button" onClick={store} disabled={saving}>
             {saving ? "Saving…" : openId ? "Save" : "Save a copy"}
           </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={printDocument}
+            disabled={!result}
+          >
+            Print
+          </button>
         </div>
 
         <p className="note">
@@ -379,6 +410,8 @@ export default function Corporate({ provinces, saved, onSaved }: Props) {
           )}
         </section>
       )}
+
+      {document_ && <ReturnDocumentView doc={document_} />}
     </div>
   );
 }

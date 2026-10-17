@@ -40,8 +40,8 @@
     {
       "id": "gifi.subset_only",
       "severity": "warning",
-      "message": "Only part of the GIFI code set is available.",
-      "help": "The common accounts are here. A corporation whose statements need a code that is missing can put the amount in other expenses, but the return will not carry the correct code to CRA.",
+      "message": "The GIFI code set is the short one.",
+      "help": "Freshet carries the GIFI-Short item set (CRA form T1178), which covers corporations under a million dollars in revenue and assets. A corporation whose statements need a code outside it can put the amount in other revenue or other expenses, but the return will not carry the more specific code to CRA.",
       "when": {
         "cmp": "gte",
         "left": {

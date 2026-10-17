@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -13,7 +17,20 @@
     "skipLibCheck": true,
     "allowJs": true,
     "isolatedModules": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "react": [
+        "./node_modules/@types/react"
+      ],
+      "react/jsx-runtime": [
+        "./node_modules/@types/react/jsx-runtime"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "../shared",
+    "src"
+  ],
+  "_comment": "`paths`, and a matching `resolve.alias` in vite.config.ts, exist for freshet/shared/*.tsx. Those files live outside this app's directory tree, so both TypeScript and the bundler resolve `react` from shared/ upward and find nothing. Both need telling. Sharing the document and the interview matters more than avoiding the config: they are the two things that must not differ between the desktop and the browser."
 }
