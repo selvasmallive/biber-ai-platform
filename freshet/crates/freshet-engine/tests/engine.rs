@@ -701,3 +701,56 @@ fn a_single_segment_covering_the_period_is_the_ordinary_case() {
         "0.115".parse::<rust_decimal::Decimal>().unwrap()
     );
 }
+
+/// A review threshold is not a tax parameter and is not gated like one.
+///
+/// `fed:ei_min_insurable` is a Freshet judgement about when a blank T4 box 18
+/// is worth querying. It has no publication behind it and never will, so it
+/// carried `verified: true` — a flag asserting something nobody could check,
+/// in the namespace whose flags are supposed to mean something. Marking it
+/// false was not available either: `unverified()` feeds the filing gate, so it
+/// would have blocked every return.
+#[test]
+fn a_review_threshold_is_outside_the_filing_gate() {
+    let json = r#"{
+      "jurisdiction": "x",
+      "tax_year": 2026,
+      "scalars": {
+        "a_rate":      { "value": "0.15", "source": "the Act", "verified": true },
+        "a_threshold": { "value": "2000", "source": "ours",    "kind": "review" }
+      },
+      "brackets": {}
+    }"#;
+
+    let pack = freshet_engine::ParamPack::from_json(json).unwrap();
+
+    // Readable like any other parameter...
+    assert_eq!(
+        pack.scalar("a_threshold").unwrap(),
+        "2000".parse::<rust_decimal::Decimal>().unwrap()
+    );
+
+    // ...but it does not hold the return hostage for want of a citation it
+    // could never have.
+    assert!(
+        pack.unverified().is_empty(),
+        "a review threshold must not block filing: {:?}",
+        pack.unverified()
+    );
+}
+
+/// And an unverified *tax* parameter still does.
+#[test]
+fn an_unverified_tax_parameter_still_blocks_filing() {
+    let json = r#"{
+      "jurisdiction": "x",
+      "tax_year": 2026,
+      "scalars": {
+        "a_rate": { "value": "0.15", "source": "PLACEHOLDER", "verified": false }
+      },
+      "brackets": {}
+    }"#;
+
+    let pack = freshet_engine::ParamPack::from_json(json).unwrap();
+    assert_eq!(pack.unverified(), vec!["scalars.a_rate".to_string()]);
+}

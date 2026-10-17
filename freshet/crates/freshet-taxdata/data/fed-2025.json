@@ -315,8 +315,8 @@
     },
     "ei_min_insurable": {
       "value": "2000",
-      "source": "NOT A PUBLISHED FIGURE, and so not verifiable. A Freshet review threshold: below this employment income, a blank T4 box 18 is not worth querying. Audit of 2026-10-17 found the previous wording here — that it never enters a calculation — to be untrue: it is read by the ei.missing diagnostic in t1-federal.json, so it decides whether a taxpayer is warned. It does not enter the tax computation. The verified flag on this parameter is a standing contradiction of the verification rule and is left as found pending a decision on whether review-only thresholds belong in the verified parameter namespace at all; see the escalation in the header comment.",
-      "verified": true
+      "source": "A Freshet review threshold, not a published figure. Below this much employment income a blank T4 box 18 is not worth querying, so this decides whether the `ei.missing` note appears. It affects no amount on the return. Marked `kind: review` rather than verified or unverified: there is no publication to check it against, and a flag here that could never be satisfied would weaken the flags that can be.",
+      "kind": "review"
     },
     "rrsp_rate": {
       "value": "0.18",

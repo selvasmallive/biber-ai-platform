@@ -289,8 +289,8 @@
     },
     "ei_min_insurable": {
       "value": "2000",
-      "source": "Not a CRA figure. A Freshet review threshold: below this, EI premiums are not worth querying. It never enters a calculation.",
-      "verified": true
+      "source": "A Freshet review threshold, not a published figure. Below this much employment income a blank T4 box 18 is not worth querying, so this decides whether the `ei.missing` note appears. It affects no amount on the return. Marked `kind: review` rather than verified or unverified: there is no publication to check it against, and a flag here that could never be satisfied would weaken the flags that can be.",
+      "kind": "review"
     },
     "rrsp_rate": {
       "value": "0.18",

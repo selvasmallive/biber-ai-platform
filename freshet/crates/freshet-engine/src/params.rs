@@ -27,6 +27,30 @@ pub struct Param {
     /// Set true only after a human has checked the value against `source`.
     #[serde(default)]
     pub verified: bool,
+    #[serde(default)]
+    pub kind: ParamKind,
+}
+
+/// Whether a figure comes from the law or from us.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParamKind {
+    /// Fixed by the Act, a regulation or a CRA publication. Has a source, and
+    /// must be checked against it before anything is filed.
+    #[default]
+    Tax,
+
+    /// A threshold Freshet chose, affecting only what the software says to the
+    /// user — when to raise a review note, when a figure looks worth querying.
+    ///
+    /// Deliberately outside [`ParamPack::unverified`]. There is no publication
+    /// to check it against, so a `verified` flag on one would be either a
+    /// falsehood or a permanent block on filing, and the presence of such a
+    /// flag in this namespace weakens every other flag in it. A review
+    /// threshold being wrong produces a note nobody needed; a tax parameter
+    /// being wrong produces a wrong return. They are not the same risk and
+    /// should not share a gate.
+    Review,
 }
 
 /// One band of a progressive rate table.
@@ -123,7 +147,9 @@ impl ParamPack {
         let scalars = self
             .scalars
             .iter()
-            .filter(|(_, p)| !p.verified)
+            // Review thresholds are excluded by kind, not by having been
+            // marked verified. See [`ParamKind::Review`].
+            .filter(|(_, p)| p.kind == ParamKind::Tax && !p.verified)
             .map(|(k, _)| format!("scalars.{k}"));
 
         let brackets = self
