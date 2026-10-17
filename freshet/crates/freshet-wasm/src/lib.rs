@@ -139,7 +139,8 @@ fn t1(tax_year: u16, province: &str, facts_json: &str) -> Result<String, String>
     let facts = facts_from(facts_json)?;
 
     let a = compute(&forms, &packs, &facts).map_err(|e| e.to_string())?;
-    let certified = freshet_taxdata::is_certified(freshet_taxdata::Return::T1, tax_year, province);
+    let certified =
+        freshet_taxdata::is_certified(freshet_taxdata::Filing::T1 { year: tax_year }, province);
     to_json(&present(&a, certified))
 }
 
@@ -196,9 +197,12 @@ fn t2(
     let a = compute_across(&forms, &packs, &facts).map_err(|e| e.to_string())?;
 
     // A fiscal period is filed under the year it ends in.
+    // The year *end*, not a tax year. A T2 certification covers a window
+    // of corporate year ends, which is what CRA actually grants.
     let certified = freshet_taxdata::is_certified(
-        freshet_taxdata::Return::T2,
-        period.end.year as u16,
+        freshet_taxdata::Filing::T2 {
+            year_end: period.end,
+        },
         province,
     );
     to_json(&present(&a, certified))

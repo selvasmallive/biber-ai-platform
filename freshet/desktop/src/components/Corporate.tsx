@@ -226,8 +226,11 @@ export default function Corporate({ provinces, saved, onSaved }: Props) {
         {result && (
           <p className="note">
             {result.period_days} days
+            {result.period_days < 357 &&
+              " — under 51 weeks, so the business limit is prorated"}
             {result.is_short_year &&
-              " — a short year, so the business limit and capital cost allowance are prorated"}
+              result.period_days >= 357 &&
+              " — a short year, though not under the 51 weeks that prorates the business limit"}
           </p>
         )}
       </section>

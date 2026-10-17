@@ -1081,7 +1081,7 @@ fn shipped_2025_data_is_now_cleared_by_the_verification_gate() {
         got.warnings
     );
     assert!(
-        !freshet_taxdata::is_certified(freshet_taxdata::Return::T1, 2025, "on"),
+        !freshet_taxdata::is_certified(freshet_taxdata::Filing::T1 { year: 2025 }, "on"),
         "verified data must never be mistaken for CRA certification"
     );
     // Ontario is what the application covers; nothing is certified yet.

@@ -17,16 +17,16 @@
       "id": "t2.short_year_prorated",
       "severity": "info",
       "message": "The business limit has been reduced for a short tax year.",
-      "help": "ITA 125(5) prorates the limit by the days in the tax year over 365. A first or final year is usually short.",
+      "help": "ITA 125(5)(b) prorates the limit by the days in the tax year over 365, but only where the year is “less than 51 weeks” — 357 days. A first or final year is usually short enough. A year of 357 days or more keeps the whole limit, and this notice stays quiet for it.",
       "when": {
-        "cmp": "gt",
+        "cmp": "lt",
         "left": {
           "op": "fact",
-          "key": "period.is_short"
+          "key": "period.days"
         },
         "right": {
           "op": "const",
-          "value": "0"
+          "value": "357"
         }
       }
     },
@@ -129,6 +129,123 @@
             "left": {
               "op": "line",
               "id": "t2.active_business_income"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.business_limit_reduced_taxable_capital",
+      "severity": "info",
+      "message": "The business limit has been reduced because of taxable capital employed in Canada.",
+      "help": "ITA 125(5.1)(a) grinds the limit down on a straight line between $10 million and $50 million of taxable capital employed in Canada in the previous tax year, and to nil at $50 million. Only the greater of this reduction and the passive income reduction applies, so this may not be the one that bit.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "t2.taxable_capital_reduction"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "t2.business_limit_reduced_passive_income",
+      "severity": "info",
+      "message": "The business limit has been reduced because of investment income.",
+      "help": "ITA 125(5.1)(b) takes $5 of business limit for every $1 of adjusted aggregate investment income above $50,000, earned in the taxation years ending in the previous calendar year by this corporation and any it is associated with, so the limit is nil at $150,000. Only the greater of this reduction and the taxable capital reduction applies, so this may not be the one that bit.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "t2.passive_income_reduction"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "t2.business_limit_eliminated",
+      "severity": "warning",
+      "message": "The business limit is nil, so no small business deduction is available.",
+      "help": "Taxable capital of $50 million or more, or adjusted aggregate investment income over $150,000, removes the limit entirely under ITA 125(5.1). Active business income is taxed at the general rate instead, with the general tax reduction applying to it. If that is not the expected outcome, check those two figures before filing.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "lte",
+            "left": {
+              "op": "line",
+              "id": "t2.business_limit"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "t2.422"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.sbd.associated_corporations_not_modelled",
+      "severity": "warning",
+      "message": "The small business deduction assumes this corporation is associated with no other.",
+      "help": "Three things the Act requires of an associated group are not modelled: allocation of the business limit on Schedule 23 under ITA 125(3), aggregation of taxable capital and of adjusted aggregate investment income across the group under ITA 125(5.1), and an amount assigned to another corporation under ITA 125(3.2). A corporation with associated corporations has its deduction overstated here, and the two figures it is asked for are group totals rather than its own.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "t2.cca.short_year_cap_not_modelled",
+      "severity": "warning",
+      "message": "Capital cost allowance has not been reduced for this short tax year.",
+      "help": "Regulation 1100(3): “Where a taxation year is less than 12 months”, capital cost allowance “shall not exceed that proportion of the maximum amount otherwise allowable … that the number of days in the taxation year is of 365”. Schedule 8 here claims the full-year amount, so the claim on a short year is too high and the tax too low. Reduce the amount claimed by hand, using the box for claiming less than the maximum, until the cap is computed. Separate from the business limit, which has its own rule and its own 51-week gate.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "period.is_short"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "t2.sch1.cca"
             },
             "right": {
               "op": "const",
@@ -393,32 +510,167 @@
       }
     },
     {
-      "id": "t2.business_limit",
-      "label": "Business limit, prorated for a short tax year",
-      "note": "ITA 125(5): the limit is reduced by the number of days in the tax year over 365. A corporation with a short first year gets a fraction of it. The 365 is written here rather than derived from the calendar because the Act says 365 even in a leap year — reading 366 off the calendar would over-claim.",
+      "id": "t2.410",
+      "label": "Business limit",
+      "note": "ITA 125(2) sets the limit; ITA 125(5)(b) prorates it where the corporation's “taxation year is less than 51 weeks”, to “that proportion of the amount … that the number of days in the year is of 365”. Both constants are written here rather than read off the calendar. The 365 is the Act's and stays 365 in a leap year, so a 366-day period must not be allowed to produce more than the whole limit. The 357 is 51 weeks, and it is a gate rather than a divisor: a 360-day year is not less than 51 weeks and keeps the entire limit. Prorating one anyway, which this line did until the gate was added, took 500,000 × 5 ÷ 365 = $6,849.32 off the limit of a corporation the Act does not prorate at all.",
       "expr": {
-        "op": "div",
+        "op": "if",
+        "cond": {
+          "cmp": "lt",
+          "left": {
+            "op": "fact",
+            "key": "period.days"
+          },
+          "right": {
+            "op": "const",
+            "value": "357"
+          }
+        },
+        "then": {
+          "op": "div",
+          "of": {
+            "op": "mul",
+            "of": {
+              "op": "param",
+              "key": "fed:t2_business_limit"
+            },
+            "by": {
+              "op": "fact",
+              "key": "period.days"
+            }
+          },
+          "by": {
+            "op": "const",
+            "value": "365"
+          }
+        },
+        "else": {
+          "op": "param",
+          "key": "fed:t2_business_limit"
+        }
+      }
+    },
+    {
+      "id": "t2.taxable_capital_reduction",
+      "label": "Taxable capital business limit reduction",
+      "note": "ITA 125(5.1)(a): the business limit is what the limit otherwise determined “exceeds the greater of” paragraphs (a) and (b), and paragraph (a) is “A × B ÷ $90,000”, where A is the limit otherwise determined and B is “0.225% × (C − $10 million)”, C being the taxable capital employed in Canada. 0.225% of $40 million is exactly $90,000, so the fraction reaches one, and the limit nil, at $50 million — CRA, T4012 chapter 4: “Large CCPCs that have taxable capital employed in Canada of $50 million or more do not qualify for the SBD” and “The business limit is reduced on a straight-line basis for CCPCs … between $10 million and $50 million in the previous year.” Floored at zero because the formula turns negative below $10 million, where the Act's straight line has not begun. A is the prorated limit on line 410, not the unprorated $500,000: the Act's A is the limit determined under the subsections that (5.1) overrides, and the guide says to prorate before entering line 410. C is the preceding taxation year's figure under 125(5.1)(a)(i), the case of a corporation associated with nobody — the only case this build models.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "div",
+          "of": {
+            "op": "mul",
+            "of": {
+              "op": "line",
+              "id": "t2.410"
+            },
+            "by": {
+              "op": "mul",
+              "of": {
+                "op": "param",
+                "key": "fed:t2_taxable_capital_rate"
+              },
+              "by": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "t2.taxable_capital_employed_in_canada"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "fed:t2_taxable_capital_threshold"
+                }
+              }
+            }
+          },
+          "by": {
+            "op": "param",
+            "key": "fed:t2_taxable_capital_divisor"
+          }
+        }
+      }
+    },
+    {
+      "id": "t2.passive_income_reduction",
+      "label": "Passive income business limit reduction",
+      "note": "ITA 125(5.1)(b): “D/$500,000 × 5(E − $50,000)”, where D is “the amount determined for A in paragraph (a)” and E is “the total of all amounts each of which is the adjusted aggregate investment income” of the corporation and of any corporation it is associated with, for taxation years ending in the preceding calendar year. Five dollars of limit for every dollar over $50,000, so the limit is gone at $150,000 — CRA, T4012 chapter 4: “The business limit is nil once the combined income from passive investments is more than $150,000.” D is line 410, the limit before paragraph (a) bites, because the Act defines D as the amount determined for A: both reductions start from the same amount, which is what makes them alternatives rather than a sequence. Floored at zero so that investment income under $50,000 cannot enlarge the limit.",
+      "expr": {
+        "op": "floor_zero",
         "of": {
           "op": "mul",
           "of": {
-            "op": "param",
-            "key": "fed:t2_business_limit"
+            "op": "div",
+            "of": {
+              "op": "line",
+              "id": "t2.410"
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:t2_aaii_limit_divisor"
+            }
           },
           "by": {
-            "op": "fact",
-            "key": "period.days"
+            "op": "mul",
+            "of": {
+              "op": "param",
+              "key": "fed:t2_aaii_multiplier"
+            },
+            "by": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "t2.adjusted_aggregate_investment_income"
+              },
+              "minus": {
+                "op": "param",
+                "key": "fed:t2_aaii_threshold"
+              }
+            }
           }
-        },
-        "by": {
-          "op": "const",
-          "value": "365"
+        }
+      }
+    },
+    {
+      "id": "t2.422",
+      "label": "Business limit reduction",
+      "note": "CRA, T4012 chapter 4: “The reduction in a CCPC's business limit is the greater of its taxable capital business limit reduction and its passive income business limit reduction for the year”, entered on line 422. ITA 125(5.1) says the same by subtracting “the greater of” paragraphs (a) and (b). The greater of the two, not their sum and not one applied after the other. A corporation with $12 million of taxable capital and $100,000 of adjusted aggregate investment income loses $250,000 of limit, not $275,000, and so keeps 19% × $25,000 = $4,750 of small business deduction that a sequential reading would have denied it.",
+      "expr": {
+        "op": "max",
+        "of": [
+          {
+            "op": "line",
+            "id": "t2.taxable_capital_reduction"
+          },
+          {
+            "op": "line",
+            "id": "t2.passive_income_reduction"
+          }
+        ]
+      }
+    },
+    {
+      "id": "t2.business_limit",
+      "label": "Reduced business limit",
+      "note": "CRA line 426. ITA 125(5.1) gives “the amount, if any, by which” the limit otherwise determined exceeds the greater of the two reductions — “if any”, hence floored at zero: past $50 million of taxable capital, or $150,000 of adjusted aggregate investment income, there is no limit left and no small business deduction at all. Line 428 takes off amounts assigned to another corporation under ITA 125(3.2); none are modelled, so 428 equals 426 here. The id stays t2.business_limit because this is the limit that applies, and every line asking for the limit wants this one.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "t2.410"
+          },
+          "minus": {
+            "op": "line",
+            "id": "t2.422"
+          }
         }
       }
     },
     {
       "id": "t2.430",
       "label": "Small business deduction",
-      "note": "ITA 125(1): the rate applied to the least of active business income, taxable income and the business limit.",
+      "note": "ITA 125(1): the rate applied to the least of active business income, taxable income and the business limit. CRA, T4012 chapter 4, line 430: “Multiply the least of lines 400, 405, 410, and 428 by 19%”. The least of three here is the least of CRA's four: line 428 equals the reduced limit on line 426, which can never exceed line 410, so including 410 as well could never change the answer.",
       "expr": {
         "op": "mul",
         "of": {
@@ -479,7 +731,7 @@
     {
       "id": "t2.638",
       "label": "General tax reduction",
-      "note": "ITA 123.4: available on income that did not already get the small business deduction, so the two do not stack.",
+      "note": "ITA 123.4: available on income that did not already get the small business deduction, so the two do not stack. It follows that a business limit ground down under ITA 125(5.1) is not a dollar-for-dollar loss: income falling out of the 19% deduction picks up the 13% reduction instead, so the net federal cost of a grind is 6% of the limit lost, before provincial tax.",
       "expr": {
         "op": "mul",
         "of": {

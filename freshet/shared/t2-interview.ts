@@ -297,6 +297,24 @@ export const SECTIONS: Section[] = [
       { fact: "t2.instalments", label: "Instalments paid" },
     ],
   },
+  {
+    id: "business-limit",
+    title: "Business limit reductions",
+    blurb:
+      "Two figures that have nothing to do with this year's profit and can still take the small business deduction away. ITA 125(5.1) grinds the $500,000 business limit down by reference to how much capital the corporation employs and how much passive investment income it earned last year, and the greater of the two reductions applies. Both are nil for most small corporations; leave them blank and nothing is reduced.",
+    fields: [
+      {
+        fact: "t2.taxable_capital_employed_in_canada",
+        label: "Taxable capital employed in Canada, previous tax year",
+        hint: "The group total if there are associated corporations. The limit starts falling at $10 million and is gone at $50 million, so a corporation nowhere near that can leave this blank.",
+      },
+      {
+        fact: "t2.adjusted_aggregate_investment_income",
+        label: "Adjusted aggregate investment income, taxation years ending last calendar year",
+        hint: "Passive investment income as adjusted by ITA 125(7), for this corporation and any associated with it. Every dollar over $50,000 takes $5 off the business limit, so $150,000 removes it entirely.",
+      },
+    ],
+  },
 ];
 
 export const ALL_FACTS: string[] = SECTIONS.flatMap((s) =>

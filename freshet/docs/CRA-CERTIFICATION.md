@@ -406,9 +406,12 @@ likely to touch:
   (Schedule 3). Common for any corporation holding shares.
 - **Aggregate investment income**, the additional refundable tax, and
   RDTOH/ERDTOH (Schedule 7).
-- **Business-limit reductions**: neither the taxable-capital grind nor the
-  adjusted-aggregate-investment-income grind. Both are mandatory on the SBD, so
-  `t2.430` is currently overstated for any corporation they apply to.
+- ~~**Business-limit reductions**~~ — **done 2026-10-17.** Both ITA 125(5.1)(a)
+  and (b) are implemented, parallel with the greater taken, each figure cited.
+  The same pass found ITA 125(5) itself wrong: the build prorated the limit for
+  every short period, where the Act gates it on the year being *less than 51
+  weeks*. Ontario is deliberately left unreduced and says so on the return —
+  see the escalation below.
 - **Associated-corporation allocation** of the business limit (Schedules 23/49).
 - **Loss continuity** (Schedule 4). Taxable income floors at nil but nothing
   carries forward or back.

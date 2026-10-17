@@ -757,8 +757,11 @@ fn t2_fed_2025_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    // Empty, as of 2026-09-15: every federal corporate rate has been read
-    // from the Act or the T2 guide and cited in the pack.
+    // Empty, as of 2026-10-17: every federal corporate rate and every figure
+    // in the ITA 125(5.1) business limit reduction formulas has been read from
+    // the Act or the T2 guide and cited in the pack. The six reduction figures
+    // are pinned by value as well, below, because this list would not notice
+    // one of them being edited.
     let expected: Vec<&str> = vec![];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
@@ -775,8 +778,11 @@ fn t2_fed_2026_residual_is_exactly_this() {
     let mut actual = pack.unverified();
     actual.sort();
 
-    // Empty, as of 2026-09-15: every federal corporate rate has been read
-    // from the Act or the T2 guide and cited in the pack.
+    // Empty, as of 2026-10-17: every federal corporate rate and every figure
+    // in the ITA 125(5.1) business limit reduction formulas has been read from
+    // the Act or the T2 guide and cited in the pack. The six reduction figures
+    // are pinned by value as well, below, because this list would not notice
+    // one of them being edited.
     let expected: Vec<&str> = vec![];
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
@@ -820,4 +826,72 @@ fn t2_on_2026_residual_is_exactly_this() {
     let want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
 
     assert_eq!(actual, want, "the T2 residual moved without being recorded");
+}
+
+/// The ITA 125(5.1) business limit reduction figures, pinned to the Act.
+///
+/// `unverified()` only answers "is the flag set", and the flag is set by hand.
+/// These six parameters are the ones that decide whether a corporation keeps
+/// its small business deduction, so the ledger records their *values* as well:
+/// a figure edited without re-reading the Act fails here, in either direction,
+/// which is the same contract the residual lists carry.
+///
+/// Each expected value, and where it was read:
+///   t2_taxable_capital_threshold  10,000,000  125(5.1)(a), B is
+///                                             "0.225% x (C - $10 million)"
+///   t2_taxable_capital_rate            0.00225 the 0.225% in the same formula
+///   t2_taxable_capital_divisor          90,000 125(5.1)(a), "A x B / $90,000";
+///                                             0.225% of $40 million exactly,
+///                                             which puts the top of the
+///                                             phase-out at $50 million
+///   t2_aaii_threshold                   50,000 125(5.1)(b),
+///                                             "D/$500,000 x 5(E - $50,000)"
+///   t2_aaii_multiplier                       5 the 5 in the same formula, so
+///                                             $150,000 removes the limit
+///   t2_aaii_limit_divisor              500,000 the $500,000 divisor in it,
+///                                             which is not prorated
+///
+/// Read from https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html
+/// on 2026-10-17 and cross-checked against T4012 chapter 4 and CRA's Budget
+/// 2018 small business deduction page; the citations are in the packs.
+#[test]
+fn the_business_limit_reduction_figures_are_cited_and_unchanged() {
+    let expected = [
+        ("t2_taxable_capital_threshold", "10000000"),
+        ("t2_taxable_capital_rate", "0.00225"),
+        ("t2_taxable_capital_divisor", "90000"),
+        ("t2_aaii_threshold", "50000"),
+        ("t2_aaii_multiplier", "5"),
+        ("t2_aaii_limit_divisor", "500000"),
+    ];
+
+    for year in [2025u16, 2026] {
+        let packs = freshet_taxdata::t2_packs(year, "on").unwrap();
+
+        for (key, value) in expected {
+            let param = packs
+                .federal
+                .scalars
+                .get(key)
+                .unwrap_or_else(|| panic!("{year}: {key} is missing from the T2 federal pack"));
+
+            assert_eq!(
+                param.value,
+                freshet_engine::Decimal::from_str_exact(value).unwrap(),
+                "{year}: {key} moved; re-read ITA 125(5.1) before changing it"
+            );
+
+            // The filing gate reads this flag, so an unverified figure here
+            // would block a return rather than quietly produce a wrong one.
+            assert!(
+                param.verified,
+                "{year}: {key} is not verified, so nothing can be filed"
+            );
+
+            assert!(
+                param.source.contains("125(5.1)"),
+                "{year}: {key} must cite the subsection it comes from, not just a value"
+            );
+        }
+    }
 }

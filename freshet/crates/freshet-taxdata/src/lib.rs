@@ -5,6 +5,7 @@
 //! machine, and a user-editable data directory is both a support nightmare and
 //! a tampering surface on a return that gets transmitted to CRA.
 
+use freshet_engine::Date;
 use freshet_engine::{EngineError, FormSet, PackSet, ParamPack};
 
 pub const FED_2025: &str = include_str!("../data/fed-2025.json");
@@ -146,57 +147,85 @@ pub const CERTIFICATION_SCOPE: &[&str] = &["on"];
 /// for. Empty until a confirmation letter exists.
 pub const CERTIFIED_PROVINCES: &[&str] = &[];
 
-/// The years appearing in [`CERTIFIED`], for display.
+/// What a filing is, for the purpose of asking whether it may be transmitted.
 ///
-/// Derived rather than declared. A second hand-maintained list would be free
-/// to disagree with the one that actually permits transmission, and the
-/// disagreement would surface as a page telling a customer they are certified
-/// for a year the gate refuses — or worse, the other way round.
-pub fn certified_years() -> Vec<u16> {
-    let mut years: Vec<u16> = CERTIFIED.iter().map(|c| c.year).collect();
-    years.sort_unstable();
-    years.dedup();
-    years
-}
-
-/// Whether a return for this year and jurisdiction may be transmitted to CRA.
-///
-/// All three must hold. CRA certifies **per tax year, per jurisdiction, and
-/// per return type** — a letter covering the T2 in Ontario for 2027 says
-/// nothing about a T1, an Alberta return, or 2028.
-///
-/// The return type was missing until 2026-10-17, and its absence was the same
-/// defect the year/province split was made to prevent, one axis along: with
-/// two lists and no kind, recording a **T2** certification as
-/// `CERTIFIED_YEARS = [2027]` and `CERTIFIED_PROVINCES = ["on"]` would have
-/// opened **T1** Ontario 2027 filing in the same commit. Both lists are empty
-/// today, so this costs nothing to fix now and would have been very expensive
-/// to discover later.
-pub fn is_certified(kind: Return, year: u16, province: &str) -> bool {
-    CERTIFIED.iter().any(|c| {
-        c.kind == kind && c.year == year && c.province == province
-    })
-}
-
-/// Which return a certification, or a filing, is about.
+/// The two returns are not the same shape and must not be forced into one. A
+/// personal return belongs to a **tax year**. A corporation has no tax year —
+/// it has a fiscal period, and what matters to CRA is the date that period
+/// **ends**.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Return {
-    T1,
-    T2,
+pub enum Filing {
+    T1 { year: u16 },
+    T2 { year_end: Date },
 }
 
 /// One certification CRA has actually granted.
 ///
-/// A list of triples rather than three independent lists, because the
-/// dimensions are not independent: a certification is a specific permission
-/// for one return, in one jurisdiction, for one year. Three lists would
-/// multiply out into permissions nobody granted, which is precisely what the
-/// two-list version did.
+/// The variants differ because the grants differ, and flattening them cost
+/// this project a wrong question for half the product:
+///
+/// - **T1** is certified per tax year. CRA's certified-software list is headed
+///   by a year and carries a "Certified tax years" column.
+/// - **T2** is certified as a *product version covering a window of corporate
+///   tax year ends*. The Corporation Internet Filing list carries no tax year
+///   at all — no year column, no cycle, no developer deadline. Vendors are
+///   certified twice a year: a spring round reaching 31 October, an autumn
+///   round reaching 31 May.
+///
+/// Checked against CRA's published pages 2026-10-17.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Certification {
-    pub kind: Return,
-    pub year: u16,
-    pub province: &'static str,
+pub enum Certification {
+    T1 {
+        year: u16,
+        province: &'static str,
+    },
+    T2 {
+        /// The last corporate year end this certified version may file.
+        ///
+        /// Inclusive. A period ending on this date is covered; the next day is
+        /// the next round's problem.
+        year_ends_through: Date,
+        province: &'static str,
+    },
+}
+
+/// Whether this filing may be transmitted to CRA.
+///
+/// Every axis must hold, and the axes differ by return — see [`Certification`].
+/// A T2 letter says nothing about a T1, another province, or a year end past
+/// the window it covers.
+pub fn is_certified(filing: Filing, province: &str) -> bool {
+    CERTIFIED.iter().any(|c| match (c, filing) {
+        (Certification::T1 { year, province: p }, Filing::T1 { year: y }) => {
+            *year == y && *p == province
+        }
+        (
+            Certification::T2 {
+                year_ends_through,
+                province: p,
+            },
+            Filing::T2 { year_end },
+        ) => *p == province && year_end.to_days() <= year_ends_through.to_days(),
+        _ => false,
+    })
+}
+
+/// The tax years appearing in [`CERTIFIED`], for display.
+///
+/// T1 only, and deliberately. A T2 certification has no tax year to report —
+/// reporting the calendar year of its window would invite exactly the
+/// confusion this type exists to prevent.
+pub fn certified_years() -> Vec<u16> {
+    let mut years: Vec<u16> = CERTIFIED
+        .iter()
+        .filter_map(|c| match c {
+            Certification::T1 { year, .. } => Some(*year),
+            Certification::T2 { .. } => None,
+        })
+        .collect();
+    years.sort_unstable();
+    years.dedup();
+    years
 }
 
 /// **Empty, and it stays empty until a letter arrives.**
@@ -204,6 +233,37 @@ pub struct Certification {
 /// Adding an entry here is the single change that permits transmission. It
 /// should be as deliberate as signing something, because it is.
 pub const CERTIFIED: &[Certification] = &[];
+
+/// What the T2 application is aiming at.
+///
+/// **The spring 2027 round, covering corporate year ends through 31 October
+/// 2027, Ontario.** Decided 2026-10-17, replacing a November 2026 target.
+///
+/// Deliberately *not* a tax year, and deliberately separate from
+/// [`CERTIFICATION_TARGET_YEAR`], which is the T1 target and is a tax year.
+/// Conflating them is the mistake this product already made: the repository
+/// planned the T2 against "CRA distributes test returns in mid-November",
+/// which is published about the **T1 EFILE programme** and describes nothing
+/// about the T2. CRA's Corporation Internet Filing list carries no tax year at
+/// all.
+///
+/// Vendors are certified twice a year — a spring round reaching 31 October, an
+/// autumn round reaching 31 May. The month is well evidenced; the date is not
+/// published by CRA and is not a commitment. See `docs/PLAN-2027.md`.
+pub const T2_TARGET_YEAR_ENDS_THROUGH: (i32, u32, u32) = (2027, 10, 31);
+
+/// Whether a corporate period is inside the window being applied for.
+///
+/// Distinct from [`is_certified`], which asks whether a letter has arrived.
+/// This asks whether the period is one we are even trying to cover — a
+/// corporation whose year ends after the target window is not "not yet", it is
+/// outside this round, and those deserve different wording.
+pub fn in_t2_target_window(year_end: Date) -> bool {
+    let (y, m, d) = T2_TARGET_YEAR_ENDS_THROUGH;
+    Date::new(y, m, d)
+        .map(|through| year_end.to_days() <= through.to_days())
+        .unwrap_or(false)
+}
 
 /// Whether a jurisdiction is inside the scope being applied for.
 ///
@@ -528,8 +588,18 @@ mod tests {
         );
 
         // And nothing is certified for it, or for anything else.
-        assert!(!is_certified(Return::T2, CERTIFICATION_TARGET_YEAR, "on"));
-        assert!(!is_certified(Return::T1, CERTIFICATION_TARGET_YEAR, "on"));
+        assert!(!is_certified(
+            Filing::T1 {
+                year: CERTIFICATION_TARGET_YEAR
+            },
+            "on"
+        ));
+        assert!(!is_certified(
+            Filing::T2 {
+                year_end: Date::new(2027, 12, 31).unwrap()
+            },
+            "on"
+        ));
     }
 
     #[test]

@@ -159,8 +159,9 @@ fn marginal_rate(input: &ComputeInput, base_tax: Decimal) -> Decimal {
 pub fn compute_return(input: ComputeInput) -> Result<ReturnView, String> {
     let a = assess(&input)?;
     let certified = freshet_taxdata::is_certified(
-        freshet_taxdata::Return::T1,
-        input.tax_year,
+        freshet_taxdata::Filing::T1 {
+            year: input.tax_year,
+        },
         &input.province,
     );
 
@@ -1073,11 +1074,15 @@ fn evaluate_gate(
     let in_scope = freshet_taxdata::in_certification_scope(province);
     // Which return is being filed decides which certification applies. A
     // T2 letter is not permission to transmit a T1.
-    let certifies = match filed {
-        Filed::T1 { .. } => freshet_taxdata::Return::T1,
-        Filed::T2 { .. } => freshet_taxdata::Return::T2,
-    };
-    let year_certified = freshet_taxdata::is_certified(certifies, tax_year, province);
+    let year_certified = freshet_taxdata::is_certified(
+        match filed {
+            Filed::T1 { tax_year } => freshet_taxdata::Filing::T1 { year: tax_year },
+            Filed::T2 { period } => freshet_taxdata::Filing::T2 {
+                year_end: period.end,
+            },
+        },
+        province,
+    );
 
     let (licensed, licence_reason) = match licence_token {
         // Nothing to pay for, so nothing to check.
@@ -1726,9 +1731,12 @@ pub fn compute_t2(input: T2Input) -> Result<T2View, String> {
     let (a, period) = assess_t2(&input)?;
 
     // A fiscal period is filed under the year it ends in.
+    // The year *end*, not a tax year: that is the axis a T2
+    // certification is granted along.
     let certified = freshet_taxdata::is_certified(
-        freshet_taxdata::Return::T2,
-        period.end.year as u16,
+        freshet_taxdata::Filing::T2 {
+            year_end: period.end,
+        },
         &input.province,
     );
 

@@ -296,7 +296,12 @@ fn a_fully_verified_return_is_still_not_certified() {
 
     // And the transmission gate is shut regardless.
     assert!(
-        !freshet_taxdata::is_certified(freshet_taxdata::Return::T2, 2025, "on"),
+        !freshet_taxdata::is_certified(
+            freshet_taxdata::Filing::T2 {
+                year_end: freshet_engine::Date::new(2025, 12, 31).unwrap()
+            },
+            "on"
+        ),
         "nothing may be transmitted until CRA certifies this build"
     );
 }
@@ -911,36 +916,68 @@ fn cost_of_sales_is_opening_plus_purchases_less_closing() {
     assert_eq!(got.get("gifi.8519").unwrap(), d("180000.00"));
 }
 
-/// A certification for one return is not a certification for another.
+/// A certification for one return is not a certification for another, and a
+/// T2 certification is a window of year ends rather than a tax year.
 ///
-/// `is_certified` took a year and a province and nothing else, so recording a
-/// **T2** Ontario letter would have opened **T1** Ontario filing for the same
-/// year in the same commit. That is the identical failure the year/province
-/// split was made to prevent, one axis along — and it was cheap to fix only
-/// because the list is still empty.
-///
-/// Written against a hypothetical grant rather than the real list, so it keeps
-/// testing the predicate after a letter actually arrives.
+/// Both halves were wrong at different times today. `is_certified` first took
+/// only year and province, so a T2 letter would have opened T1 filing. It then
+/// took a return type and a *tax year* — but CRA's Corporation Internet Filing
+/// list carries no tax year at all, and what a T2 grant actually covers is a
+/// product version good for corporate year ends up to a date. Checked against
+/// CRA's published pages on 2026-10-17.
 #[test]
-fn a_certification_for_one_return_does_not_certify_another() {
-    use freshet_taxdata::{Certification, Return};
+fn a_t2_certification_covers_year_ends_not_a_tax_year() {
+    use freshet_engine::Date;
+    use freshet_taxdata::{Certification, Filing};
 
-    let granted = Certification {
-        kind: Return::T2,
-        year: 2027,
+    // The spring 2027 round, as vendors are certified for it: year ends
+    // through 31 October 2027.
+    let granted = Certification::T2 {
+        year_ends_through: Date::new(2027, 10, 31).unwrap(),
         province: "on",
     };
 
-    let matches = |kind, year, province| {
-        granted.kind == kind && granted.year == year && granted.province == province
+    let covers = |filing, province| match (granted, filing) {
+        (
+            Certification::T2 {
+                year_ends_through,
+                province: p,
+            },
+            Filing::T2 { year_end },
+        ) => p == province && year_end.to_days() <= year_ends_through.to_days(),
+        _ => false,
     };
 
-    assert!(matches(Return::T2, 2027, "on"), "the grant itself");
+    // Inside the window, including the last day of it.
+    assert!(covers(
+        Filing::T2 {
+            year_end: Date::new(2027, 6, 30).unwrap()
+        },
+        "on"
+    ));
+    assert!(covers(
+        Filing::T2 {
+            year_end: Date::new(2027, 10, 31).unwrap()
+        },
+        "on"
+    ));
 
-    // Each of the three dimensions, varied alone.
-    assert!(!matches(Return::T1, 2027, "on"), "a T2 letter is not a T1 letter");
-    assert!(!matches(Return::T2, 2028, "on"), "nor a later year");
-    assert!(!matches(Return::T2, 2027, "bc"), "nor another province");
+    // One day past it is the next round's business, not ours.
+    assert!(!covers(
+        Filing::T2 {
+            year_end: Date::new(2027, 11, 1).unwrap()
+        },
+        "on"
+    ));
+
+    // Another province, and a personal return, are not covered at all.
+    assert!(!covers(
+        Filing::T2 {
+            year_end: Date::new(2027, 6, 30).unwrap()
+        },
+        "bc"
+    ));
+    assert!(!covers(Filing::T1 { year: 2027 }, "on"));
 }
 
 /// And nothing is certified today, on any axis.
@@ -951,4 +988,545 @@ fn the_certified_list_is_empty() {
         "adding an entry here permits transmission; it must be deliberate"
     );
     assert!(freshet_taxdata::certified_years().is_empty());
+}
+
+// -- the business limit reductions, ITA 125(5.1) ---------------------------
+//
+// Written from the Act and the T2 guide rather than from the form. The two
+// operative sentences:
+//
+//   125(5.1)  the business limit is what the limit otherwise determined
+//             "exceeds the greater of" paragraph (a), "A x B / $90,000" where
+//             B is "0.225% x (C - $10 million)", and paragraph (b),
+//             "D/$500,000 x 5(E - $50,000)".
+//
+//   T4012 ch 4  "The reduction in a CCPC's business limit is the greater of
+//               its taxable capital business limit reduction and its passive
+//               income business limit reduction for the year."
+//
+// Every expected figure below was worked out by hand from those two and the
+// arithmetic is shown in the comment, so a test cannot agree with the form
+// merely by having been read off it.
+
+/// A corporation with $500,000 of active business income and $12,000,000 of
+/// taxable capital employed in Canada last year.
+///
+/// By hand, from 125(5.1)(a):
+///   B = 0.225% x ($12,000,000 - $10,000,000) = 0.00225 x 2,000,000 = 4,500
+///   reduction = A x B / 90,000 = 500,000 x 4,500 / 90,000 = 25,000
+/// which is the straight line the guide describes:
+///   500,000 x (2,000,000 / 40,000,000) = 25,000.
+/// Reduced limit = 500,000 - 25,000 = 475,000.
+#[test]
+fn taxable_capital_over_ten_million_grinds_the_business_limit() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.taxable_capital_employed_in_canada", "12000000"),
+        ],
+    );
+
+    assert_eq!(got.get("t2.410").unwrap(), d("500000.00"));
+    assert_eq!(got.get("t2.taxable_capital_reduction").unwrap(), d("25000.00"));
+    assert_eq!(got.get("t2.passive_income_reduction").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.422").unwrap(), d("25000.00"));
+    assert_eq!(got.get("t2.business_limit").unwrap(), d("475000.00"));
+
+    // 125(1) at 19% of the least of 500,000, 500,000 and 475,000.
+    assert_eq!(got.get("t2.430").unwrap(), d("90250.00"));
+}
+
+/// The regression this change fixes, in dollars.
+///
+/// Until the grinds were modelled the limit stayed at $500,000 and the
+/// deduction at 19% x 500,000 = $95,000. The Act gives this corporation
+/// 19% x 475,000 = $90,250, so the build was claiming $4,750 of deduction it
+/// was not entitled to.
+///
+/// The cost to the corporation is not the whole $4,750, because the $25,000 of
+/// income that falls out of the small business deduction picks up the 13%
+/// general rate reduction under 123.4 instead:
+///   federal tax before: 190,000 - 50,000 - 95,000 - 0     = 45,000
+///   federal tax now:    190,000 - 50,000 - 90,250 - 3,250 = 46,500
+/// a difference of 1,500, which is 6% of the 25,000 of limit lost. Both
+/// figures are asserted so neither half can drift unnoticed.
+#[test]
+fn the_taxable_capital_grind_is_worth_1500_of_federal_tax_on_this_return() {
+    let facts: &[(&str, &str)] = &[
+        ("gifi.8000", "500000"),
+        ("t2.active_business_income", "500000"),
+    ];
+
+    let unground = assess(Period::calendar(2025), facts);
+
+    let mut with_capital: Vec<(&str, &str)> = facts.to_vec();
+    with_capital.push(("t2.taxable_capital_employed_in_canada", "12000000"));
+    let ground = assess(Period::calendar(2025), &with_capital);
+
+    // What the build computed for every corporation, whatever its size.
+    assert_eq!(unground.get("t2.430").unwrap(), d("95000.00"));
+    assert_eq!(unground.get("t2.700").unwrap(), d("45000.00"));
+
+    assert_eq!(ground.get("t2.430").unwrap(), d("90250.00"));
+    assert_eq!(ground.get("t2.700").unwrap(), d("46500.00"));
+
+    assert_eq!(
+        unground.get("t2.430").unwrap() - ground.get("t2.430").unwrap(),
+        d("4750.00"),
+        "the deduction overstated by the missing grind"
+    );
+    assert_eq!(
+        ground.get("t2.700").unwrap() - unground.get("t2.700").unwrap(),
+        d("1500.00"),
+        "the federal tax the grind costs, net of the 123.4 reduction"
+    );
+}
+
+/// $100,000 of adjusted aggregate investment income last calendar year.
+///
+/// By hand, from 125(5.1)(b):
+///   reduction = D/$500,000 x 5(E - $50,000)
+///             = 500,000/500,000 x 5 x (100,000 - 50,000) = 250,000
+/// Five dollars of limit per dollar of investment income over the threshold.
+/// Reduced limit = 500,000 - 250,000 = 250,000 and the deduction
+/// 19% x 250,000 = 47,500 against 95,000 before: half the deduction gone on
+/// account of income that has nothing to do with the active business.
+#[test]
+fn adjusted_aggregate_investment_income_grinds_the_business_limit() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.adjusted_aggregate_investment_income", "100000"),
+        ],
+    );
+
+    assert_eq!(got.get("t2.taxable_capital_reduction").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.passive_income_reduction").unwrap(), d("250000.00"));
+    assert_eq!(got.get("t2.business_limit").unwrap(), d("250000.00"));
+    assert_eq!(got.get("t2.430").unwrap(), d("47500.00"));
+
+    // 123.4 picks up what 125 dropped: 13% x 250,000 = 32,500, so
+    // 190,000 - 50,000 - 47,500 - 32,500 = 60,000.
+    assert_eq!(got.get("t2.638").unwrap(), d("32500.00"));
+    assert_eq!(got.get("t2.700").unwrap(), d("60000.00"));
+}
+
+/// The two boundaries the guide states in words.
+///
+/// "The business limit is nil once the combined income from passive
+/// investments is more than $150,000": 5 x (150,000 - 50,000) = 500,000, the
+/// whole limit. At exactly $50,000 the formula gives 5 x 0 = 0 and the limit
+/// is untouched, because the threshold is where the grind starts rather than
+/// where it has already taken something.
+#[test]
+fn the_passive_income_grind_runs_from_fifty_to_a_hundred_and_fifty_thousand() {
+    let at_threshold = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.adjusted_aggregate_investment_income", "50000"),
+        ],
+    );
+    assert_eq!(at_threshold.get("t2.business_limit").unwrap(), d("500000.00"));
+    assert_eq!(at_threshold.get("t2.430").unwrap(), d("95000.00"));
+
+    let exhausted = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.adjusted_aggregate_investment_income", "150000"),
+        ],
+    );
+    assert_eq!(
+        exhausted.get("t2.passive_income_reduction").unwrap(),
+        d("500000.00")
+    );
+    assert_eq!(exhausted.get("t2.business_limit").unwrap(), d("0.00"));
+    assert_eq!(exhausted.get("t2.430").unwrap(), d("0.00"));
+
+    // Past it the formula overshoots and "the amount, if any, by which" holds
+    // the answer at nil instead of turning the limit negative.
+    let beyond = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.adjusted_aggregate_investment_income", "400000"),
+        ],
+    );
+    assert_eq!(
+        beyond.get("t2.passive_income_reduction").unwrap(),
+        d("1750000.00")
+    );
+    assert_eq!(beyond.get("t2.business_limit").unwrap(), d("0.00"));
+    assert_eq!(beyond.get("t2.430").unwrap(), d("0.00"));
+}
+
+/// Investment income under the threshold must not *enlarge* the limit.
+///
+/// 5 x (10,000 - 50,000) = -200,000, and a reduction of minus 200,000
+/// subtracted would hand this corporation a $700,000 business limit. The same
+/// trap sits in paragraph (a): 0.225% x (1,000,000 - 10,000,000) is negative.
+#[test]
+fn a_reduction_below_its_threshold_is_nil_rather_than_negative() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "600000"),
+            ("t2.active_business_income", "600000"),
+            ("t2.adjusted_aggregate_investment_income", "10000"),
+            ("t2.taxable_capital_employed_in_canada", "1000000"),
+        ],
+    );
+
+    assert_eq!(got.get("t2.taxable_capital_reduction").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.passive_income_reduction").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.422").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.business_limit").unwrap(), d("500000.00"));
+    assert_eq!(got.get("t2.430").unwrap(), d("95000.00"));
+}
+
+/// $50 million of taxable capital, where the guide says the deduction is gone.
+///
+/// B = 0.225% x (50,000,000 - 10,000,000) = 0.00225 x 40,000,000 = 90,000, and
+/// A x 90,000 / 90,000 = A. That divisor is the whole reason the phase-out ends
+/// at $50 million, so this is the figure that would be wrong if the pack still
+/// held the pre-2022 $11,250.
+#[test]
+fn fifty_million_of_taxable_capital_removes_the_deduction_entirely() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.taxable_capital_employed_in_canada", "50000000"),
+        ],
+    );
+
+    assert_eq!(
+        got.get("t2.taxable_capital_reduction").unwrap(),
+        d("500000.00")
+    );
+    assert_eq!(got.get("t2.business_limit").unwrap(), d("0.00"));
+    assert_eq!(got.get("t2.430").unwrap(), d("0.00"));
+
+    // Had the pre-2022 $15,000,000 top survived, $12,000,000 of taxable
+    // capital would already have cost 0.225% x 2,000,000 / 11,250 = 0.4 of the
+    // limit, which is 200,000 and not the 25,000 the current Act gives.
+    let twelve = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.taxable_capital_employed_in_canada", "12000000"),
+        ],
+    );
+    assert_eq!(
+        twelve.get("t2.taxable_capital_reduction").unwrap(),
+        d("25000.00")
+    );
+}
+
+/// The interaction, which is the part that looks right either way.
+///
+/// 125(5.1) subtracts "the greater of" paragraphs (a) and (b), and D in
+/// paragraph (b) is "the amount determined for A in paragraph (a)" - the limit
+/// before either reduction. So both are measured from $500,000 and only the
+/// larger is taken.
+///
+/// By hand, for $12,000,000 of taxable capital and $100,000 of adjusted
+/// aggregate investment income:
+///   (a) 500,000 x 0.00225 x 2,000,000 / 90,000 =  25,000
+///   (b) 500,000/500,000 x 5 x 50,000           = 250,000
+///   greater of the two                         = 250,000
+///   reduced limit                              = 250,000
+/// Applying them one after the other would give 500,000 - 25,000 - 250,000 =
+/// 225,000 and a deduction of 42,750 rather than 47,500: $4,750 of deduction
+/// denied to a corporation the Act does not deny it to.
+#[test]
+fn the_greater_of_the_two_reductions_applies_not_both() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.taxable_capital_employed_in_canada", "12000000"),
+            ("t2.adjusted_aggregate_investment_income", "100000"),
+        ],
+    );
+
+    assert_eq!(got.get("t2.taxable_capital_reduction").unwrap(), d("25000.00"));
+    assert_eq!(
+        got.get("t2.passive_income_reduction").unwrap(),
+        d("250000.00")
+    );
+
+    assert_eq!(
+        got.get("t2.422").unwrap(),
+        d("250000.00"),
+        "the greater of the two, not the sum of 275,000"
+    );
+    assert_eq!(
+        got.get("t2.business_limit").unwrap(),
+        d("250000.00"),
+        "sequential application would wrongly give 225,000"
+    );
+    assert_eq!(got.get("t2.430").unwrap(), d("47500.00"));
+}
+
+/// The grind bites on the prorated limit, and the thresholds are not prorated.
+///
+/// A is "the amount that would, but for this subsection, be the corporation's
+/// business limit", which is the limit after 125(5) has prorated it, and the
+/// guide tells you to prorate "before you enter it on line 410". Nothing in
+/// 125(5.1) prorates the $10 million.
+///
+/// By hand, for 1 July to 31 December 2025, which is 184 days:
+///   line 410  = 500,000 x 184 / 365          = 252,054.79
+///   B         = 0.00225 x 2,000,000          =   4,500
+///   reduction = 252,054.79 x 4,500 / 90,000  =  12,602.74
+///   limit     = 252,054.79 - 12,602.74       = 239,452.05
+///   deduction = 19% x 239,452.05             =  45,495.89
+/// Prorating the threshold as well, to 10,000,000 x 184/365 = 5,041,095.89,
+/// would have made the reduction over three times as large.
+#[test]
+fn a_short_year_prorates_the_limit_before_the_grind_and_not_the_threshold() {
+    let got = assess(
+        period((2025, 7, 1), (2025, 12, 31)),
+        &[
+            ("gifi.8000", "300000"),
+            ("t2.active_business_income", "300000"),
+            ("t2.taxable_capital_employed_in_canada", "12000000"),
+        ],
+    );
+
+    assert_eq!(got.get("t2.410").unwrap(), d("252054.79"));
+    assert_eq!(
+        got.get("t2.taxable_capital_reduction").unwrap(),
+        d("12602.74")
+    );
+    assert_eq!(got.get("t2.business_limit").unwrap(), d("239452.05"));
+    assert_eq!(got.get("t2.430").unwrap(), d("45495.89"));
+}
+
+/// ITA 125(5)(b) prorates only a year that is "less than 51 weeks".
+///
+/// 51 weeks is 357 days. A 360-day tax year - a corporation that changed its
+/// year end by a few days, say - is not less than 51 weeks and keeps the whole
+/// $500,000. The build used to prorate every year that was short of the
+/// calendar, which took 500,000 x 5 / 365 = $6,849.32 off this limit. At
+/// Ontario rates that is 6% federal plus 8.3% provincial on the lost limit:
+/// 410.96 + 568.49 = $979.45 of tax this corporation never owed.
+#[test]
+fn a_year_of_360_days_is_not_short_enough_to_prorate() {
+    let three_sixty = assess(
+        period((2025, 1, 6), (2025, 12, 31)),
+        &[
+            ("gifi.8000", "600000"),
+            ("t2.active_business_income", "600000"),
+        ],
+    );
+    let full = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "600000"),
+            ("t2.active_business_income", "600000"),
+        ],
+    );
+
+    assert_eq!(three_sixty.get("t2.410").unwrap(), d("500000.00"));
+    assert_eq!(
+        three_sixty.get("t2.business_limit").unwrap(),
+        full.get("t2.business_limit").unwrap()
+    );
+
+    // The limit the old unconditional proration produced, for contrast.
+    assert_ne!(three_sixty.get("t2.410").unwrap(), d("493150.68"));
+
+    // And the notice is keyed to the proration, not to the calendar.
+    assert!(!fired(&three_sixty).contains(&"t2.short_year_prorated"));
+}
+
+/// Exactly 51 weeks is not less than 51 weeks.
+///
+/// 9 January to 31 December 2025 is 357 days, so the limit is untouched. One
+/// day shorter is 356 days, which is less than 51 weeks, and the limit becomes
+/// 500,000 x 356 / 365 = 487,671.23. The step is the point: this is a gate in
+/// the Act, not a taper, and a build that interpolated across it would be
+/// wrong on both sides.
+#[test]
+fn the_fifty_one_week_gate_is_a_step_at_357_days() {
+    let facts: &[(&str, &str)] = &[
+        ("gifi.8000", "600000"),
+        ("t2.active_business_income", "600000"),
+    ];
+
+    let exactly = assess(period((2025, 1, 9), (2025, 12, 31)), facts);
+    let one_day_shorter = assess(period((2025, 1, 10), (2025, 12, 31)), facts);
+
+    assert_eq!(exactly.get("t2.410").unwrap(), d("500000.00"));
+    assert!(!fired(&exactly).contains(&"t2.short_year_prorated"));
+
+    assert_eq!(one_day_shorter.get("t2.410").unwrap(), d("487671.23"));
+    assert!(fired(&one_day_shorter).contains(&"t2.short_year_prorated"));
+}
+
+/// A reduction a corporation cannot see is one it cannot check.
+#[test]
+fn each_grind_says_which_one_it_was() {
+    let clean = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+        ],
+    );
+    assert!(!fired(&clean).contains(&"t2.business_limit_reduced_taxable_capital"));
+    assert!(!fired(&clean).contains(&"t2.business_limit_reduced_passive_income"));
+    assert!(!fired(&clean).contains(&"t2.business_limit_eliminated"));
+
+    let capital = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.taxable_capital_employed_in_canada", "12000000"),
+        ],
+    );
+    assert!(fired(&capital).contains(&"t2.business_limit_reduced_taxable_capital"));
+    assert!(!fired(&capital).contains(&"t2.business_limit_reduced_passive_income"));
+
+    let passive = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.adjusted_aggregate_investment_income", "100000"),
+        ],
+    );
+    assert!(fired(&passive).contains(&"t2.business_limit_reduced_passive_income"));
+    assert!(!fired(&passive).contains(&"t2.business_limit_reduced_taxable_capital"));
+
+    // Nil limit is a warning, not a note: a corporation expecting a $95,000
+    // deduction and getting none should be told why.
+    let gone = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+            ("t2.adjusted_aggregate_investment_income", "200000"),
+        ],
+    );
+    assert_eq!(gone.get("t2.business_limit").unwrap(), d("0.00"));
+    assert!(fired(&gone).contains(&"t2.business_limit_eliminated"));
+}
+
+/// What the build does not model, said out loud on every return.
+///
+/// 125(3) shares the limit among associated corporations on Schedule 23,
+/// 125(5.1) aggregates taxable capital and investment income across the group,
+/// and 125(3.2) lets one corporation assign limit to another. None of the
+/// three is computed here, and a corporation with associates would otherwise
+/// have no way to know that.
+#[test]
+fn the_associated_corporation_rules_are_declared_as_unmodelled() {
+    let got = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "500000"),
+            ("t2.active_business_income", "500000"),
+        ],
+    );
+
+    assert!(fired(&got).contains(&"t2.sbd.associated_corporations_not_modelled"));
+}
+
+/// Ontario did not parallel the passive income reduction, so its limit must
+/// not quietly inherit the federal one.
+///
+/// Ontario's 2018 Fall Economic Statement declined to match the federal
+/// measure. on_t2.small_business_income therefore reads line 410 rather than
+/// the reduced limit on line 426, and Ontario tax is unchanged by a federal
+/// grind: 500,000 at the 3.2% lower rate is 16,000 either way. Whether
+/// Ontario parallels the *taxable capital* reduction is unverified for this
+/// build, which is why the warning fires rather than nothing happening.
+#[test]
+fn a_federal_grind_does_not_reduce_the_ontario_business_limit() {
+    let facts: &[(&str, &str)] = &[
+        ("gifi.8000", "500000"),
+        ("t2.active_business_income", "500000"),
+    ];
+
+    let unground = assess(Period::calendar(2025), facts);
+
+    let mut ground: Vec<(&str, &str)> = facts.to_vec();
+    ground.push(("t2.adjusted_aggregate_investment_income", "100000"));
+    let ground = assess(Period::calendar(2025), &ground);
+
+    assert_eq!(unground.get("prov.tax").unwrap(), d("16000.00"));
+    assert_eq!(
+        ground.get("prov.tax").unwrap(),
+        d("16000.00"),
+        "Ontario does not parallel the federal passive income reduction"
+    );
+    assert_eq!(ground.get("on_t2.small_business_income").unwrap(), d("500000.00"));
+
+    // But the federal deduction did fall, and Ontario's divergence is
+    // disclosed rather than left for the reader to notice.
+    assert_eq!(ground.get("t2.430").unwrap(), d("47500.00"));
+    assert!(fired(&ground).contains(&"on_t2.business_limit_not_reduced"));
+    assert!(!fired(&unground).contains(&"on_t2.business_limit_not_reduced"));
+}
+
+/// The other short-year rule, which this build does not compute.
+///
+/// Regulation 1100(3): "Where a taxation year is less than 12 months", capital
+/// cost allowance "shall not exceed that proportion of the maximum amount
+/// otherwise allowable ... that the number of days in the taxation year is of
+/// 365". Schedule 8 claims the full-year amount, so a short year over-claims
+/// and the tax comes out too low. The desktop used to tell the user capital
+/// cost allowance *was* prorated, which was worse than saying nothing.
+///
+/// A different trigger from the business limit, deliberately: 12 months rather
+/// than 51 weeks, so a 360-day year is capped for this and not for that.
+#[test]
+fn a_short_year_says_capital_cost_allowance_was_not_capped() {
+    let short = assess(
+        period((2025, 1, 6), (2025, 12, 31)),
+        &[
+            ("gifi.8000", "600000"),
+            ("t2.active_business_income", "600000"),
+            ("cca.class8.opening_ucc", "100000"),
+        ],
+    );
+
+    // 360 days: too long to prorate the business limit, short enough for
+    // Regulation 1100(3) to cap the capital cost allowance.
+    assert_eq!(short.get("t2.410").unwrap(), d("500000.00"));
+    assert!(short.get("t2.sch1.cca").unwrap() > d("0"));
+    assert!(fired(&short).contains(&"t2.cca.short_year_cap_not_modelled"));
+    assert!(!fired(&short).contains(&"t2.short_year_prorated"));
+
+    let full = assess(
+        Period::calendar(2025),
+        &[
+            ("gifi.8000", "600000"),
+            ("t2.active_business_income", "600000"),
+            ("cca.class8.opening_ucc", "100000"),
+        ],
+    );
+    assert!(!fired(&full).contains(&"t2.cca.short_year_cap_not_modelled"));
+
+    // And it stays quiet when there is no capital cost allowance to cap.
+    let no_cca = assess(
+        period((2025, 1, 6), (2025, 12, 31)),
+        &[("gifi.8000", "600000"), ("t2.active_business_income", "600000")],
+    );
+    assert!(!fired(&no_cca).contains(&"t2.cca.short_year_cap_not_modelled"));
 }

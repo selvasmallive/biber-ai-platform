@@ -28,6 +28,23 @@
           "value": "1"
         }
       }
+    },
+    {
+      "id": "on_t2.business_limit_not_reduced",
+      "severity": "warning",
+      "message": "Ontario's small business limit has not been reduced, though the federal one was.",
+      "help": "Ontario did not parallel the federal passive income business limit reduction (2018 Ontario Fall Economic Statement), so for that reduction the full Ontario limit is right. Ontario's treatment of the federal taxable capital reduction under ITA 125(5.1)(a) has not been verified against the Taxation Act, 2007 for this build: if Ontario does parallel it, the Ontario tax shown here is understated for a corporation with taxable capital over $10 million. Have that checked before filing.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "t2.422"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
     }
   ],
   "lines": [
@@ -47,10 +64,11 @@
           },
           {
             "op": "line",
-            "id": "t2.business_limit"
+            "id": "t2.410"
           }
         ]
-      }
+      },
+      "note": "Taxation Act, 2007 (Ontario), s. 31. Deliberately the federal limit on line 410, before the ITA 125(5.1) reductions, and not the reduced limit on line 426. Ontario declined to parallel the federal passive income reduction in its 2018 Fall Economic Statement, so a corporation with adjusted aggregate investment income over $50,000 keeps its Ontario small business deduction while losing part of the federal one. Whether Ontario parallels the federal *taxable capital* reduction has not been confirmed against the Ontario Act for this build, so neither reduction is applied here and on_t2.business_limit_not_reduced says so. Reading line 426 instead would have applied both reductions to Ontario, overstating Ontario tax for exactly the corporations this change was written for."
     },
     {
       "id": "on_t2.general_income",

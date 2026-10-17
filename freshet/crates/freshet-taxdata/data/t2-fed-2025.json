@@ -1,7 +1,7 @@
 {
   "jurisdiction": "fed",
   "tax_year": 2025,
-  "_comment": "Federal corporate rates. Every value unverified.",
+  "_comment": "Federal corporate rates and the figures in the small business deduction formulas. Every value is cited and has been read against its source.",
   "scalars": {
     "t2_base_rate": {
       "value": "0.38",
@@ -36,6 +36,36 @@
     "t2_donation_limit_rate": {
       "value": "0.75",
       "source": "ITA 110.1(1)(a). The statutory limit is the formula 0.75A + 0.25(B + C + D), where A is the corporation's income and B, C and D arise only from gifts of appreciated capital property and the resulting recapture. This build models no gift of capital property, so B = C = D = 0 and the limit is exactly 0.75 of income for every return it can represent. Read from the Act 2026-09-15 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-110.1.html. LIMITATION: a corporation donating appreciated capital property is entitled to more than this, and would be understated here.",
+      "verified": true
+    },
+    "t2_taxable_capital_threshold": {
+      "value": "10000000",
+      "source": "ITA 125(5.1)(a). The reduction is “A × B ÷ $90,000” where B is “0.225% × (C − $10 million)” and C is taxable capital employed in Canada, so nothing is taken off the business limit until taxable capital passes $10 million. Read from the Act 2026-10-17 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html. Confirmed by CRA, T4012 T2 guide, chapter 4, page 4 of the return: “The business limit is reduced on a straight-line basis for CCPCs … between $10 million and $50 million in the previous year”, checked 2026-10-17 at https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4012/t2-corporation-income-tax-guide-chapter-4-page-4-t2-return.html.",
+      "verified": true
+    },
+    "t2_taxable_capital_rate": {
+      "value": "0.00225",
+      "source": "ITA 125(5.1)(a): B is “0.225% × (C − $10 million)”. Read from the Act 2026-10-17 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html.",
+      "verified": true
+    },
+    "t2_taxable_capital_divisor": {
+      "value": "90000",
+      "source": "ITA 125(5.1)(a): the reduction is “A × B ÷ $90,000”. This divisor is what fixes the top of the phase-out, because 0.225% of $40 million is exactly $90,000: the fraction reaches one, and the business limit nil, at $50 million of taxable capital. It is the figure Budget 2022 changed from $11,250, which had put the top at $15 million; the amendment applies to taxation years beginning on or after 7 April 2022, so the $50 million form governs every year this build supports. Read from the Act 2026-10-17 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html. Confirmed by CRA, T4012 T2 guide, chapter 4: “Large CCPCs that have taxable capital employed in Canada of $50 million or more do not qualify for the SBD”, and “For tax years starting before April 7, 2022, the range is $10 million to $15 million”, checked 2026-10-17 at https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4012/t2-corporation-income-tax-guide-chapter-4-page-4-t2-return.html.",
+      "verified": true
+    },
+    "t2_aaii_threshold": {
+      "value": "50000",
+      "source": "ITA 125(5.1)(b): the reduction is “D/$500,000 × 5(E − $50,000)”, where E is the adjusted aggregate investment income of the corporation and its associated corporations for taxation years ending in the preceding calendar year. Read from the Act 2026-10-17 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html. Confirmed by CRA, Small business deduction rules (Budget 2018 measures), which states the formula as “BL/$500,000 x 5 (AAII - $50,000)”, checked 2026-10-17 at https://www.canada.ca/en/revenue-agency/programs/about-canada-revenue-agency-cra/federal-government-budgets/budget-2018-equality-growth-strong-middle-class/passive-investment-income/small-business-deduction-rules.html.",
+      "verified": true
+    },
+    "t2_aaii_multiplier": {
+      "value": "5",
+      "source": "ITA 125(5.1)(b): the 5 in “D/$500,000 × 5(E − $50,000)” — five dollars of business limit for every dollar of adjusted aggregate investment income over $50,000, which is why the limit is nil at $150,000. Read from the Act 2026-10-17 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html. Confirmed by CRA, T4012 T2 guide, chapter 4: “The business limit is nil once the combined income from passive investments is more than $150,000”, checked 2026-10-17 at https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4012/t2-corporation-income-tax-guide-chapter-4-page-4-t2-return.html.",
+      "verified": true
+    },
+    "t2_aaii_limit_divisor": {
+      "value": "500000",
+      "source": "ITA 125(5.1)(b): the $500,000 in “D/$500,000”. Numerically equal to the business limit and a different thing: this is a fixed divisor in the formula and is not prorated for a short taxation year, while D, the limit itself, is. Held separately from t2_business_limit so that a change to one cannot silently move the other. Read from the Act 2026-10-17 at https://laws-lois.justice.gc.ca/eng/acts/I-3.3/section-125.html.",
       "verified": true
     }
   },

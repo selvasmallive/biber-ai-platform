@@ -197,7 +197,12 @@ fn refuse(
     // A fiscal period is filed under the year it ends in.
     let year = period.end.year as u16;
     // This endpoint files corporate returns only.
-    if !freshet_taxdata::is_certified(freshet_taxdata::Return::T2, year, province) {
+    if !freshet_taxdata::is_certified(
+        freshet_taxdata::Filing::T2 {
+            year_end: period.end,
+        },
+        province,
+    ) {
         return Some(Verdict::no(if freshet_taxdata::in_certification_scope(province) {
             format!(
                 "Freshet is not yet certified by the CRA to transmit a {} {} \
